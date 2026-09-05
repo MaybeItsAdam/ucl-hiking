@@ -16,3 +16,5 @@ fastlane/.env.secret
 fastlane/*.json
 *.jks
 *.keystore
+.env*
+!.env.example
