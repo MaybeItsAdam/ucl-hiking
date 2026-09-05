@@ -31,6 +31,16 @@ export async function POST(request: Request) {
   }
 
   const target = String(body.target || "all");
+
+  // The receiving routes compare this secret and fail closed, so an unset value in
+  // production reports a successful trigger for a sync that is rejected on arrival.
+  if (!process.env.MEMBER_SYNC_SECRET && process.env.NODE_ENV === "production") {
+    return NextResponse.json(
+      { error: "Sync is not configured: MEMBER_SYNC_SECRET is not set" },
+      { status: 503 },
+    );
+  }
+
   const supabase = getSupabaseAdmin();
 
   const { data: sessionSetting } = await supabase

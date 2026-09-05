@@ -69,6 +69,14 @@ instead of duplicating Students' Union portal automation, maps Hiking-specific
 policy, and posts a full snapshot to `/api/sync/members`. Missing rows in a
 successful non-empty snapshot are revoked immediately.
 
+## Toolbox webhooks
+
+`/api/webhooks/toolbox` upserts events straight into Supabase, so it is only
+open to unsigned deliveries during local development. In production it requires
+`TOOLBOX_WEBHOOK_SECRET` and refuses the request with 503 when that is unset.
+Signatures are `t=<unix>,v1=<hex>` over `"<t>.<raw body>"` and are accepted
+within five minutes of `t`, so a captured delivery cannot be replayed later.
+
 ## Checks
 
 ```bash

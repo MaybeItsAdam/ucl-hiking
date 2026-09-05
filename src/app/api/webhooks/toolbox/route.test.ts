@@ -36,7 +36,7 @@ describe("POST /api/webhooks/toolbox", () => {
     delete process.env.TOOLBOX_WEBHOOK_SECRET;
   });
 
-  it("accepts a valid un-signed webhook when secret is not configured", async () => {
+  it("accepts an un-signed webhook outside production when no secret is configured", async () => {
     const payload = {
       event: "event.created",
       data: {
@@ -69,7 +69,7 @@ describe("POST /api/webhooks/toolbox", () => {
       },
     });
 
-    const timestamp = "1700000000";
+    const timestamp = String(Math.floor(Date.now() / 1000));
     const hmac = createHmac("sha256", "whsec_supersecret123")
       .update(`${timestamp}.${payload}`)
       .digest("hex");
@@ -93,12 +93,47 @@ describe("POST /api/webhooks/toolbox", () => {
     const req = new Request("http://localhost:3001/api/webhooks/toolbox", {
       method: "POST",
       headers: {
-        "x-toolbox-signature": "t=1700000000,v1=invalid_signature",
+        "x-toolbox-signature": `t=${Math.floor(Date.now() / 1000)},v1=invalid_signature`,
       },
       body: JSON.stringify({ event: "event.created", data: { id: "evt_1" } }),
     });
 
     const res = await POST(req);
     expect(res.status).toBe(401);
+  });
+
+  it("rejects a correctly signed but stale delivery with 401", async () => {
+    process.env.TOOLBOX_WEBHOOK_SECRET = "whsec_supersecret123";
+    const payload = JSON.stringify({ event: "event.created", data: { id: "evt_1" } });
+    const timestamp = String(Math.floor(Date.now() / 1000) - 3600);
+    const hmac = createHmac("sha256", "whsec_supersecret123")
+      .update(`${timestamp}.${payload}`)
+      .digest("hex");
+
+    const req = new Request("http://localhost:3001/api/webhooks/toolbox", {
+      method: "POST",
+      headers: { "x-toolbox-signature": `t=${timestamp},v1=${hmac}` },
+      body: payload,
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(401);
+    expect(db.upserted).toBeNull();
+  });
+
+  it("refuses un-signed deliveries in production instead of writing them", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    try {
+      const req = new Request("http://localhost:3001/api/webhooks/toolbox", {
+        method: "POST",
+        body: JSON.stringify({ event: "event.created", data: { id: "evt_1" } }),
+      });
+
+      const res = await POST(req);
+      expect(res.status).toBe(503);
+      expect(db.upserted).toBeNull();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

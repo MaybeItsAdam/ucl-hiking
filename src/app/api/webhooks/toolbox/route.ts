@@ -2,12 +2,20 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 
+const SIGNATURE_TOLERANCE_SECONDS = 300;
+
 function verifySignature(payloadText: string, signatureHeader: string | null, secret: string): boolean {
   if (!signatureHeader) return false;
   const parts = signatureHeader.split(",");
   const t = parts.find((p) => p.startsWith("t="))?.slice(2);
   const v1 = parts.find((p) => p.startsWith("v1="))?.slice(3);
   if (!t || !v1) return false;
+
+  // A signature stays valid forever without this, so a captured delivery replays.
+  const timestamp = Number(t);
+  if (!Number.isFinite(timestamp)) return false;
+  const ageSeconds = Math.abs(Date.now() / 1000 - timestamp);
+  if (ageSeconds > SIGNATURE_TOLERANCE_SECONDS) return false;
 
   const expected = createHmac("sha256", secret).update(`${t}.${payloadText}`).digest("hex");
   const a = Buffer.from(v1, "hex");
@@ -19,7 +27,13 @@ export async function POST(request: Request) {
   const rawBody = await request.text();
   const webhookSecret = process.env.TOOLBOX_WEBHOOK_SECRET;
 
-  if (webhookSecret) {
+  if (!webhookSecret) {
+    // Unsigned deliveries are a local-development convenience only. In production
+    // this route writes to the events table, so an unset secret must fail closed.
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json({ error: "Webhook is not configured" }, { status: 503 });
+    }
+  } else {
     const signature = request.headers.get("x-toolbox-signature");
     if (!verifySignature(rawBody, signature, webhookSecret)) {
       return NextResponse.json({ error: "Invalid webhook signature" }, { status: 401 });
