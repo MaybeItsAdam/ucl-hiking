@@ -1,0 +1,5 @@
+httpx<1,>=0.28
+suu[forms] @ git+https://github.com/MaybeItsAdam/suu.git@d23e7a4781ff26b40ed192918ae6dee3ba9caad5
+
+[dev]
+pytest>=8

@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: ucl-hiking-jobs
+Version: 0.1.0
+Summary: Cloud Run jobs for UCL Hiking Club
+Requires-Python: >=3.11
+Requires-Dist: httpx<1,>=0.28
+Requires-Dist: suu[forms] @ git+https://github.com/MaybeItsAdam/suu.git@d23e7a4781ff26b40ed192918ae6dee3ba9caad5
+Provides-Extra: dev
+Requires-Dist: pytest>=8; extra == "dev"

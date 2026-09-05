@@ -1,0 +1,14 @@
+node_modules
+.next
+out
+.env
+.env.local
+.vercel
+*.log
+.DS_Store
+coverage
+.pytest_cache
+__pycache__
+*.pyc
+.venv
+tsconfig.tsbuildinfo

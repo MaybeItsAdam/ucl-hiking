@@ -1,0 +1,16 @@
+README.md
+pyproject.toml
+src/hiking_sync/__init__.py
+src/hiking_sync/__main__.py
+src/hiking_sync/events.py
+src/hiking_sync/policy.py
+src/hiking_sync/sheets.py
+src/ucl_hiking_jobs.egg-info/PKG-INFO
+src/ucl_hiking_jobs.egg-info/SOURCES.txt
+src/ucl_hiking_jobs.egg-info/dependency_links.txt
+src/ucl_hiking_jobs.egg-info/entry_points.txt
+src/ucl_hiking_jobs.egg-info/requires.txt
+src/ucl_hiking_jobs.egg-info/top_level.txt
+tests/test_events.py
+tests/test_policy.py
+tests/test_sheets.py
