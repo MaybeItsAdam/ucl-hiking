@@ -121,6 +121,99 @@ describe("POST /api/webhooks/toolbox", () => {
     expect(db.upserted).toBeNull();
   });
 
+  it("accepts the payload shape Toolbox actually sends", async () => {
+    // { type, data: { kind, ...event } } with startTime/endTime — see
+    // buildWebhookPayload and mapDeveloperAdhocEvent in the Toolbox repo.
+    // This route originally read `body.event` and `data.startsAt`, so every
+    // real delivery would have been rejected as malformed.
+    const req = new Request("http://localhost:3001/api/webhooks/toolbox", {
+      method: "POST",
+      body: JSON.stringify({
+        id: "whd_abc123",
+        type: "event.created",
+        createdAt: "2026-09-05T12:00:00Z",
+        batchId: "batch_1",
+        organiserId: "org_hiking",
+        data: {
+          kind: "adhoc",
+          id: "evt_toolbox_1",
+          title: "Box Hill Hike",
+          startTime: "2026-09-10T09:00:00Z",
+          endTime: "2026-09-10T17:00:00Z",
+          location: "Surrey",
+        },
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const row = db.upserted as Record<string, unknown>;
+    expect(row.suu_event_id).toBe("evt_toolbox_1");
+    expect(row.title).toBe("Box Hill Hike");
+    expect(row.starts_at).toBe("2026-09-10T09:00:00Z");
+    expect(row.ends_at).toBe("2026-09-10T17:00:00Z");
+  });
+
+  it("omits ticketing fields Toolbox does not send, rather than zeroing them", async () => {
+    // capacity/ticketsSold/pricePence come from the SU sync job. Writing them
+    // unconditionally meant a Toolbox delivery reset all three to 0.
+    const req = new Request("http://localhost:3001/api/webhooks/toolbox", {
+      method: "POST",
+      body: JSON.stringify({
+        type: "event.updated",
+        data: { kind: "adhoc", id: "evt_1", title: "Hike", startTime: "2026-09-10T09:00:00Z" },
+      }),
+    });
+
+    await POST(req);
+    const row = db.upserted as Record<string, unknown>;
+    expect(row).not.toHaveProperty("capacity");
+    expect(row).not.toHaveProperty("tickets_sold");
+    expect(row).not.toHaveProperty("price_pence");
+    expect(row).not.toHaveProperty("status");
+  });
+
+  it("still accepts the sync job's startsAt/endsAt vocabulary", async () => {
+    const req = new Request("http://localhost:3001/api/webhooks/toolbox", {
+      method: "POST",
+      body: JSON.stringify({
+        event: "event.created",
+        data: { id: "evt_2", title: "Snowdon", startsAt: "2026-10-01T08:00:00Z", capacity: 20 },
+      }),
+    });
+
+    await POST(req);
+    const row = db.upserted as Record<string, unknown>;
+    expect(row.starts_at).toBe("2026-10-01T08:00:00Z");
+    expect(row.capacity).toBe(20);
+  });
+
+  it("treats event.superseded as a removal", async () => {
+    // Toolbox emits it when a duplicate loses a resolution; the survivor is
+    // delivered separately, so keeping this one shows the reader both halves.
+    const req = new Request("http://localhost:3001/api/webhooks/toolbox", {
+      method: "POST",
+      body: JSON.stringify({ type: "event.superseded", data: { id: "evt_3", title: "Dupe" } }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    expect((await res.json()).action).toBe("deleted");
+    expect(db.upserted).toBeNull();
+  });
+
+  it("rejects an upsert with no title instead of inventing one", async () => {
+    // events.title is NOT NULL with no default.
+    const req = new Request("http://localhost:3001/api/webhooks/toolbox", {
+      method: "POST",
+      body: JSON.stringify({ type: "event.created", data: { id: "evt_4" } }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(400);
+    expect(db.upserted).toBeNull();
+  });
+
   it("refuses un-signed deliveries in production instead of writing them", async () => {
     vi.stubEnv("NODE_ENV", "production");
     try {

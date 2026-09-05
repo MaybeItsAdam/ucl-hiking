@@ -76,6 +76,15 @@ open to unsigned deliveries during local development. In production it requires
 `TOOLBOX_WEBHOOK_SECRET` and refuses the request with 503 when that is unset.
 Signatures are `t=<unix>,v1=<hex>` over `"<t>.<raw body>"` and are accepted
 within five minutes of `t`, so a captured delivery cannot be replayed later.
+That matches Toolbox's `signWebhook`/`SIGNATURE_TOLERANCE_SECONDS` exactly.
+
+The body Toolbox sends is `{ id, type, createdAt, batchId, organiserId, data }`
+with `data` as `{ kind, ...the event row }` — note `type`, not `event`, and
+`startTime`/`endTime`, not `startsAt`/`endsAt`. Both vocabularies are accepted,
+because the Cloud Run sync job posts the second to `/api/sync/events`. Toolbox
+sends no `capacity`, `ticketsSold` or `pricePence` (they are SU ticketing
+fields it has no source for), so the upsert writes only the columns a delivery
+actually carried rather than resetting those three to zero.
 
 ## Checks
 
