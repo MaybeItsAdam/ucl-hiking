@@ -1,0 +1,11 @@
+for_platform :ios do
+  app_identifier "uk.org.ucl.hiking"
+  apple_id ENV["ASC_APPLE_ID"]
+  itc_team_id ENV["ASC_ITC_TEAM_ID"]
+  team_id ENV["APPLE_TEAM_ID"]
+end
+
+for_platform :android do
+  package_name "uk.org.ucl.hiking"
+  json_key_file ENV["PLAY_JSON_KEY_FILE"]
+end

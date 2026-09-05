@@ -12,3 +12,7 @@ __pycache__
 *.pyc
 .venv
 tsconfig.tsbuildinfo
+fastlane/.env.secret
+fastlane/*.json
+*.jks
+*.keystore

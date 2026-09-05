@@ -1,0 +1,151 @@
+require "base64"
+require "fileutils"
+require "json"
+require "shellwords"
+require "tmpdir"
+
+default_platform(:ios)
+
+before_all do
+  ENV["FASTLANE_XCODEBUILD_SETTINGS_TIMEOUT"] ||= "120"
+end
+
+def app_version
+  JSON.parse(File.read(File.expand_path("../package.json", __dir__))).fetch("version")
+end
+
+def ci_build_number
+  ENV.fetch("BUILD_NUMBER") do
+    UI.user_error!("BUILD_NUMBER is required (CI passes github.run_number). Set it higher than the last store submission.")
+  end
+end
+
+PLAY_TRACKS = %w[internal alpha beta production].freeze
+
+def next_play_version_code(package_name)
+  codes = PLAY_TRACKS.flat_map do |track|
+    begin
+      google_play_track_version_codes(
+        package_name: package_name,
+        track: track,
+        json_key: ENV["PLAY_JSON_KEY_FILE"],
+      )
+    rescue StandardError => e
+      UI.important("Could not read '#{track}' track version codes: #{e.message}")
+      []
+    end
+  end
+
+  return 1 if codes.empty?
+  codes.map(&:to_i).max + 1
+end
+
+platform :ios do
+  desc "Create/refresh the App Store cert + provisioning profile in the match repo"
+  lane :signing do
+    api_key = app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_content: ENV["ASC_PRIVATE_KEY"],
+      is_key_content_base64: true,
+    )
+
+    match(type: "appstore", readonly: false, api_key: api_key)
+  end
+
+  desc "Build and upload a build to TestFlight"
+  lane :beta do
+    setup_ci if ENV["CI"]
+
+    match(type: "appstore", readonly: true)
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_content: ENV["ASC_PRIVATE_KEY"],
+      is_key_content_base64: true,
+    )
+
+    increment_version_number(
+      xcodeproj: "ios/App/App.xcodeproj",
+      version_number: app_version,
+    )
+    increment_build_number(
+      xcodeproj: "ios/App/App.xcodeproj",
+      build_number: ci_build_number,
+    )
+    build_app(
+      workspace: "ios/App/App.xcworkspace",
+      scheme: "App",
+      export_method: "app-store",
+    )
+    upload_to_testflight(api_key: api_key)
+  end
+
+  desc "Build and upload a build to the App Store (draft)"
+  lane :release do
+    setup_ci if ENV["CI"]
+
+    match(type: "appstore", readonly: true)
+
+    api_key = app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"],
+      key_content: ENV["ASC_PRIVATE_KEY"],
+      is_key_content_base64: true,
+    )
+
+    increment_version_number(
+      xcodeproj: "ios/App/App.xcodeproj",
+      version_number: app_version,
+    )
+    increment_build_number(
+      xcodeproj: "ios/App/App.xcodeproj",
+      build_number: ci_build_number,
+    )
+    build_app(
+      workspace: "ios/App/App.xcworkspace",
+      scheme: "App",
+      export_method: "app-store",
+    )
+    upload_to_app_store(
+      api_key: api_key,
+      submit_for_review: false,
+      skip_screenshots: true,
+      skip_metadata: true,
+      force: true,
+    )
+  end
+end
+
+platform :android do
+  PLAY_PACKAGE_NAME = "uk.org.ucl.hiking".freeze
+
+  def prepare_android_build
+    ENV["BUILD_NUMBER"] = next_play_version_code(PLAY_PACKAGE_NAME).to_s
+    UI.message("versionCode #{ENV['BUILD_NUMBER']}, versionName #{app_version}")
+  end
+
+  desc "Build and upload a build to the Play Console internal track"
+  lane :beta do
+    prepare_android_build
+    gradle(project_dir: "android", task: "bundleRelease")
+    upload_to_play_store(
+      track: "internal",
+      aab: "android/app/build/outputs/bundle/release/app-release.aab",
+      json_key: ENV["PLAY_JSON_KEY_FILE"],
+    )
+  end
+
+  desc "Build and upload a build to the Play Console production track"
+  lane :release do
+    prepare_android_build
+    gradle(project_dir: "android", task: "bundleRelease")
+    upload_to_play_store(
+      track: "production",
+      rollout: "0.1",
+      aab: "android/app/build/outputs/bundle/release/app-release.aab",
+      json_key: ENV["PLAY_JSON_KEY_FILE"],
+    )
+  end
+end
