@@ -261,8 +261,17 @@ export async function POST(request: Request) {
     body = {};
   }
 
+  let cleanConnectionString = connectionString;
+  try {
+    const parsed = new URL(cleanConnectionString);
+    parsed.searchParams.delete("sslmode");
+    cleanConnectionString = parsed.toString();
+  } catch {}
+
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+
   const client = new Client({
-    connectionString,
+    connectionString: cleanConnectionString,
     ssl: { rejectUnauthorized: false },
   });
 
