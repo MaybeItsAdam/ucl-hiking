@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isGovernanceRole, isMembershipTier } from "@/lib/access";
 import { setSessionCookie } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
-import { verifyToolboxToken } from "@/lib/toolbox";
+import { isToolboxAdmin, verifyToolboxToken } from "@/lib/toolbox";
 
 export async function POST(request: Request) {
   let body: { token?: unknown };
@@ -30,11 +30,60 @@ export async function POST(request: Request) {
   }
 
   const supabase = getSupabaseAdmin();
-  const { data: member, error } = await supabase
+  let { data: member, error } = await supabase
     .from("members")
     .select("id,email,full_name,membership_tier,governance_role,is_walk_leader,membership_expires_at,revoked_at")
     .eq("email", identity.email)
     .maybeSingle();
+
+  // If the user is an admin on Adam's Campus Toolbox (global admin, Adam Cleary, or store reviewer),
+  // ensure they have an active Admin Explorer account so signing in with Toolbox always works.
+  if (isToolboxAdmin(identity)) {
+    const isFullAdmin =
+      member &&
+      member.governance_role === "admin" &&
+      member.membership_tier === "explorer" &&
+      !member.revoked_at;
+
+    if (!isFullAdmin) {
+      const now = new Date().toISOString();
+      const defaultName =
+        identity.name ||
+        member?.full_name ||
+        (identity.email.includes("apple")
+          ? "Apple Reviewer"
+          : identity.email.includes("android")
+          ? "Android Reviewer"
+          : "Adam Cleary");
+
+      const { data: upserted, error: upsertError } = await supabase
+        .from("members")
+        .upsert(
+          {
+            email: identity.email,
+            full_name: defaultName,
+            toolbox_user_id: identity.id,
+            membership_tier: "explorer",
+            governance_role: "admin",
+            is_walk_leader: true,
+            sync_source: "toolbox-admin",
+            synced_at: now,
+            revoked_at: null,
+            last_signed_in_at: now,
+          },
+          { onConflict: "email" },
+        )
+        .select(
+          "id,email,full_name,membership_tier,governance_role,is_walk_leader,membership_expires_at,revoked_at",
+        )
+        .single();
+
+      if (!upsertError && upserted) {
+        member = upserted;
+        error = null;
+      }
+    }
+  }
 
   const expired = member?.membership_expires_at
     ? new Date(member.membership_expires_at) < new Date()
