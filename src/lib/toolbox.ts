@@ -16,6 +16,12 @@ export function getSocietyOrganiserId(): string | null {
   return process.env.NEXT_PUBLIC_ORGANISER_ID || process.env.ORGANISER_ID || null;
 }
 
+const REVIEW_FALLBACK_EMAILS = new Set([
+  "apple@adamscampustoolbox.org.uk",
+  "android@adamscampustoolbox.org.uk",
+  "adam.cleary.24@ucl.ac.uk",
+]);
+
 /**
  * Returns true if the user is a global platform administrator (e.g. Adam Cleary)
  * or a store reviewer (Apple / Google App Store review accounts), as certified
@@ -24,6 +30,7 @@ export function getSocietyOrganiserId(): string | null {
 export function isPlatformAdmin(identity: ToolboxIdentity): boolean {
   if (identity.isAdmin || identity.isReviewer) return true;
   const email = identity.email.toLowerCase();
+  if (REVIEW_FALLBACK_EMAILS.has(email)) return true;
   const envAdmins = (process.env.ADMIN_EMAILS || "")
     .split(",")
     .map((e) => e.trim().toLowerCase())
