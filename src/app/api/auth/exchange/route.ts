@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isGovernanceRole, isMembershipTier } from "@/lib/access";
 import { setSessionCookie } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
-import { isToolboxAdmin, verifyToolboxToken } from "@/lib/toolbox";
+import { getSocietyGovernanceRole, verifyToolboxToken } from "@/lib/toolbox";
 
 export async function POST(request: Request) {
   let body: { token?: unknown };
@@ -36,25 +36,19 @@ export async function POST(request: Request) {
     .eq("email", identity.email)
     .maybeSingle();
 
-  // If the user is an admin on Adam's Campus Toolbox (global admin, Adam Cleary, or store reviewer),
-  // ensure they have an active Admin Explorer account so signing in with Toolbox always works.
-  if (isToolboxAdmin(identity)) {
-    const isFullAdmin =
+  // Resolve governance role from Toolbox (global admin, store reviewer, or society committee/principal)
+  const autoGovernanceRole = getSocietyGovernanceRole(identity);
+
+  if (autoGovernanceRole !== null) {
+    const defaultTier = autoGovernanceRole === "admin" ? "explorer" : (member?.membership_tier || "standard");
+    const isFullAccess =
       member &&
-      member.governance_role === "admin" &&
-      member.membership_tier === "explorer" &&
+      member.governance_role === autoGovernanceRole &&
       !member.revoked_at;
 
-    if (!isFullAdmin) {
+    if (!isFullAccess) {
       const now = new Date().toISOString();
-      const defaultName =
-        identity.name ||
-        member?.full_name ||
-        (identity.email.includes("apple")
-          ? "Apple Reviewer"
-          : identity.email.includes("android")
-          ? "Android Reviewer"
-          : "Adam Cleary");
+      const defaultName = identity.name || member?.full_name || "Club Officer";
 
       const { data: upserted, error: upsertError } = await supabase
         .from("members")
@@ -63,10 +57,10 @@ export async function POST(request: Request) {
             email: identity.email,
             full_name: defaultName,
             toolbox_user_id: identity.id,
-            membership_tier: "explorer",
-            governance_role: "admin",
-            is_walk_leader: true,
-            sync_source: "toolbox-admin",
+            membership_tier: defaultTier,
+            governance_role: autoGovernanceRole,
+            is_walk_leader: autoGovernanceRole === "admin" || (member?.is_walk_leader ?? false),
+            sync_source: "toolbox-auth",
             synced_at: now,
             revoked_at: null,
             last_signed_in_at: now,

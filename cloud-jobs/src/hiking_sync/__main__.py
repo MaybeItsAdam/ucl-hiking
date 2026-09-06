@@ -94,16 +94,8 @@ def main() -> None:
 
     setup_suu_session_env()
 
-    default_admins = frozenset(
-        {
-            "adam.cleary.24@ucl.ac.uk",
-            "apple@adamscampustoolbox.org.uk",
-            "android@adamscampustoolbox.org.uk",
-        }
-    )
-
     policy = RolePolicy(
-        admin_emails=csv_set("ADMIN_EMAILS") | default_admins,
+        admin_emails=csv_set("ADMIN_EMAILS"),
         walk_leader_emails=csv_set("WALK_LEADER_EMAILS"),
         principal_role_keywords=tuple(
             value.strip().lower()
