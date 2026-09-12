@@ -29,6 +29,10 @@ export async function GET() {
   }
 
   if (!isSupabaseConfigured()) {
+    if (process.env.NODE_ENV !== "production") {
+      const { getDevSyncHistory } = await import("@/lib/dev-store");
+      return NextResponse.json(getDevSyncHistory());
+    }
     return NextResponse.json({ error: "Database not configured" }, { status: 503 });
   }
 

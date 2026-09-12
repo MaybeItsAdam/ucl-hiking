@@ -20,6 +20,18 @@ export async function GET() {
   }
 
   if (!isSupabaseConfigured()) {
+    if (process.env.NODE_ENV !== "production") {
+      const { getDevSessionInfo } = await import("@/lib/dev-store");
+      const info = getDevSessionInfo();
+      return NextResponse.json({
+        sessionId: info.session_id,
+        authState: info.auth_state,
+        status: info.status,
+        lastError: info.last_error,
+        lastCheckedAt: info.last_checked_at,
+        updatedAt: info.updated_at,
+      });
+    }
     return NextResponse.json({ error: "Database not configured" }, { status: 503 });
   }
 
@@ -52,10 +64,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Forbidden: Principal or Admin access required" }, { status: 403 });
   }
 
-  if (!isSupabaseConfigured()) {
-    return NextResponse.json({ error: "Database not configured" }, { status: 503 });
-  }
-
   let body: { sessionId?: unknown; authState?: unknown };
   try {
     body = await request.json();
@@ -71,6 +79,22 @@ export async function POST(request: Request) {
   }
 
   const now = new Date().toISOString();
+
+  if (!isSupabaseConfigured()) {
+    if (process.env.NODE_ENV !== "production") {
+      const { updateDevSessionSettings } = await import("@/lib/dev-store");
+      updateDevSessionSettings({
+        session_id: sessionId || null,
+        auth_state: authState || null,
+        status: "active",
+        last_error: null,
+        last_checked_at: now,
+      });
+      return NextResponse.json({ ok: true, status: "active", updatedAt: now });
+    }
+    return NextResponse.json({ error: "Database not configured" }, { status: 503 });
+  }
+
   const supabase = getSupabaseAdmin();
 
   const { error } = await supabase.from("suu_session_settings").upsert(

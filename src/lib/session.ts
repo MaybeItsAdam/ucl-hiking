@@ -69,13 +69,68 @@ export async function getSession(): Promise<HikingSession | null> {
   return token ? readSessionToken(token) : null;
 }
 
-/**
- * Resolve access from Supabase on every privileged request. The access fields
- * captured at sign-in are display history only and never authorize a request.
- */
-export async function getCurrentMember(): Promise<Member | null> {
+export interface RolePreviewConfig {
+  active: boolean;
+  membershipTier: MembershipTier;
+  governanceRole: GovernanceRole | null;
+  isWalkLeader: boolean;
+  simulateSignedOut?: boolean;
+}
+
+const ROLE_PREVIEW_COOKIE = "ucl_hiking_role_preview";
+
+export async function getRolePreview(): Promise<RolePreviewConfig | null> {
+  try {
+    const raw = (await cookies()).get(ROLE_PREVIEW_COOKIE)?.value;
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed as RolePreviewConfig;
+  } catch {
+    return null;
+  }
+}
+
+export async function setRolePreviewCookie(config: RolePreviewConfig): Promise<void> {
+  (await cookies()).set(ROLE_PREVIEW_COOKIE, JSON.stringify(config), {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 60 * 60 * 24, // 24 hours
+  });
+}
+
+export async function clearRolePreviewCookie(): Promise<void> {
+  (await cookies()).set(ROLE_PREVIEW_COOKIE, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 0,
+  });
+}
+
+export async function getRealMember(): Promise<Member | null> {
   const session = await getSession();
-  if (!session || !isSupabaseConfigured()) return null;
+  if (!session) return null;
+
+  if (!isSupabaseConfigured()) {
+    if (process.env.NODE_ENV !== "production" || session.governanceRoleAtSignIn === "admin") {
+      return {
+        id: session.memberId,
+        email: session.email,
+        full_name: session.name || "Hiker",
+        membership_tier: session.membershipTierAtSignIn,
+        governance_role: session.governanceRoleAtSignIn,
+        is_walk_leader: session.wasWalkLeaderAtSignIn,
+        membership_expires_at: null,
+        synced_at: new Date().toISOString(),
+        sync_source: "dev-session",
+      };
+    }
+    return null;
+  }
 
   const { data, error } = await getSupabaseAdmin()
     .from("members")
@@ -91,6 +146,61 @@ export async function getCurrentMember(): Promise<Member | null> {
   return data as Member;
 }
 
+export async function getRolePreviewState(): Promise<{
+  isRealAdmin: boolean;
+  preview: RolePreviewConfig | null;
+  realMember: Member | null;
+}> {
+  const realMember = await getRealMember();
+  const isRealAdmin = realMember?.governance_role === "admin";
+  if (!isRealAdmin) {
+    return { isRealAdmin: false, preview: null, realMember: null };
+  }
+  const preview = await getRolePreview();
+  return {
+    isRealAdmin: true,
+    preview: preview?.active ? preview : null,
+    realMember,
+  };
+}
+
+/**
+ * Resolve access from Supabase on every privileged request. The access fields
+ * captured at sign-in are display history only and never authorize a request.
+ * If a real admin has activated role preview, permissions are overridden dynamically.
+ */
+export async function getCurrentMember(): Promise<Member | null> {
+  const realMember = await getRealMember();
+  if (!realMember) return null;
+
+  // Only genuine admins can preview roles
+  if (realMember.governance_role !== "admin") {
+    return realMember;
+  }
+
+  const preview = await getRolePreview();
+  if (!preview || !preview.active) {
+    return realMember;
+  }
+
+  if (preview.simulateSignedOut) {
+    return null;
+  }
+
+  return {
+    ...realMember,
+    membership_tier: preview.membershipTier,
+    governance_role: preview.governanceRole,
+    is_walk_leader: Boolean(preview.isWalkLeader),
+    is_preview: true,
+    real_governance_role: "admin",
+  };
+}
+
 export function sessionCookieName(): string {
   return COOKIE_NAME;
+}
+
+export function rolePreviewCookieName(): string {
+  return ROLE_PREVIEW_COOKIE;
 }

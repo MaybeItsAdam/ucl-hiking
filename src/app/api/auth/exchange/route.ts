@@ -15,9 +15,6 @@ export async function POST(request: Request) {
   if (typeof body.token !== "string" || body.token.length > 8_000) {
     return NextResponse.json({ error: "Missing sign-in token" }, { status: 400 });
   }
-  if (!isSupabaseConfigured()) {
-    return NextResponse.json({ error: "Membership service is not configured" }, { status: 503 });
-  }
 
   let identity;
   try {
@@ -29,15 +26,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "UCL sign-in has expired or is invalid" }, { status: 401 });
   }
 
+  // Resolve governance role from Toolbox (global admin, store reviewer, or society committee/principal)
+  const autoGovernanceRole = getSocietyGovernanceRole(identity);
+
+  if (!isSupabaseConfigured()) {
+    if (process.env.NODE_ENV !== "production" || autoGovernanceRole !== null) {
+      await setSessionCookie({
+        toolboxUserId: identity.id,
+        memberId: `member-${identity.id}`,
+        email: identity.email,
+        name: identity.name ?? undefined,
+        membershipTierAtSignIn: autoGovernanceRole === "admin" ? "explorer" : "standard",
+        governanceRoleAtSignIn: autoGovernanceRole,
+        wasWalkLeaderAtSignIn: autoGovernanceRole === "admin",
+      });
+      return NextResponse.json({ ok: true, redirectTo: "/portal" });
+    }
+    return NextResponse.json({ error: "Membership service is not configured" }, { status: 503 });
+  }
+
   const supabase = getSupabaseAdmin();
   let { data: member, error } = await supabase
     .from("members")
     .select("id,email,full_name,membership_tier,governance_role,is_walk_leader,membership_expires_at,revoked_at")
     .eq("email", identity.email)
     .maybeSingle();
-
-  // Resolve governance role from Toolbox (global admin, store reviewer, or society committee/principal)
-  const autoGovernanceRole = getSocietyGovernanceRole(identity);
 
   if (autoGovernanceRole !== null) {
     const defaultTier = autoGovernanceRole === "admin" ? "explorer" : (member?.membership_tier || "standard");

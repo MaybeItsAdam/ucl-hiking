@@ -7,6 +7,11 @@ export const metadata: Metadata = {
   description: "Weekend walks, mountain weekends and good company. Open to every UCL student.",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">

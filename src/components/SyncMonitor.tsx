@@ -28,6 +28,7 @@ export function SyncMonitor({ isPrincipal }: { isPrincipal: boolean }) {
   const [eventSyncs, setEventSyncs] = useState<SyncRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncingTarget, setSyncingTarget] = useState<string | null>(null);
+  const [societyGroup, setSocietyGroup] = useState<string>("Hiking Club");
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showSessionManager, setShowSessionManager] = useState(false);
 
@@ -75,7 +76,10 @@ export function SyncMonitor({ isPrincipal }: { isPrincipal: boolean }) {
       const res = await fetch("/api/sync/trigger", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target }),
+        body: JSON.stringify({
+          target,
+          group: societyGroup.trim() || "Hiking Club",
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -178,6 +182,48 @@ export function SyncMonitor({ isPrincipal }: { isPrincipal: boolean }) {
           />
         </div>
       )}
+
+      <div style={{ margin: "16px 0", padding: "14px", background: "var(--color-surface, #f8fafc)", borderRadius: 10, border: "1px solid var(--color-border, #e2e8f0)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 6 }}>
+          <label style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text, #0f172a)", display: "flex", alignItems: "center", gap: 6 }}>
+            <span>Target Society / Club to Sync:</span>
+            {societyGroup !== "Hiking Club" && (
+              <span style={{ fontSize: 11, background: "#fef3c7", color: "#92400e", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>
+                Custom Society Testing
+              </span>
+            )}
+          </label>
+          {societyGroup !== "Hiking Club" && (
+            <button
+              type="button"
+              onClick={() => setSocietyGroup("Hiking Club")}
+              style={{ fontSize: 11, padding: "4px 8px", background: "none", border: "1px solid #cbd5e0", borderRadius: 6, cursor: "pointer" }}
+            >
+              Reset to Hiking Club
+            </button>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input
+            type="text"
+            value={societyGroup}
+            onChange={(e) => setSocietyGroup(e.target.value)}
+            placeholder="e.g. Hiking Club, Barbell Club, or group slug"
+            style={{
+              flex: 1,
+              padding: "8px 12px",
+              fontSize: 13,
+              borderRadius: 6,
+              border: "1px solid var(--color-border, #cbd5e0)",
+              background: "var(--color-bg, #ffffff)",
+              color: "inherit",
+            }}
+          />
+        </div>
+        <div style={{ marginTop: 6, fontSize: 11, opacity: 0.75, lineHeight: 1.4 }}>
+          💡 To test seeding members from another club or society you have committee access to, type the society name or URL slug (e.g. <code>barbell-club</code> or <code>Barbell Club</code>) and click refresh below.
+        </div>
+      </div>
 
       <div className="sync-monitor-actions">
         <button

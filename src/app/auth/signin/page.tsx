@@ -78,6 +78,16 @@ export default function SignInPage() {
             <span>{opening ? "Opening UCL Sign-In..." : "Continue with UCL Sign-In"}</span>
             <ChevronRight size={18} />
           </a>
+
+          {process.env.NODE_ENV === "development" && (
+            <a
+              className="button full-width"
+              style={{ marginTop: 12, background: "#f1f5f9", borderColor: "#94a3b8", color: "#1e293b", fontSize: 13 }}
+              href="/api/auth/dev-login"
+            >
+              <span>⚡ Quick Dev Sign-In (Local Admin)</span>
+            </a>
+          )}
         </div>
 
         <Link className="auth-home" href="/">

@@ -13,9 +13,6 @@ export async function PATCH(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!isSupabaseConfigured()) {
-    return NextResponse.json({ error: "Database not configured" }, { status: 503 });
-  }
 
   const profile = {
     membershipTier: member.membership_tier,
@@ -37,6 +34,23 @@ export async function PATCH(
 
   if (!["approved", "rejected", "returned", "cancelled"].includes(statusStr)) {
     return NextResponse.json({ error: "Invalid request status" }, { status: 400 });
+  }
+
+  if (!isSupabaseConfigured()) {
+    if (process.env.NODE_ENV !== "production") {
+      const { updateDevEquipmentRequestStatus } = await import("@/lib/dev-store");
+      const updated = updateDevEquipmentRequestStatus(
+        id,
+        statusStr as "approved" | "rejected" | "returned" | "cancelled",
+        notes || undefined,
+        member.id,
+      );
+      if (!updated) {
+        return NextResponse.json({ error: "Request not found" }, { status: 404 });
+      }
+      return NextResponse.json({ ok: true, request: updated });
+    }
+    return NextResponse.json({ error: "Database not configured" }, { status: 503 });
   }
 
   const supabase = getSupabaseAdmin();

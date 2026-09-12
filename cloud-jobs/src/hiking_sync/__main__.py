@@ -44,11 +44,26 @@ def setup_suu_session_env() -> None:
 
     if session_id.startswith("{") and session_id.endswith("}"):
         os.environ["SUU_AUTH_STATE_JSON"] = session_id
-    elif len(session_id) > 100 and "=" in session_id:
+    elif len(session_id) > 100 and not any(sep in session_id for sep in (";", " ", "=")):
         os.environ["SUU_AUTH_STATE_BASE64"] = session_id
     else:
-        state = {
-            "cookies": [
+        cookies = []
+        if "=" in session_id:
+            for part in session_id.split(";"):
+                part = part.strip()
+                if "=" in part:
+                    c_name, c_val = part.split("=", 1)
+                    cookies.append({
+                        "name": c_name.strip(),
+                        "value": c_val.strip(),
+                        "domain": "studentsunionucl.org",
+                        "path": "/",
+                        "httpOnly": True,
+                        "secure": True,
+                        "sameSite": "Lax",
+                    })
+        else:
+            cookies = [
                 {
                     "name": ".AspNet.Cookies",
                     "value": session_id,
@@ -67,7 +82,19 @@ def setup_suu_session_env() -> None:
                     "secure": True,
                     "sameSite": "Lax",
                 },
-            ],
+                {
+                    "name": "SSESS41428e140b4dc9b07f8c5c3e1fd73f96",
+                    "value": session_id,
+                    "domain": "studentsunionucl.org",
+                    "path": "/",
+                    "httpOnly": True,
+                    "secure": True,
+                    "sameSite": "Lax",
+                },
+            ]
+
+        state = {
+            "cookies": cookies,
             "origins": [],
         }
         os.environ["SUU_AUTH_STATE_JSON"] = json.dumps(state)
@@ -87,7 +114,15 @@ def report_session_expiration(web_url: str, sync_secret: str, error_msg: str) ->
 
 
 def main() -> None:
-    group = os.environ.get("SUU_GROUP", "Hiking Club")
+    custom_group = None
+    for i, arg in enumerate(sys.argv):
+        if arg == "--group" and i + 1 < len(sys.argv):
+            custom_group = sys.argv[i + 1]
+        elif arg.startswith("--group="):
+            custom_group = arg.split("=", 1)[1]
+
+    group = (custom_group or os.environ.get("SUU_GROUP", "Hiking Club")).strip()
+    source_name = f"suu-{group.lower().replace(' ', '-')}" if group.lower() != "hiking club" else "suu-cloud-run"
     web_url = required("HIKING_WEB_URL").rstrip("/")
     sync_secret = required("MEMBER_SYNC_SECRET")
     sheet_id = os.environ.get("GOOGLE_SHEET_ID", "")
@@ -111,11 +146,11 @@ def main() -> None:
         error_text = str(error)
         if any(kw in error_text.lower() for kw in ("login", "access denied", "401", "403", "expired", "authenticated")):
             report_session_expiration(web_url, sync_secret, f"Member sync auth failed: {error_text}")
-        raise RuntimeError(f"SUU member retrieval failed: {error_text}") from error
+        raise RuntimeError(f"SUU member retrieval for '{group}' failed: {error_text}") from error
 
     member_rows = build_sync_rows(members, committee, policy)
     if not member_rows:
-        raise RuntimeError("SUU returned no valid members; refusing an empty full snapshot")
+        raise RuntimeError(f"SUU returned no valid members for '{group}'; refusing an empty full snapshot")
 
     # Fetch event statuses using suu
     raw_sales: list[dict[str, Any]] = []
@@ -130,7 +165,7 @@ def main() -> None:
     response = httpx.post(
         f"{web_url}/api/sync/members",
         headers={"x-member-sync-secret": sync_secret},
-        json={"source": "suu-cloud-run", "fullSnapshot": True, "members": member_rows},
+        json={"source": source_name, "fullSnapshot": True, "members": member_rows},
         timeout=30,
     )
     response.raise_for_status()
@@ -141,7 +176,7 @@ def main() -> None:
             event_resp = httpx.post(
                 f"{web_url}/api/sync/events",
                 headers={"x-member-sync-secret": sync_secret},
-                json={"source": "suu-cloud-run", "events": event_rows},
+                json={"source": source_name, "events": event_rows},
                 timeout=30,
             )
             event_resp.raise_for_status()
@@ -150,7 +185,37 @@ def main() -> None:
 
     # Seed/Update Google Sheet if sheet ID configured
     if sheet_id:
-        sync_to_google_sheet(sheet_id, member_rows, event_rows)
+        equipment_rows: list[dict[str, Any]] = []
+        request_rows: list[dict[str, Any]] = []
+        try:
+            eq_resp = httpx.get(
+                f"{web_url}/api/equipment",
+                headers={"x-member-sync-secret": sync_secret},
+                timeout=15,
+            )
+            if eq_resp.is_success:
+                equipment_rows = eq_resp.json().get("equipment", [])
+        except Exception as err:
+            print(f"Equipment fetch warning: {err}", file=sys.stderr)
+
+        try:
+            req_resp = httpx.get(
+                f"{web_url}/api/equipment/requests",
+                headers={"x-member-sync-secret": sync_secret},
+                timeout=15,
+            )
+            if req_resp.is_success:
+                request_rows = req_resp.json().get("requests", [])
+        except Exception as err:
+            print(f"Equipment requests fetch warning: {err}", file=sys.stderr)
+
+        sync_to_google_sheet(
+            sheet_id,
+            members=member_rows,
+            events=event_rows,
+            equipment=equipment_rows,
+            equipment_requests=request_rows,
+        )
 
     # Report active session status
     try:

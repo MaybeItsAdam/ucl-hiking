@@ -1,25 +1,46 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { can } from "@/lib/access";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 
-export async function GET() {
-  const member = await getCurrentMember();
-  if (!member) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+function secretMatches(provided: string | null): boolean {
+  const expected = process.env.MEMBER_SYNC_SECRET;
+  if (!expected || !provided) return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+export async function GET(request: Request) {
+  const isSync = secretMatches(request.headers.get("x-member-sync-secret"));
+  let member = null;
+  let isCommittee = false;
+
+  if (isSync) {
+    isCommittee = true;
+  } else {
+    member = await getCurrentMember();
+    if (!member) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const profile = {
+      membershipTier: member.membership_tier,
+      governanceRole: member.governance_role,
+      isWalkLeader: member.is_walk_leader,
+    };
+    isCommittee = can(profile, "review_equipment_requests");
   }
 
   if (!isSupabaseConfigured()) {
+    if (process.env.NODE_ENV !== "production") {
+      const { getDevEquipmentRequests } = await import("@/lib/dev-store");
+      return NextResponse.json({ requests: getDevEquipmentRequests(member?.id, isCommittee) });
+    }
     return NextResponse.json({ error: "Database not configured" }, { status: 503 });
   }
 
-  const profile = {
-    membershipTier: member.membership_tier,
-    governanceRole: member.governance_role,
-    isWalkLeader: member.is_walk_leader,
-  };
-
-  const isCommittee = can(profile, "review_equipment_requests");
   const supabase = getSupabaseAdmin();
 
   let query = supabase
@@ -31,7 +52,7 @@ export async function GET() {
     `)
     .order("created_at", { ascending: false });
 
-  if (!isCommittee) {
+  if (!isCommittee && member) {
     query = query.eq("member_id", member.id);
   }
 
@@ -62,9 +83,6 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!isSupabaseConfigured()) {
-    return NextResponse.json({ error: "Database not configured" }, { status: 503 });
-  }
 
   let body: {
     equipmentId?: unknown;
@@ -95,6 +113,15 @@ export async function POST(request: Request) {
 
   if (new Date(endDate) < new Date(startDate)) {
     return NextResponse.json({ error: "End date must be on or after start date" }, { status: 400 });
+  }
+
+  if (!isSupabaseConfigured()) {
+    if (process.env.NODE_ENV !== "production") {
+      const { createDevEquipmentRequest } = await import("@/lib/dev-store");
+      const req = createDevEquipmentRequest(member.id, equipmentId, quantity, startDate, endDate, purpose);
+      return NextResponse.json({ ok: true, request: req });
+    }
+    return NextResponse.json({ error: "Database not configured" }, { status: 503 });
   }
 
   const supabase = getSupabaseAdmin();
