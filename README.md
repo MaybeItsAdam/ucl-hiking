@@ -25,8 +25,20 @@ npm install
 npm run dev
 ```
 
-Apply [the initial migration](./supabase/migrations/20260904000000_initial_schema.sql)
-to a new Supabase project, then set its URL and service-role key. The service
+Set the Supabase URL and service-role key, then apply the migrations with
+`MIGRATE_DATABASE_URL=<postgres connection string> npm run db:migrate`.
+
+### Migrations apply themselves in production
+
+`npm run build` runs `scripts/deploy-migrate.mjs` before `next build`. On a Vercel
+**production** build (`VERCEL_ENV=production`) it applies any file in
+`supabase/migrations/` not yet recorded in `public.schema_migrations`, using the
+Supabase integration's `POSTGRES_URL_NON_POOLING`. Preview and local builds skip it.
+Each migration runs in one transaction with its ledger row; a failure fails the
+build and the previous deployment keeps serving. Add a new migration as a new
+file, never by editing an applied one: edits are detected and warned about, not
+re-run. Renames, drops and new `NOT NULL` columns still need expand/contract
+across two deploys. The service
 key is server-only. Browsers have no table grants because Supabase Auth is not
 the identity provider.
 
