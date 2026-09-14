@@ -1,3 +1,4 @@
+import json
 import os
 
 import httpx
@@ -79,3 +80,36 @@ def test_falls_back_when_the_site_errors(clean_session_env: None, monkeypatch: p
     monkeypatch.setenv("SUU_SESSION_ID", "SSESSold=from-secret")
     with site({"error": "boom"}, status=500) as client:
         assert use_site_session(client, "https://hiking.test", "s3cret") == "the SUU_SESSION_ID secret"
+
+
+def test_expired_portal_login_falls_back_to_the_secret_in_the_same_run(clean_session_env: None, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    from hiking_sync import roster_sync
+
+    monkeypatch.setenv("HIKING_WEB_URL", "https://hiking.test")
+    monkeypatch.setenv("MEMBER_SYNC_SECRET", "s3cret")
+    monkeypatch.setenv("SUU_SESSION_ID", "SSESSgood=from-secret-value")
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        if url.endswith("/api/sync/suu-session"):
+            return httpx.Response(200, json={"sessionId": "SSESSdead=from-portal-value", "authState": None})
+        if url.endswith("/api/sync/session-status"):
+            calls.append("reported-expired")
+            return httpx.Response(200, json={"ok": True})
+        if "/members" in url:
+            if "SSESSdead" in request.headers["cookie"]:
+                return httpx.Response(302, headers={"location": "https://studentsunionucl.org/user/login"})
+            return httpx.Response(200, text=page([row("Ada Lovelace")]))
+        if url.startswith("https://studentsunionucl.org/user/login"):
+            return httpx.Response(200, text="<form id='user-login-form'></form>")
+        if url.endswith("/api/sync/roster"):
+            calls.append(f"posted-{len(json.loads(request.content)['members'])}")
+            return httpx.Response(200, json={"rosterRows": 1, "updated": 0, "revoked": 0})
+        raise AssertionError(url)
+
+    real_client = httpx.Client
+    monkeypatch.setattr(roster_sync.httpx, "Client", lambda **kw: real_client(transport=httpx.MockTransport(handler), follow_redirects=True))
+    roster_sync.main()
+    assert calls == ["reported-expired", "posted-1"]
+    assert "from the SUU_SESSION_ID secret" in capsys.readouterr().err

@@ -116,6 +116,9 @@ def fetch_roster(client: httpx.Client, slug: str, cookies: str) -> list[dict[str
     raise SyncError(f"the members list has more than {MAX_PAGES} pages")
 
 
+SESSION_ENV = ("SUU_SESSION_ID", "SUU_AUTH_STATE_BASE64", "SUU_AUTH_STATE_JSON")
+
+
 def use_site_session(client: httpx.Client, web_url: str, sync_secret: str) -> str:
     """Prefer the SU login a principal saved in the portal; fall back to the job's secret.
 
@@ -128,7 +131,7 @@ def use_site_session(client: httpx.Client, web_url: str, sync_secret: str) -> st
     except (httpx.HTTPError, ValueError):
         stored = {}
     if stored.get("sessionId") or stored.get("authState"):
-        for name in ("SUU_SESSION_ID", "SUU_AUTH_STATE_BASE64", "SUU_AUTH_STATE_JSON"):
+        for name in SESSION_ENV:
             os.environ.pop(name, None)
         if stored.get("sessionId"):
             os.environ["SUU_SESSION_ID"] = stored["sessionId"]
@@ -147,27 +150,42 @@ def main() -> None:
         print("HIKING_WEB_URL and MEMBER_SYNC_SECRET are required", file=sys.stderr)
         sys.exit(2)
 
-    with httpx.Client(timeout=30, follow_redirects=True) as client:
-        source = use_site_session(client, web_url, sync_secret)
-        state = load_storage_state()
-        cookies = cookie_header(state or {})
-        if not cookies:
-            print("No SUU session: none saved in the portal and SUU_SESSION_ID is unset", file=sys.stderr)
-            sys.exit(2)
-        print(f"Using the SU login from {source}", file=sys.stderr)
+    secret_env = {name: os.environ[name] for name in SESSION_ENV if os.environ.get(name)}
 
-        try:
-            members = fetch_roster(client, slug, cookies)
-        except (SyncError, httpx.HTTPError) as error:
-            message = f"Roster sync could not read the SU members page: {error}"
-            if str(error).startswith("expired"):
-                client.post(
-                    f"{web_url}/api/sync/session-status",
-                    headers={"x-member-sync-secret": sync_secret},
-                    json={"status": "expired", "error": message},
-                )
-            print(message, file=sys.stderr)
-            sys.exit(1)
+    with httpx.Client(timeout=30, follow_redirects=True) as client:
+        attempts = [use_site_session(client, web_url, sync_secret)]
+        if attempts[0] == "the portal" and secret_env:
+            attempts.append("the SUU_SESSION_ID secret")
+
+        members: list[dict[str, Any]] = []
+        for source in attempts:
+            if source != "the portal":
+                for name in SESSION_ENV:
+                    os.environ.pop(name, None)
+                os.environ.update(secret_env)
+            cookies = cookie_header(load_storage_state() or {})
+            if not cookies:
+                print("No SUU session: none saved in the portal and SUU_SESSION_ID is unset", file=sys.stderr)
+                sys.exit(2)
+            print(f"Using the SU login from {source}", file=sys.stderr)
+
+            try:
+                members = fetch_roster(client, slug, cookies)
+                break
+            except (SyncError, httpx.HTTPError) as error:
+                message = f"Roster sync could not read the SU members page with the login from {source}: {error}"
+                print(message, file=sys.stderr)
+                expired = str(error).startswith("expired")
+                # Only the portal's saved login is tracked by the site's session status; marking it
+                # expired also stops the next run trying it until a principal saves a new one.
+                if expired and source == "the portal":
+                    client.post(
+                        f"{web_url}/api/sync/session-status",
+                        headers={"x-member-sync-secret": sync_secret},
+                        json={"status": "expired", "error": message},
+                    )
+                if not expired or source == attempts[-1]:
+                    sys.exit(1)
 
         if not members:
             print("The SU members page listed nobody; refusing to send an empty roster", file=sys.stderr)
