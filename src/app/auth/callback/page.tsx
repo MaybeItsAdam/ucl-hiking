@@ -24,9 +24,17 @@ export default function AuthCallback() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token }),
       });
-        const body = (await response.json()) as { error?: string; redirectTo?: string };
-        if (!response.ok) throw new Error(body.error || "Sign-in could not be completed");
-        window.location.replace(body.redirectTo || "/portal");
+      // A server crash returns an HTML error page, and parsing that as JSON surfaces
+      // as the browser's own cryptic message (Safari: "The string did not match the
+      // expected pattern"). Read the body defensively so the user sees something real.
+      const body = (await response.json().catch(() => null)) as { error?: string; redirectTo?: string } | null;
+      if (!response.ok || !body) {
+        throw new Error(
+          body?.error ||
+            `Sign-in hit a problem on our side (error ${response.status}). Please try again in a few minutes, or tell the committee if it keeps happening.`,
+        );
+      }
+      window.location.replace(body.redirectTo || "/portal");
     }
     void completeSignIn().catch((error: Error) => {
         setMessage(error.message);

@@ -179,6 +179,14 @@ export async function POST(request: Request) {
     metadata: { identityProvider: "adams-campus-toolbox" },
   });
 
+  if ((process.env.SESSION_SECRET ?? "").length < 32) {
+    console.error("[auth/exchange] SESSION_SECRET is missing or shorter than 32 characters; cannot sign anyone in");
+    return NextResponse.json(
+      { error: "Sign-in isn't configured correctly on the site right now. The committee has been told." },
+      { status: 503 },
+    );
+  }
+
   await setSessionCookie({
     toolboxUserId: identity.id,
     memberId: member.id,
