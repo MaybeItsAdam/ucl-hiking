@@ -4,6 +4,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { NextResponse } from "next/server";
 import { can } from "@/lib/access";
+import { parseServiceAccountKey, ROSTER_SYNC_JOB, runCloudRunJob } from "@/lib/cloudRun";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
@@ -84,15 +85,15 @@ export async function POST(request: Request) {
     ...(customSociety ? { SUU_GROUP: customSociety } : {}),
   };
 
+  const localExec = process.env.NODE_ENV === "development" || process.env.ENABLE_LOCAL_SYNC_EXEC === "true";
+
   try {
     let output = "";
-    if (process.env.NODE_ENV === "development" || process.env.ENABLE_LOCAL_SYNC_EXEC === "true") {
+    if (localExec) {
       const cloudJobsDir = path.resolve(process.cwd(), "cloud-jobs");
       const venvPython = path.resolve(cloudJobsDir, ".venv/bin/python3");
       const pythonBin = fs.existsSync(venvPython) ? venvPython : "python3";
-      const groupArg = customSociety ? ` --group "${customSociety.replace(/"/g, '\\"')}"` : "";
-      const pythonCmd = `"${pythonBin}" -m hiking_sync${groupArg}`;
-      const { stdout, stderr } = await execAsync(pythonCmd, {
+      const { stdout, stderr } = await execAsync(`"${pythonBin}" -m hiking_sync.roster_sync`, {
         cwd: cloudJobsDir,
         env: {
           ...envVars,
@@ -101,7 +102,21 @@ export async function POST(request: Request) {
       });
       output = stdout || stderr;
     } else {
-      output = `Sync triggered in cloud job worker for ${customSociety || "Hiking Club"}`;
+      if (target === "events") {
+        return NextResponse.json(
+          { error: "There is no events sync job yet, so events can't be refreshed from here." },
+          { status: 400 },
+        );
+      }
+      const key = parseServiceAccountKey(process.env.GCP_SA_KEY);
+      if (!key) {
+        return NextResponse.json(
+          { error: "The sync button isn't configured (GCP_SA_KEY). The daily member sync still runs at 06:30." },
+          { status: 503 },
+        );
+      }
+      const execution = await runCloudRunJob(ROSTER_SYNC_JOB, key);
+      output = `Started member sync (${execution}). Results appear here within a minute or two.`;
     }
 
     await supabase.from("audit_log").insert({
@@ -119,21 +134,24 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      message: `Sync for '${target}' (${customSociety || "Hiking Club"}) triggered successfully.`,
+      message: localExec ? `Member sync for Hiking Club ran.` : output,
       output,
     });
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : String(err);
-    
-    await supabase.from("suu_session_settings").upsert({
-      id: "default",
-      status: errorMsg.toLowerCase().includes("login") || errorMsg.toLowerCase().includes("denied") || errorMsg.toLowerCase().includes("expired") ? "expired" : "error",
-      last_error: errorMsg.slice(0, 500),
-      last_checked_at: new Date().toISOString(),
-    });
+
+    // Only a local run reads the SU site from here; a Cloud Run API error says nothing about the SU login.
+    if (localExec && errorMsg.includes("redirected to the login page")) {
+      await supabase.from("suu_session_settings").upsert({
+        id: "default",
+        status: "expired",
+        last_error: errorMsg.slice(0, 500),
+        last_checked_at: new Date().toISOString(),
+      });
+    }
 
     return NextResponse.json(
-      { error: "Sync execution encountered an error: " + errorMsg, details: errorMsg },
+      { error: "Sync could not be started: " + errorMsg, details: errorMsg },
       { status: 500 },
     );
   }

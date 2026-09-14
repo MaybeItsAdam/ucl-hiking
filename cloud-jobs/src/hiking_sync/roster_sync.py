@@ -116,6 +116,29 @@ def fetch_roster(client: httpx.Client, slug: str, cookies: str) -> list[dict[str
     raise SyncError(f"the members list has more than {MAX_PAGES} pages")
 
 
+def use_site_session(client: httpx.Client, web_url: str, sync_secret: str) -> str:
+    """Prefer the SU login a principal saved in the portal; fall back to the job's secret.
+
+    The portal is where the login gets replaced when it expires, so it wins whenever it
+    holds one. Returns where the login came from, for the log.
+    """
+    try:
+        response = client.get(f"{web_url}/api/sync/suu-session", headers={"x-member-sync-secret": sync_secret})
+        stored = response.json() if response.status_code == 200 else {}
+    except (httpx.HTTPError, ValueError):
+        stored = {}
+    if stored.get("sessionId") or stored.get("authState"):
+        for name in ("SUU_SESSION_ID", "SUU_AUTH_STATE_BASE64", "SUU_AUTH_STATE_JSON"):
+            os.environ.pop(name, None)
+        if stored.get("sessionId"):
+            os.environ["SUU_SESSION_ID"] = stored["sessionId"]
+        else:
+            auth_state = stored["authState"].strip()
+            os.environ["SUU_AUTH_STATE_JSON" if auth_state.startswith("{") else "SUU_AUTH_STATE_BASE64"] = auth_state
+        return "the portal"
+    return "the SUU_SESSION_ID secret"
+
+
 def main() -> None:
     web_url = os.environ.get("HIKING_WEB_URL", "").strip().rstrip("/")
     sync_secret = os.environ.get("MEMBER_SYNC_SECRET", "").strip()
@@ -124,13 +147,15 @@ def main() -> None:
         print("HIKING_WEB_URL and MEMBER_SYNC_SECRET are required", file=sys.stderr)
         sys.exit(2)
 
-    state = load_storage_state()
-    cookies = cookie_header(state or {})
-    if not cookies:
-        print("No SUU session configured (set SUU_SESSION_ID)", file=sys.stderr)
-        sys.exit(2)
-
     with httpx.Client(timeout=30, follow_redirects=True) as client:
+        source = use_site_session(client, web_url, sync_secret)
+        state = load_storage_state()
+        cookies = cookie_header(state or {})
+        if not cookies:
+            print("No SUU session: none saved in the portal and SUU_SESSION_ID is unset", file=sys.stderr)
+            sys.exit(2)
+        print(f"Using the SU login from {source}", file=sys.stderr)
+
         try:
             members = fetch_roster(client, slug, cookies)
         except (SyncError, httpx.HTTPError) as error:

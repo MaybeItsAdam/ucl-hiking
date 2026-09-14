@@ -8,16 +8,6 @@ import type {
   WalkRegistrationStatus,
 } from "./types";
 
-const INITIAL_WALKS: Walk[] = [];
-
-const INITIAL_EQUIPMENT: Equipment[] = [];
-
-const INITIAL_REQUESTS: EquipmentRequest[] = [];
-
-const INITIAL_EVENTS: SUEvent[] = [];
-
-const INITIAL_MEMBERS: Member[] = [];
-
 // In-memory singletons for local dev
 const devWalks: Walk[] = [];
 const devRegistrations: WalkRegistration[] = [];

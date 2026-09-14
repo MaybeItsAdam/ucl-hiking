@@ -1,4 +1,9 @@
-from hiking_sync.roster_sync import membership_end, parse_members_page
+import os
+
+import httpx
+import pytest
+
+from hiking_sync.roster_sync import membership_end, parse_members_page, use_site_session
 
 
 def row(name: str, end_attr: bool = True) -> str:
@@ -40,3 +45,37 @@ def test_end_date_without_datetime_attribute_is_end_of_day_in_london() -> None:
 def test_login_page_is_not_recognised() -> None:
     members, has_next, recognised = parse_members_page('<form id="user-login-form"></form>')
     assert (members, has_next, recognised) == ([], False, False)
+
+
+@pytest.fixture
+def clean_session_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in ("SUU_SESSION_ID", "SUU_AUTH_STATE_BASE64", "SUU_AUTH_STATE_JSON"):
+        monkeypatch.delenv(name, raising=False)
+
+
+def site(body: dict, status: int = 200) -> httpx.Client:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["x-member-sync-secret"] == "s3cret"
+        return httpx.Response(status, json=body)
+
+    return httpx.Client(transport=httpx.MockTransport(handler))
+
+
+def test_portal_session_wins_over_the_secret(clean_session_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SUU_SESSION_ID", "SSESSold=from-secret")
+    with site({"sessionId": "SSESSnew=from-portal", "authState": None}) as client:
+        assert use_site_session(client, "https://hiking.test", "s3cret") == "the portal"
+    assert os.environ["SUU_SESSION_ID"] == "SSESSnew=from-portal"
+
+
+def test_falls_back_to_the_secret_when_the_portal_has_none(clean_session_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SUU_SESSION_ID", "SSESSold=from-secret")
+    with site({"sessionId": None, "authState": None, "status": "expired"}) as client:
+        assert use_site_session(client, "https://hiking.test", "s3cret") == "the SUU_SESSION_ID secret"
+    assert os.environ["SUU_SESSION_ID"] == "SSESSold=from-secret"
+
+
+def test_falls_back_when_the_site_errors(clean_session_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SUU_SESSION_ID", "SSESSold=from-secret")
+    with site({"error": "boom"}, status=500) as client:
+        assert use_site_session(client, "https://hiking.test", "s3cret") == "the SUU_SESSION_ID secret"

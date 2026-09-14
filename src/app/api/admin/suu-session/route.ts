@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/access";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { probeSuSession, suCookieHeader, suCookieHeaderFromAuthState } from "@/lib/suuSession";
 
 export async function GET() {
   const member = await getCurrentMember();
@@ -95,15 +96,32 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Database not configured" }, { status: 503 });
   }
 
+  // Check the login against the SU site before saving it, so "active" means it works.
+  const cookieHeader = sessionId ? suCookieHeader(sessionId) : suCookieHeaderFromAuthState(authState ?? "");
+  if (!cookieHeader) {
+    return NextResponse.json(
+      { error: "That doesn't look like an SU login cookie. Paste the SSESS… cookie as name=value." },
+      { status: 400 },
+    );
+  }
+  const probe = await probeSuSession(cookieHeader);
+  if (probe.status === "expired") {
+    return NextResponse.json(
+      { error: "The SU site says this login has already ended. Sign in to studentsunionucl.org again and copy the new cookie." },
+      { status: 422 },
+    );
+  }
+  const status = probe.status === "active" ? "active" : "error";
+
   const supabase = getSupabaseAdmin();
 
   const { error } = await supabase.from("suu_session_settings").upsert(
     {
       id: "default",
-      session_id: sessionId || null,
+      session_id: sessionId ? cookieHeader : null,
       auth_state: authState || null,
-      status: "active",
-      last_error: null,
+      status,
+      last_error: status === "active" ? null : probe.detail,
       last_checked_at: now,
       updated_by: member.id,
       updated_at: now,
@@ -123,5 +141,5 @@ export async function POST(request: Request) {
     metadata: { updated_by_email: member.email },
   });
 
-  return NextResponse.json({ ok: true, status: "active", updatedAt: now });
+  return NextResponse.json({ ok: true, status, detail: probe.detail, updatedAt: now });
 }

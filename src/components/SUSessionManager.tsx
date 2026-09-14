@@ -38,7 +38,11 @@ export function SUSessionManager({ currentStatus, onSaved }: SUSessionManagerPro
       if (!res.ok) {
         setMsg({ type: "error", text: data.error || "Failed to update SU session" });
       } else {
-        setMsg({ type: "success", text: "SU session updated successfully. Status is now Active." });
+        setMsg(
+          data.status === "active"
+            ? { type: "success", text: "SU login saved and checked: it works. The daily member sync will use it." }
+            : { type: "error", text: `SU login saved, but it couldn't be checked: ${data.detail ?? "unknown error"}` },
+        );
         setSessionId("");
         setAuthState("");
         onSaved();
