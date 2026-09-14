@@ -42,3 +42,49 @@ gcloud run jobs deploy hiking-member-sync \
 
 Store secrets in Secret Manager and attach them with `--set-secrets`; do not
 place an SU session or sync secret in an image or checked-in env file.
+
+## Session health check
+
+`hiking-session-check` answers one question: does the SUU session still sign in?
+It makes a single HTTP request to `https://studentsunionucl.org/user` with the
+session cookie (no browser). Drupal redirects that to `/user/<id>` when signed in
+and to `/user/login` when the session is dead. The result is posted to
+`/api/sync/session-status`, which is what the portal's session badge shows.
+
+| Result | Meaning | Exit code |
+|---|---|---|
+| `active` | Redirected to a profile, so signed in | 0 |
+| `expired` | Redirected to the login form | 1 |
+| `error` | Blocked (e.g. Cloudflare), unreachable, or unreadable session. Health unknown | 1 |
+| `unconfigured` | No session set | 1 |
+
+It reads the session exactly like the member sync (`SUU_SESSION_ID`, or
+`SUU_AUTH_STATE_BASE64` / `SUU_AUTH_STATE_JSON`), so it tests what the sync will
+actually use. Prefer `SUU_SESSION_ID` in `name=value` form, e.g.
+`SSESS41428e…=abc123`.
+
+Spot test locally (prints the result, doesn't report unless both web vars are set):
+
+```bash
+SUU_SESSION_ID='SSESS…=…' uv run hiking-session-check
+```
+
+Deploy (uses a ~60 MB image without Chromium):
+
+```bash
+gcloud builds submit cloud-jobs --config cloud-jobs/cloudbuild.session-check.yaml \
+  --substitutions=_IMAGE=europe-west2-docker.pkg.dev/PROJECT/jobs/hiking-session-check
+gcloud run jobs deploy hiking-session-check \
+  --image europe-west2-docker.pkg.dev/PROJECT/jobs/hiking-session-check \
+  --region europe-west2 --max-retries 0 --task-timeout 60s --cpu 1 --memory 512Mi \
+  --set-env-vars HIKING_WEB_URL=https://ucl-hiking.vercel.app \
+  --set-secrets SUU_SESSION_ID=suu-session-id:latest,MEMBER_SYNC_SECRET=member-sync-secret:latest
+gcloud scheduler jobs create http hiking-session-check \
+  --location europe-west2 --schedule '*/30 * * * *' --http-method POST \
+  --uri https://run.googleapis.com/v2/projects/PROJECT/locations/europe-west2/jobs/hiking-session-check:run \
+  --oauth-service-account-email SCHEDULER_SA@PROJECT.iam.gserviceaccount.com
+```
+
+Every check is itself a signed-in request, so running it often may also keep the
+session alive. Run it hourly or less if you want to measure how long a session
+lasts untouched.

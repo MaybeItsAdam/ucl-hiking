@@ -1,0 +1,13 @@
+# Session health check: plain HTTP, so no Chromium and no `suu` install (~60 MB vs ~1.5 GB).
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/job/src
+
+WORKDIR /job
+RUN pip install --no-cache-dir "httpx>=0.28,<1"
+COPY src/hiking_sync/__init__.py src/hiking_sync/suu_session.py src/hiking_sync/session_check.py ./src/hiking_sync/
+
+USER 65532:65532
+ENTRYPOINT ["python", "-m", "hiking_sync.session_check"]

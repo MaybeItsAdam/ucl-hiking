@@ -1,0 +1,6 @@
+# gcloud builds submit cloud-jobs --config cloud-jobs/cloudbuild.session-check.yaml \
+#   --substitutions=_IMAGE=europe-west2-docker.pkg.dev/PROJECT/jobs/hiking-session-check
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "Dockerfile.session-check", "-t", "$_IMAGE", "."]
+images: ["$_IMAGE"]

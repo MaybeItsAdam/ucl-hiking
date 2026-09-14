@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import json
 import os
 import sys
@@ -16,6 +15,7 @@ from suu.retrieve.sales import fetch_sales
 from .events import build_event_sync_rows
 from .policy import RolePolicy, build_sync_rows, normalize_email
 from .sheets import sync_to_google_sheet
+from .suu_session import setup_suu_session_env
 
 
 def csv_set(name: str) -> frozenset[str]:
@@ -31,73 +31,6 @@ def required(name: str) -> str:
     if not value:
         raise RuntimeError(f"Missing required environment variable: {name}")
     return value
-
-
-def setup_suu_session_env() -> None:
-    """Ensure SUU auth state env vars are populated if a raw SUU_SESSION_ID is provided."""
-    session_id = os.environ.get("SUU_SESSION_ID", "").strip()
-    if not session_id:
-        return
-
-    if os.environ.get("SUU_AUTH_STATE_BASE64") or os.environ.get("SUU_AUTH_STATE_JSON"):
-        return
-
-    if session_id.startswith("{") and session_id.endswith("}"):
-        os.environ["SUU_AUTH_STATE_JSON"] = session_id
-    elif len(session_id) > 100 and not any(sep in session_id for sep in (";", " ", "=")):
-        os.environ["SUU_AUTH_STATE_BASE64"] = session_id
-    else:
-        cookies = []
-        if "=" in session_id:
-            for part in session_id.split(";"):
-                part = part.strip()
-                if "=" in part:
-                    c_name, c_val = part.split("=", 1)
-                    cookies.append({
-                        "name": c_name.strip(),
-                        "value": c_val.strip(),
-                        "domain": "studentsunionucl.org",
-                        "path": "/",
-                        "httpOnly": True,
-                        "secure": True,
-                        "sameSite": "Lax",
-                    })
-        else:
-            cookies = [
-                {
-                    "name": ".AspNet.Cookies",
-                    "value": session_id,
-                    "domain": "studentsunionucl.org",
-                    "path": "/",
-                    "httpOnly": True,
-                    "secure": True,
-                    "sameSite": "Lax",
-                },
-                {
-                    "name": "ASP.NET_SessionId",
-                    "value": session_id,
-                    "domain": "studentsunionucl.org",
-                    "path": "/",
-                    "httpOnly": True,
-                    "secure": True,
-                    "sameSite": "Lax",
-                },
-                {
-                    "name": "SSESS41428e140b4dc9b07f8c5c3e1fd73f96",
-                    "value": session_id,
-                    "domain": "studentsunionucl.org",
-                    "path": "/",
-                    "httpOnly": True,
-                    "secure": True,
-                    "sameSite": "Lax",
-                },
-            ]
-
-        state = {
-            "cookies": cookies,
-            "origins": [],
-        }
-        os.environ["SUU_AUTH_STATE_JSON"] = json.dumps(state)
 
 
 def report_session_expiration(web_url: str, sync_secret: str, error_msg: str) -> None:
