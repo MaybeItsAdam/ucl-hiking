@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isGovernanceRole, isMembershipTier } from "@/lib/access";
+import { matchRosterByName, ROSTER_SYNC_SOURCE, type RosterEntry } from "@/lib/roster";
 import { setSessionCookie } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { getSocietyGovernanceRole, verifyToolboxToken } from "@/lib/toolbox";
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
   const supabase = getSupabaseAdmin();
   let { data: member, error } = await supabase
     .from("members")
-    .select("id,email,full_name,membership_tier,governance_role,is_walk_leader,membership_expires_at,revoked_at")
+    .select("id,email,full_name,membership_tier,governance_role,is_walk_leader,membership_expires_at,revoked_at,sync_source")
     .eq("email", identity.email)
     .maybeSingle();
 
@@ -81,13 +82,62 @@ export async function POST(request: Request) {
           { onConflict: "email" },
         )
         .select(
-          "id,email,full_name,membership_tier,governance_role,is_walk_leader,membership_expires_at,revoked_at",
+          "id,email,full_name,membership_tier,governance_role,is_walk_leader,membership_expires_at,revoked_at,sync_source",
         )
         .single();
 
       if (!upsertError && upserted) {
         member = upserted;
         error = null;
+      }
+    }
+  }
+
+  // TEMPORARY: until the Toolbox provides members with emails, let someone on the
+  // SU roster in by an unambiguous name match (src/lib/roster.ts). Only for people
+  // with no row, or whose earlier name-matched row was revoked. Fails closed: if
+  // the roster table is missing or unreadable, this simply finds nobody.
+  if (
+    autoGovernanceRole === null &&
+    identity.name &&
+    (!member || (member.revoked_at && member.sync_source === ROSTER_SYNC_SOURCE))
+  ) {
+    const { data: roster } = await supabase
+      .from("su_roster")
+      .select("full_name,membership_tier,membership_expires_at");
+    const match = matchRosterByName((roster ?? []) as RosterEntry[], identity.name);
+    if (match) {
+      const now = new Date().toISOString();
+      const { data: linked, error: linkError } = await supabase
+        .from("members")
+        .upsert(
+          {
+            email: identity.email,
+            full_name: identity.name,
+            toolbox_user_id: identity.id,
+            membership_tier: match.membership_tier,
+            membership_expires_at: match.membership_expires_at,
+            source_reference: "su-roster-name-match",
+            sync_source: ROSTER_SYNC_SOURCE,
+            synced_at: now,
+            revoked_at: null,
+          },
+          { onConflict: "email" },
+        )
+        .select(
+          "id,email,full_name,membership_tier,governance_role,is_walk_leader,membership_expires_at,revoked_at,sync_source",
+        )
+        .single();
+      if (!linkError && linked) {
+        member = linked;
+        error = null;
+        await supabase.from("audit_log").insert({
+          actor_member_id: linked.id,
+          action: "auth.link_by_roster_name",
+          target_type: "member",
+          target_id: linked.id,
+          metadata: { rosterName: match.full_name, tier: match.membership_tier },
+        });
       }
     }
   }

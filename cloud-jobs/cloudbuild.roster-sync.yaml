@@ -1,0 +1,6 @@
+# gcloud builds submit cloud-jobs --config cloud-jobs/cloudbuild.roster-sync.yaml \
+#   --substitutions=_IMAGE=europe-west2-docker.pkg.dev/PROJECT/jobs/hiking-roster-sync
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "Dockerfile.roster-sync", "-t", "$_IMAGE", "."]
+images: ["$_IMAGE"]

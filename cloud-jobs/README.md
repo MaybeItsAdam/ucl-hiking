@@ -88,3 +88,37 @@ gcloud scheduler jobs create http hiking-session-check \
 Every check is itself a signed-in request, so running it often may also keep the
 session alive. Run it hourly or less if you want to measure how long a session
 lasts untouched.
+
+## Roster sync (temporary)
+
+`hiking-roster-sync` stands in for member sync until the Toolbox Connector and its
+members API replace it — see `docs/plans/connector-rollout-plan.md` in the
+adams-campus-toolbox repo, which also lists what to delete when it's retired.
+
+Daily, with the stored SU session (same `suu-session-id` secret as the health check),
+it reads every page of `studentsunionucl.org/clubs-societies/hiking-club/members`
+over plain HTTP and posts the roster to `/api/sync/roster`.
+
+The SU page has **names but no emails**, so the site can't key it on email like
+`/api/sync/members`. Instead:
+
+- `/api/sync/roster` stores the snapshot in `su_roster` (migration
+  `20260914000000_su_roster.sql`) and updates or revokes members who joined by
+  name match (`sync_source = 'suu-roster'`). Nobody else is touched.
+- At sign-in, a UCL account with no member row is let in if its name matches
+  exactly one roster entry (`src/lib/roster.ts`); shared names never match.
+- Taster / Standard / Explorer map to tiers; membership expiry comes from the
+  date range. Unknown membership types are skipped and reported.
+
+It refuses to send or accept an empty roster, and reports an expired SU login to
+`/api/sync/session-status`.
+
+```bash
+gcloud builds submit cloud-jobs --config cloud-jobs/cloudbuild.roster-sync.yaml \
+  --substitutions=_IMAGE=europe-west2-docker.pkg.dev/PROJECT/jobs/hiking-roster-sync
+gcloud run jobs deploy hiking-roster-sync \
+  --image europe-west2-docker.pkg.dev/PROJECT/jobs/hiking-roster-sync \
+  --region europe-west2 --max-retries 1 --task-timeout 120s --cpu 1 --memory 512Mi \
+  --set-env-vars HIKING_WEB_URL=https://ucl-hiking.vercel.app \
+  --set-secrets SUU_SESSION_ID=suu-session-id:latest,MEMBER_SYNC_SECRET=member-sync-secret:latest
+```
