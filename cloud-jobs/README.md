@@ -110,8 +110,17 @@ The SU page has **names but no emails**, so the site can't key it on email like
 - Taster / Standard / Explorer map to tiers; membership expiry comes from the
   date range. Unknown membership types are skipped and reported.
 
-It refuses to send or accept an empty roster, and reports an expired SU login to
-`/api/sync/session-status`.
+It refuses to send or accept an empty roster.
+
+**Which SU login it uses:** the one a principal saved in the portal (checked against
+the SU site when saved, read via `/api/sync/suu-session`), falling back to the
+`suu-session-id` secret. If the portal's login has ended, the job marks it expired
+on the site and retries with the secret in the same run; an expired portal login
+is skipped until someone saves a new one.
+
+**Run it now:** the committee Sync button starts this job, using the
+`hiking-web-trigger` service account key in Vercel's `GCP_SA_KEY`. It can only
+start this job. The schedule is `hiking-roster-sync-daily`, 06:30 London.
 
 ```bash
 gcloud builds submit cloud-jobs --config cloud-jobs/cloudbuild.roster-sync.yaml \
