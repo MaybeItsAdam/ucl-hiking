@@ -7,9 +7,13 @@ import {
   Package,
   Compass,
   ArrowRight,
+  Users,
 } from "lucide-react";
 import type { Member } from "@/lib/types";
 import { EquipmentPortal } from "./EquipmentPortal";
+import { MemberAdminPortal } from "./MemberAdminPortal";
+
+export type PortalSection = "inventory" | "members";
 
 interface PortalDashboardProps {
   member: Member;
@@ -17,6 +21,7 @@ interface PortalDashboardProps {
   isPrincipal: boolean;
   isWalkLeader: boolean;
   initialView?: "officer" | "member";
+  initialSection?: PortalSection;
 }
 
 export function PortalDashboard({
@@ -24,6 +29,7 @@ export function PortalDashboard({
   isCommittee,
   isPrincipal,
   initialView,
+  initialSection = "inventory",
 }: PortalDashboardProps) {
   const isGovernance = isCommittee || isPrincipal;
 
@@ -49,7 +55,20 @@ export function PortalDashboard({
     }
   };
 
+  const [section, setSection] = useState<PortalSection>(initialSection);
+
+  const handleSwitchSection = (next: PortalSection) => {
+    setSection(next);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (next === "inventory") url.searchParams.delete("section");
+      else url.searchParams.set("section", next);
+      window.history.replaceState(null, "", url.toString());
+    }
+  };
+
   const isOfficerView = isGovernance && viewMode === "officer";
+  const activeSection: PortalSection = isOfficerView ? section : "inventory";
 
   return (
     <div style={{ padding: "0 4px 40px" }}>
@@ -93,16 +112,22 @@ export function PortalDashboard({
           </div>
 
           <h1 style={{ margin: "0 0 6px", fontSize: "clamp(26px, 3.5vw, 36px)", fontFamily: "var(--font-display)" }}>
-            {isOfficerView ? "Committee Inventory System" : "Equipment Locker"}
+            {activeSection === "members"
+              ? "Membership List"
+              : isOfficerView
+                ? "Committee Inventory System"
+                : "Equipment Locker"}
           </h1>
           <p style={{ margin: 0, opacity: 0.7, fontSize: "14px" }}>
-            {isOfficerView
+            {activeSection === "members"
+              ? "Active members synced from the Students' Union roster."
+              : isOfficerView
               ? `Welcome, ${member.full_name?.split(" ")[0] || "Officer"}. Track gear stock levels, manage loans, and approve student equipment requests.`
               : `Welcome, ${member.full_name?.split(" ")[0] || "hiker"}. Browse club equipment and submit gear loan requests for upcoming hikes.`}
           </p>
         </div>
 
-        {isGovernance && (
+        {isGovernance && activeSection === "inventory" && (
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             {viewMode === "officer" ? (
               <button
@@ -186,12 +211,42 @@ export function PortalDashboard({
         </div>
       )}
 
-      {/* 3. DEDICATED EQUIPMENT INVENTORY SYSTEM */}
-      <EquipmentPortal
-        memberId={member.id}
-        membershipTier={member.membership_tier}
-        isCommittee={isOfficerView}
-      />
+      {/* 3. COMMITTEE SECTION TABS */}
+      {isOfficerView && (
+        <div className="portal-section-tabs" role="tablist" aria-label="Committee sections">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeSection === "inventory"}
+            className={activeSection === "inventory" ? "active" : ""}
+            onClick={() => handleSwitchSection("inventory")}
+          >
+            <Package size={15} aria-hidden="true" />
+            Inventory
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={activeSection === "members"}
+            className={activeSection === "members" ? "active" : ""}
+            onClick={() => handleSwitchSection("members")}
+          >
+            <Users size={15} aria-hidden="true" />
+            Members
+          </button>
+        </div>
+      )}
+
+      {/* 4. SECTION CONTENT */}
+      {activeSection === "members" ? (
+        <MemberAdminPortal />
+      ) : (
+        <EquipmentPortal
+          memberId={member.id}
+          membershipTier={member.membership_tier}
+          isCommittee={isOfficerView}
+        />
+      )}
     </div>
   );
 }

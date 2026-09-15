@@ -1,225 +1,266 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Search, Users, Shield, CheckCircle2, AlertCircle, Loader2, Filter } from "lucide-react";
-import type { Member } from "@/lib/types";
-import { CustomSelect, type SelectOption } from "./CustomSelect";
+import { useEffect, useMemo, useState } from "react";
+import { AlertCircle, Compass, Loader2, Search, Shield, Users, X } from "lucide-react";
+import { GOVERNANCE_LABELS, MEMBERSHIP_LABELS, type MembershipTier } from "@/lib/access";
+import type { MembershipListEntry } from "@/lib/roster";
 
-const TIER_OPTIONS: SelectOption[] = [
-  { value: "", label: "All Tiers" },
-  { value: "taster", label: "Taster Tier", color: "#f59e0b" },
-  { value: "standard", label: "Standard Tier", color: "#0284c7" },
-  { value: "explorer", label: "Explorer Tier", color: "#7c3aed" },
+type Member = MembershipListEntry;
+
+type RosterFilter = "all" | MembershipTier | "leaders" | "committee";
+
+const FILTERS: { value: RosterFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "explorer", label: "Explorer" },
+  { value: "standard", label: "Standard" },
+  { value: "taster", label: "Taster" },
+  { value: "leaders", label: "Leaders" },
+  { value: "committee", label: "Committee" },
 ];
 
-const ROLE_OPTIONS: SelectOption[] = [
-  { value: "", label: "All Roles" },
-  { value: "committee", label: "Committee", color: "#059669" },
-  { value: "principal", label: "Principal", color: "#e11d48" },
-  { value: "admin", label: "Admin", color: "#dc2626" },
-  { value: "leader", label: "Walk Leaders Only", color: "#2563eb" },
-];
+/** Rows rendered per "show more" step — keeps a full-year roster cheap on phones. */
+const PAGE_SIZE = 100;
+const EXPIRY_WARNING_MS = 30 * 24 * 60 * 60 * 1000;
 
-interface MemberCounts {
-  taster: number;
-  standard: number;
-  explorer: number;
-  leaders: number;
+const shortDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
+function matchesFilter(member: Member, filter: RosterFilter): boolean {
+  switch (filter) {
+    case "all":
+      return true;
+    case "leaders":
+      return member.is_walk_leader;
+    case "committee":
+      return member.governance_role !== null;
+    default:
+      return member.membership_tier === filter;
+  }
+}
+
+function matchesSearch(member: Member, query: string): boolean {
+  if (!query) return true;
+  return (
+    member.full_name.toLowerCase().includes(query) ||
+    (member.email?.toLowerCase().includes(query) ?? false)
+  );
 }
 
 export function MemberAdminPortal() {
-  const [members, setMembers] = useState<Member[]>([]);
-  const [counts, setCounts] = useState<MemberCounts>({ taster: 0, standard: 0, explorer: 0, leaders: 0 });
-  const [totalCount, setTotalCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [tierFilter, setTierFilter] = useState("");
-  const [roleFilter, setRoleFilter] = useState("");
+  const [members, setMembers] = useState<Member[] | null>(null);
+  const [loadedAt, setLoadedAt] = useState(0);
+  const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<RosterFilter>("all");
+  const [limit, setLimit] = useState(PAGE_SIZE);
 
   useEffect(() => {
     let active = true;
-    const timer = setTimeout(() => {
-      const params = new URLSearchParams();
-      if (searchQuery) params.set("q", searchQuery);
-      if (tierFilter) params.set("tier", tierFilter);
-      if (roleFilter) params.set("role", roleFilter);
-
-      fetch(`/api/admin/members?${params.toString()}`)
-        .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-        .then((data) => {
-          if (!active) return;
-          setMembers(data.members || []);
-          if (data.counts) setCounts(data.counts);
-          if (data.totalCount !== undefined) setTotalCount(data.totalCount);
-        })
-        .catch(() => {
-          if (active) setError("Failed to fetch member directory");
-        })
-        .finally(() => {
-          if (active) setLoading(false);
-        });
-    }, 200);
-
+    fetch("/api/admin/roster")
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((data: { members?: Member[]; syncedAt?: string | null }) => {
+        if (!active) return;
+        setMembers(data.members ?? []);
+        setSyncedAt(data.syncedAt ?? null);
+        setLoadedAt(Date.now());
+      })
+      .catch(() => {
+        if (active) setError("Couldn't load the membership list. Refresh to try again.");
+      });
     return () => {
       active = false;
-      clearTimeout(timer);
     };
-  }, [searchQuery, tierFilter, roleFilter]);
+  }, []);
+
+  const query = search.trim().toLowerCase();
+
+  const searched = useMemo(
+    () => (members ?? []).filter((member) => matchesSearch(member, query)),
+    [members, query],
+  );
+
+  const counts = useMemo(() => {
+    const result = {} as Record<RosterFilter, number>;
+    for (const { value } of FILTERS) {
+      result[value] = searched.filter((member) => matchesFilter(member, value)).length;
+    }
+    return result;
+  }, [searched]);
+
+  // Filters that match nobody in the whole list (no Standard members yet, say) are just noise.
+  const availableFilters = useMemo(
+    () => FILTERS.filter(({ value }) => value === "all" || (members ?? []).some((member) => matchesFilter(member, value))),
+    [members],
+  );
+
+  const visible = useMemo(
+    () => searched.filter((member) => matchesFilter(member, filter)),
+    [searched, filter],
+  );
+
+  const rosterCount = members?.filter((member) => member.on_roster).length ?? 0;
+  const accountCount = members?.filter((member) => member.email).length ?? 0;
+
+  const updateSearch = (value: string) => {
+    setSearch(value);
+    setLimit(PAGE_SIZE);
+  };
+
+  const updateFilter = (value: RosterFilter) => {
+    setFilter(value);
+    setLimit(PAGE_SIZE);
+  };
+
+  if (error) {
+    return (
+      <div className="roster-panel">
+        <div className="roster-state is-error" role="alert">
+          <AlertCircle size={18} />
+          <span>{error}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (!members) {
+    return (
+      <div className="roster-panel">
+        <div className="roster-state">
+          <Loader2 className="roster-spinner" size={18} />
+          <span>Loading members…</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="equipment-portal-shell" style={{ marginTop: 24 }}>
-      <div className="equipment-header">
-        <div>
-          <h2>Member Roster &amp; Access Administration</h2>
-          <p>Live synced club membership records from Students&apos; Union UCL.</p>
-        </div>
+    <div className="roster-panel">
+      <div className="roster-summary">
+        <strong>{rosterCount}</strong> on the SU roster · <strong>{accountCount}</strong> signed in
+        {syncedAt && <span> · synced {shortDate.format(new Date(syncedAt))}</span>}
       </div>
 
-      {/* KPI METRIC CARDS */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 14, marginBottom: 22 }}>
-        <div style={{ background: "white", padding: "16px 20px", borderRadius: 16, border: "1px solid var(--line)" }}>
-          <small style={{ textTransform: "uppercase", fontSize: 10, fontWeight: 800, opacity: 0.6 }}>Total Synced</small>
-          <div style={{ font: "800 24px var(--font-display)", color: "var(--ink)", marginTop: 4 }}>{totalCount}</div>
-          <span style={{ fontSize: 11, opacity: 0.7 }}>Active club members</span>
-        </div>
-        <div style={{ background: "white", padding: "16px 20px", borderRadius: 16, border: "1px solid var(--line)" }}>
-          <small style={{ textTransform: "uppercase", fontSize: 10, fontWeight: 800, color: "#0284c7" }}>Taster Members</small>
-          <div style={{ font: "800 24px var(--font-display)", color: "#0369a1", marginTop: 4 }}>{counts.taster}</div>
-          <span style={{ fontSize: 11, opacity: 0.7 }}>Free trial members</span>
-        </div>
-        <div style={{ background: "white", padding: "16px 20px", borderRadius: 16, border: "1px solid var(--line)" }}>
-          <small style={{ textTransform: "uppercase", fontSize: 10, fontWeight: 800, color: "#ca8a04" }}>Standard Members</small>
-          <div style={{ font: "800 24px var(--font-display)", color: "#854d0e", marginTop: 4 }}>{counts.standard}</div>
-          <span style={{ fontSize: 11, opacity: 0.7 }}>Discoverer hikes &amp; socials</span>
-        </div>
-        <div style={{ background: "white", padding: "16px 20px", borderRadius: 16, border: "1px solid var(--line)" }}>
-          <small style={{ textTransform: "uppercase", fontSize: 10, fontWeight: 800, color: "#dc2626" }}>Explorer Members</small>
-          <div style={{ font: "800 24px var(--font-display)", color: "#991b1b", marginTop: 4 }}>{counts.explorer}</div>
-          <span style={{ fontSize: 11, opacity: 0.7 }}>All hikes &amp; mountain trips</span>
-        </div>
-        <div style={{ background: "white", padding: "16px 20px", borderRadius: 16, border: "1px solid var(--line)" }}>
-          <small style={{ textTransform: "uppercase", fontSize: 10, fontWeight: 800, color: "#16a34a" }}>Walk Leaders</small>
-          <div style={{ font: "800 24px var(--font-display)", color: "#15803d", marginTop: 4 }}>{counts.leaders}</div>
-          <span style={{ fontSize: 11, opacity: 0.7 }}>Qualified route leaders</span>
-        </div>
-      </div>
-
-      {/* SEARCH AND FILTERS */}
-      <div className="search-filter-bar">
-        <div className="search-box">
-          <Search size={16} />
+      <div className="roster-toolbar">
+        <label className="roster-search">
+          <Search size={16} aria-hidden="true" />
           <input
-            type="text"
-            placeholder="Search by full name or email..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            type="search"
+            inputMode="search"
+            autoComplete="off"
+            placeholder="Search name or email"
+            aria-label="Search members by name or email"
+            value={search}
+            onChange={(e) => updateSearch(e.target.value)}
           />
+          {search && (
+            <button type="button" onClick={() => updateSearch("")} aria-label="Clear search">
+              <X size={15} />
+            </button>
+          )}
+        </label>
+
+        <div className="roster-filters" role="group" aria-label="Filter members">
+          {availableFilters.map(({ value, label }) => (
+            <button
+              key={value}
+              type="button"
+              className={filter === value ? "active" : ""}
+              aria-pressed={filter === value}
+              onClick={() => updateFilter(value)}
+            >
+              {value !== "all" && value !== "leaders" && value !== "committee" && (
+                <span className={`tier-dot tier-${value}`} aria-hidden="true" />
+              )}
+              {label}
+              <span className="roster-filter-count">{counts[value]}</span>
+            </button>
+          ))}
         </div>
-        <CustomSelect
-          value={tierFilter}
-          onChange={setTierFilter}
-          options={TIER_OPTIONS}
-          icon={<Filter size={14} />}
-          variant="pill"
-          ariaLabel="Filter members by membership tier"
-        />
-        <CustomSelect
-          value={roleFilter}
-          onChange={setRoleFilter}
-          options={ROLE_OPTIONS}
-          variant="pill"
-          ariaLabel="Filter members by role"
-        />
       </div>
 
-      {error && (
-        <div className="alert-banner error">
-          <AlertCircle size={18} />
-          <p>{error}</p>
-        </div>
-      )}
-
-      {loading ? (
-        <div className="sync-monitor-card loading">
-          <Loader2 className="animate-spin" size={24} />
-          <span>Searching members roster...</span>
-        </div>
-      ) : members.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "40px", background: "white", borderRadius: 16 }}>
-          <Users size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
-          <p style={{ opacity: 0.7 }}>No club members match the current search filters.</p>
+      {visible.length === 0 ? (
+        <div className="roster-state">
+          <Users size={18} />
+          <span>No members match.</span>
+          {(search || filter !== "all") && (
+            <button
+              type="button"
+              className="roster-link-button"
+              onClick={() => {
+                updateSearch("");
+                updateFilter("all");
+              }}
+            >
+              Clear filters
+            </button>
+          )}
         </div>
       ) : (
-        <div className="requests-table-wrapper">
-          <table className="requests-table">
-            <thead>
-              <tr>
-                <th>Member Name</th>
-                <th>UCL Email</th>
-                <th>Membership Tier</th>
-                <th>Governance</th>
-                <th>Walk Leader</th>
-                <th>Expiry</th>
-                <th>Last Synced</th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((m) => (
-                <tr key={m.id}>
-                  <td>
-                    <strong>{m.full_name || "Club Member"}</strong>
-                  </td>
-                  <td>{m.email}</td>
-                  <td>
-                    <span
-                      className="category-badge"
-                      style={{
-                        background:
-                          m.membership_tier === "explorer"
-                            ? "#fee2e2"
-                            : m.membership_tier === "standard"
-                            ? "#fef9c3"
-                            : "#e0f2fe",
-                        color: "#1e293b",
-                      }}
-                    >
-                      {m.membership_tier}
+        <>
+          <div className="roster-columns" aria-hidden="true">
+            <span>Member</span>
+            <span>Access</span>
+            <span>Expires</span>
+          </div>
+          <ul className="roster-list">
+            {visible.slice(0, limit).map((member) => {
+              const expiresAt = member.membership_expires_at ? new Date(member.membership_expires_at) : null;
+              const msLeft = expiresAt ? expiresAt.getTime() - loadedAt : Infinity;
+              const expiryState = msLeft < 0 ? "is-expired" : msLeft < EXPIRY_WARNING_MS ? "is-soon" : "";
+
+              return (
+                <li key={member.id} className="roster-row">
+                  <strong className="roster-name">{member.full_name}</strong>
+                  {member.email ? (
+                    <a className="roster-email" href={`mailto:${member.email}`}>
+                      {member.email}
+                    </a>
+                  ) : (
+                    <span className="roster-email is-missing">Not signed in yet</span>
+                  )}
+                  <span className="roster-tags">
+                    <span className="roster-tag">
+                      <span className={`tier-dot tier-${member.membership_tier}`} aria-hidden="true" />
+                      {MEMBERSHIP_LABELS[member.membership_tier]}
                     </span>
-                  </td>
-                  <td>
-                    {m.governance_role ? (
-                      <span className="condition-badge fair" style={{ textTransform: "capitalize" }}>
-                        <Shield size={11} style={{ display: "inline", marginRight: 3, verticalAlign: "-1px" }} />
-                        {m.governance_role}
+                    {member.member_type && !/^student/i.test(member.member_type) && (
+                      <span className="roster-tag" title={member.member_type}>
+                        {member.member_type.split(/[\s/]/)[0]}
                       </span>
-                    ) : (
-                      <span style={{ opacity: 0.4 }}>—</span>
                     )}
-                  </td>
-                  <td>
-                    {m.is_walk_leader ? (
-                      <span className="condition-badge excellent">
-                        <CheckCircle2 size={11} style={{ display: "inline", marginRight: 3, verticalAlign: "-1px" }} />
+                    {!member.on_roster && (
+                      <span className="roster-tag is-off-roster" title="Has a site account but isn't on the SU roster">
+                        Not on SU roster
+                      </span>
+                    )}
+                    {member.is_walk_leader && (
+                      <span className="roster-tag is-leader" title="Walk leader">
+                        <Compass size={11} aria-hidden="true" />
                         Leader
                       </span>
-                    ) : (
-                      <span style={{ opacity: 0.4 }}>No</span>
                     )}
-                  </td>
-                  <td>
-                    {m.membership_expires_at
-                      ? new Date(m.membership_expires_at).toLocaleDateString("en-GB")
+                    {member.governance_role && (
+                      <span className="roster-tag is-governance">
+                        <Shield size={11} aria-hidden="true" />
+                        {GOVERNANCE_LABELS[member.governance_role]}
+                      </span>
+                    )}
+                  </span>
+                  <span className={`roster-expiry ${expiryState}`}>
+                    {expiresAt
+                      ? `${msLeft < 0 ? "Expired " : ""}${shortDate.format(expiresAt)}`
                       : "End of year"}
-                  </td>
-                  <td style={{ fontSize: 12, opacity: 0.7 }}>
-                    {m.synced_at ? new Date(m.synced_at).toLocaleDateString("en-GB") : "Recently"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          {visible.length > limit && (
+            <button type="button" className="roster-more" onClick={() => setLimit(limit + PAGE_SIZE)}>
+              Show {Math.min(PAGE_SIZE, visible.length - limit)} more of {visible.length - limit}
+            </button>
+          )}
+        </>
       )}
     </div>
   );

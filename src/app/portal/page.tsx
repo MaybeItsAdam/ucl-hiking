@@ -5,7 +5,7 @@ import { can } from "@/lib/access";
 import { getCurrentMember } from "@/lib/session";
 
 export default async function PortalPage(props: {
-  searchParams?: Promise<{ view?: string }>;
+  searchParams?: Promise<{ view?: string; section?: string }>;
 }) {
   const member = await getCurrentMember();
   if (!member) redirect("/auth/signin");
@@ -15,6 +15,7 @@ export default async function PortalPage(props: {
     searchParams?.view === "member" || searchParams?.view === "officer"
       ? searchParams.view
       : undefined;
+  const initialSection = searchParams?.section === "members" ? "members" : "inventory";
 
   const profile = {
     membershipTier: member.membership_tier,
@@ -36,6 +37,7 @@ export default async function PortalPage(props: {
           isPrincipal={isPrincipal}
           isWalkLeader={isWalkLeader}
           initialView={initialView}
+          initialSection={initialSection}
         />
         <form action="/api/auth/logout" method="post" className="logout-form">
           <button type="submit">Sign out</button>

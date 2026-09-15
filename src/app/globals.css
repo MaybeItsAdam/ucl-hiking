@@ -2739,3 +2739,89 @@ select:focus {
   background: #115e59;
 }
 
+
+/* ── Committee section tabs (Inventory / Members) ── */
+.portal-section-tabs { display: flex; gap: 4px; margin: -8px 0 20px; border-bottom: 1px solid var(--line); }
+.portal-section-tabs button { display: inline-flex; align-items: center; gap: 7px; min-height: 44px; padding: 0 14px; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; color: var(--ink); opacity: .6; font: 700 14px var(--font-body); cursor: pointer; }
+.portal-section-tabs button:hover { opacity: .85; }
+.portal-section-tabs button.active { opacity: 1; color: var(--forest); border-bottom-color: var(--forest); }
+.portal-section-tabs button:focus-visible { outline: 2px solid var(--forest); outline-offset: -2px; border-radius: 6px 6px 0 0; }
+
+/* ── Membership list ── */
+.roster-panel { display: flex; flex-direction: column; gap: 12px; }
+.roster-summary { font-size: 13px; color: var(--ink); opacity: .75; }
+.roster-summary strong { font-weight: 800; opacity: 1; }
+
+.roster-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.roster-search { flex: 1 1 260px; display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 6px 0 12px; background: #fff; border: 1px solid var(--line); border-radius: 999px; color: var(--ink); }
+.roster-search:focus-within { border-color: var(--forest); box-shadow: 0 0 0 3px rgba(8, 168, 173, .15); }
+.roster-search svg { flex-shrink: 0; opacity: .5; }
+.roster-search input { flex: 1; min-width: 0; border: none; outline: none; background: none; padding: 9px 0; font: 14px var(--font-body); color: var(--ink); }
+.roster-search input::-webkit-search-cancel-button { display: none; }
+.roster-search button { display: grid; place-items: center; width: 30px; height: 30px; border: none; border-radius: 50%; background: none; color: var(--ink); opacity: .55; cursor: pointer; }
+.roster-search button:hover { opacity: 1; background: var(--cream); }
+
+.roster-filters { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.roster-filters::-webkit-scrollbar { display: none; }
+.roster-filters button { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 11px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink); font: 600 13px var(--font-body); cursor: pointer; white-space: nowrap; }
+.roster-filters button:hover { border-color: rgba(47, 67, 85, .35); }
+.roster-filters button.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+.roster-filter-count { font-size: 11px; font-weight: 700; opacity: .55; font-variant-numeric: tabular-nums; }
+.roster-filters button.active .roster-filter-count { opacity: .75; }
+
+.tier-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(47, 67, 85, .25); }
+.tier-explorer { background: var(--forest); }
+.tier-standard { background: var(--lime); }
+.tier-taster { background: var(--mint); }
+
+.roster-columns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px) 110px; gap: 16px; padding: 0 14px; font-size: 10px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; opacity: .5; }
+.roster-columns span:last-child { text-align: right; }
+
+.roster-list { list-style: none; margin: 0; padding: 0; background: #fff; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.roster-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 300px) 110px; grid-template-areas: "name tags expiry" "email tags expiry"; column-gap: 16px; row-gap: 1px; align-items: center; padding: 9px 14px; }
+.roster-row + .roster-row { border-top: 1px solid var(--line); }
+.roster-row:hover { background: rgba(232, 237, 239, .45); }
+
+.roster-name { grid-area: name; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 700; }
+.roster-email { grid-area: email; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--ink); opacity: .6; text-decoration: none; }
+.roster-email:hover { opacity: 1; text-decoration: underline; }
+.roster-tags { grid-area: tags; display: flex; flex-wrap: wrap; gap: 4px; }
+.roster-tag { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.roster-tag.is-leader { border-color: rgba(8, 168, 173, .4); color: #067a7e; background: rgba(8, 168, 173, .08); }
+.roster-tag.is-governance { border-color: rgba(47, 67, 85, .35); background: var(--cream); }
+.roster-expiry { grid-area: expiry; text-align: right; font-size: 12px; opacity: .65; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.roster-expiry.is-soon { opacity: 1; color: #b45309; font-weight: 700; }
+.roster-expiry.is-expired { opacity: 1; color: #c2410c; font-weight: 700; }
+
+.roster-state { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; padding: 32px 16px; border: 1px dashed var(--line); border-radius: 12px; font-size: 14px; opacity: .8; text-align: center; }
+.roster-state.is-error { border-style: solid; border-color: rgba(242, 102, 64, .45); background: rgba(242, 102, 64, .06); color: #b23a19; opacity: 1; }
+.roster-spinner { animation: roster-spin 1s linear infinite; }
+@keyframes roster-spin { to { transform: rotate(360deg); } }
+.roster-link-button { border: none; background: none; padding: 4px; color: var(--forest); font: 700 14px var(--font-body); text-decoration: underline; cursor: pointer; }
+.roster-more { align-self: center; min-height: 40px; padding: 0 18px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink); font: 700 13px var(--font-body); cursor: pointer; }
+.roster-more:hover { border-color: var(--ink); }
+
+@media (max-width: 640px) {
+  .portal-section-tabs { margin-top: -12px; margin-bottom: 14px; }
+  .portal-section-tabs button { flex: 1; justify-content: center; }
+  .roster-toolbar { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 8px; }
+  .roster-search { flex-basis: auto; min-height: 44px; }
+  .roster-search input { font-size: 16px; } /* below 16px iOS zooms on focus */
+  .roster-search button { width: 36px; height: 36px; }
+  /* bleed the chip row to the screen edge so it reads as scrollable */
+  .roster-filters { margin: 0 -16px; padding: 0 16px; }
+  .roster-filters button { min-height: 36px; position: relative; }
+  .roster-filters button::after { content: ""; position: absolute; inset: -4px 0; }
+  .roster-columns { display: none; }
+  .roster-list { border-radius: 10px; }
+  .roster-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name expiry" "email email" "tags tags"; row-gap: 3px; column-gap: 10px; padding: 10px 12px; }
+  .roster-tags { margin-top: 3px; }
+  .roster-email.is-missing { display: none; }
+  .roster-more { align-self: stretch; min-height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roster-spinner { animation-duration: 3s; }
+}
+.roster-email.is-missing { font-style: italic; opacity: .45; }
+.roster-tag.is-off-roster { border-color: rgba(242, 102, 64, .45); background: rgba(242, 102, 64, .08); color: #b23a19; }

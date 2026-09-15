@@ -1,4 +1,4 @@
-import type { MembershipTier } from "@/lib/access";
+import type { GovernanceRole, MembershipTier } from "@/lib/access";
 
 /**
  * TEMPORARY name matching between the SU roster and UCL sign-in identities.
@@ -66,4 +66,78 @@ export function matchRosterByName<T extends RosterEntry>(roster: T[], name: stri
     ({ tokens }) => tokens.size >= 2 && (isSubset(wanted, tokens) || isSubset(tokens, wanted)),
   );
   return partial.length === 1 ? partial[0].entry : null;
+}
+
+/** An account on the site, as far as the membership list needs it. */
+export interface RosterAccount {
+  id: string;
+  email: string;
+  full_name: string | null;
+  membership_tier: MembershipTier;
+  governance_role: GovernanceRole | null;
+  is_walk_leader: boolean;
+  membership_expires_at: string | null;
+}
+
+/** One row of the committee membership list. */
+export interface MembershipListEntry {
+  id: string;
+  full_name: string;
+  member_type: string | null;
+  membership_tier: MembershipTier;
+  membership_expires_at: string | null;
+  /** The site account matched to this person, if they have signed in. */
+  email: string | null;
+  governance_role: GovernanceRole | null;
+  is_walk_leader: boolean;
+  on_roster: boolean;
+}
+
+/**
+ * The SU roster with each person's site account attached by name, followed by
+ * accounts matching nobody on the roster (committee added by hand, say).
+ */
+export function buildMembershipList<T extends RosterEntry & { id: string; member_type: string | null }>(
+  roster: T[],
+  accounts: RosterAccount[],
+): MembershipListEntry[] {
+  const accountByEntry = new Map<T, RosterAccount>();
+  const unmatched: RosterAccount[] = [];
+  for (const account of accounts) {
+    const entry = matchRosterByName(roster, account.full_name);
+    if (entry && !accountByEntry.has(entry)) accountByEntry.set(entry, account);
+    else unmatched.push(account);
+  }
+
+  const onRoster = roster.map((entry): MembershipListEntry => {
+    const account = accountByEntry.get(entry);
+    return {
+      id: entry.id,
+      full_name: entry.full_name,
+      member_type: entry.member_type,
+      membership_tier: entry.membership_tier,
+      membership_expires_at: entry.membership_expires_at,
+      email: account?.email ?? null,
+      governance_role: account?.governance_role ?? null,
+      is_walk_leader: account?.is_walk_leader ?? false,
+      on_roster: true,
+    };
+  });
+
+  const offRoster = unmatched.map(
+    (account): MembershipListEntry => ({
+      id: account.id,
+      full_name: account.full_name || account.email.split("@")[0],
+      member_type: null,
+      membership_tier: account.membership_tier,
+      membership_expires_at: account.membership_expires_at,
+      email: account.email,
+      governance_role: account.governance_role,
+      is_walk_leader: account.is_walk_leader,
+      on_roster: false,
+    }),
+  );
+
+  const byName = (a: MembershipListEntry, b: MembershipListEntry) => a.full_name.localeCompare(b.full_name, "en-GB");
+  return [...onRoster.sort(byName), ...offRoster.sort(byName)];
 }
