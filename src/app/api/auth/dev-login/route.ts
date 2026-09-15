@@ -8,13 +8,14 @@ export async function GET(request: Request) {
   }
 
   const requestUrl = new URL(request.url);
-  const email = "adam.cleary.24@ucl.ac.uk";
+  // The address UCL sign-in hands the Toolbox, so this matches the real account.
+  const email = "zcabacl@ucl.ac.uk";
 
   if (isSupabaseConfigured()) {
     const supabase = getSupabaseAdmin();
     let { data: member } = await supabase
       .from("members")
-      .select("id,email,full_name,membership_tier,governance_role,is_walk_leader,membership_expires_at,revoked_at")
+      .select("id,email,full_name,toolbox_user_id,membership_tier,governance_role,is_walk_leader,membership_expires_at,revoked_at")
       .eq("email", email)
       .maybeSingle();
 
@@ -46,7 +47,7 @@ export async function GET(request: Request) {
 
     if (member) {
       await setSessionCookie({
-        toolboxUserId: "dev-admin-id",
+        toolboxUserId: member.toolbox_user_id || "dev-admin-id",
         memberId: member.id,
         email: member.email,
         name: member.full_name || "Adam Cleary",
