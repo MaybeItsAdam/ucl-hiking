@@ -6,6 +6,6 @@ for_platform :ios do
 end
 
 for_platform :android do
-  package_name "uk.org.ucl.hiking"
+  package_name "org.uclhiking.app"
   json_key_file ENV["PLAY_JSON_KEY_FILE"]
 end

@@ -1,13 +1,13 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace "uk.org.ucl.hiking"
+    namespace "org.uclhiking.app"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "uk.org.ucl.hiking"
+        applicationId "org.uclhiking.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
+        versionCode = (System.getenv("BUILD_NUMBER") ?: "1").toInteger()
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

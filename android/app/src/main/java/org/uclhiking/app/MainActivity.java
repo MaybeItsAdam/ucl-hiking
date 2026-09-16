@@ -1,4 +1,4 @@
-package uk.org.ucl.hiking;
+package org.uclhiking.app;
 
 import com.getcapacitor.BridgeActivity;
 

@@ -3,7 +3,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 const appUrl = process.env.CAPACITOR_APP_URL || "https://ucl-hiking.vercel.app";
 
 const config: CapacitorConfig = {
-  appId: "uk.org.ucl.hiking",
+  appId: "org.uclhiking.app",
   appName: "UCL Hiking Club",
   webDir: "capacitor-dist",
   server: {

@@ -119,7 +119,7 @@ platform :ios do
 end
 
 platform :android do
-  PLAY_PACKAGE_NAME = "uk.org.ucl.hiking".freeze
+  PLAY_PACKAGE_NAME = "org.uclhiking.app".freeze
 
   def prepare_android_build
     ENV["BUILD_NUMBER"] = next_play_version_code(PLAY_PACKAGE_NAME).to_s
