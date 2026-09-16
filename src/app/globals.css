@@ -891,6 +891,7 @@ footer { max-width: 1180px; margin: 0 auto; padding: 40px 30px 55px; display: fl
 .portal-subnav { display: flex; gap: 10px; border-bottom: 2px solid var(--line); margin-bottom: 24px; }
 .portal-subnav button { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border: none; background: none; font-weight: 700; font-size: 13px; color: var(--ink); opacity: .6; border-bottom: 3px solid transparent; margin-bottom: -2px; cursor: pointer; }
 .portal-subnav button.active { opacity: 1; border-bottom-color: var(--forest); color: var(--forest); }
+.tab-label-short { display: none; }
 
 .search-filter-bar { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: center; }
 .search-box { flex: 1; min-width: 240px; display: flex; align-items: center; gap: 10px; padding: 0 14px; background: white; border: 1px solid var(--line); border-radius: 999px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04); transition: border-color 0.15s ease; }
@@ -1051,108 +1052,140 @@ select:focus {
   gap: 6px;
 }
 
+/* ==========================================================================
+   PORTAL ON SMALL SCREENS
+
+   The dashboard is read on a phone far more than on a laptop, so this is a
+   density pass rather than a reflow. Previously about 1120px of header, stats
+   and filters sat above the first piece of kit on a 844px screen, so nothing
+   actionable was ever on the first screen. The moves: one page title instead
+   of two, KPI tiles carrying the same four numbers in half the height,
+   filters on one row, and card actions inline.
+   ========================================================================== */
 @media (max-width: 768px) {
-  .portal-shell {
-    padding: 0 12px 32px !important;
-  }
-  .equipment-portal-shell {
-    padding: 18px 14px !important;
-    border-radius: 18px !important;
-    margin-top: 14px !important;
-  }
-  .equipment-header {
-    flex-direction: column !important;
-    align-items: stretch !important;
-    gap: 16px !important;
-  }
-  .equipment-header h2 {
-    font-size: 22px !important;
-  }
-  .portal-subnav {
-    display: flex !important;
-    gap: 6px !important;
-    overflow-x: auto !important;
-    -webkit-overflow-scrolling: touch !important;
-    white-space: nowrap !important;
-    padding-bottom: 6px !important;
-    margin-bottom: 20px !important;
-    border-bottom: 1.5px solid var(--line) !important;
-    scrollbar-width: none !important;
-  }
-  .portal-subnav::-webkit-scrollbar {
-    display: none !important;
-  }
-  .portal-subnav button {
-    flex-shrink: 0 !important;
-    padding: 10px 14px !important;
-    font-size: 13px !important;
-  }
-  .inventory-kpi-grid {
-    grid-template-columns: repeat(2, 1fr) !important;
-    gap: 10px !important;
-    margin-bottom: 20px !important;
-  }
-  .search-filter-bar {
-    flex-direction: column !important;
-    align-items: stretch !important;
-    gap: 10px !important;
-  }
-  .search-box, .filter-box, .custom-select-container.is-pill {
-    width: 100% !important;
-    min-width: 100% !important;
-    box-sizing: border-box !important;
-  }
-  .equipment-grid {
-    grid-template-columns: 1fr !important;
-    gap: 14px !important;
-  }
-  .equipment-card {
-    padding: 16px !important;
-    border-radius: 16px !important;
-  }
-  .desktop-table-view {
-    display: none !important;
-  }
-  .mobile-card-view {
-    display: flex !important;
-    flex-direction: column !important;
+  .portal-shell { padding: 0 12px 32px; }
+
+  /* Keep the role badge and the title; the welcome sentence cost two lines and
+     the title plus the tabs below it already say where you are. */
+  .portal-context-header {
+    padding: 16px 0 14px !important;
+    margin-bottom: 16px !important;
     gap: 12px !important;
   }
-  .modal-overlay {
-    padding: 12px !important;
-    align-items: flex-end !important;
+  .portal-context-title { font-size: 23px !important; line-height: 1.2; }
+  .portal-context-sub { display: none; }
+  .portal-view-switch { width: 100%; }
+  .portal-view-switch .button { width: 100%; justify-content: center; min-height: 44px; }
+
+  .equipment-portal-shell { padding: 14px 12px; border-radius: 16px; }
+
+  /* The shell restated the page title almost verbatim. One is enough here. */
+  .equipment-header { flex-direction: column; align-items: stretch; gap: 12px; margin-bottom: 16px; }
+  .equipment-header-copy { display: none; }
+
+  .portal-subnav {
+    gap: 4px;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding-bottom: 4px;
+    margin-bottom: 16px;
+    border-bottom: 1.5px solid var(--line);
+    scrollbar-width: none;
   }
+  .portal-subnav::-webkit-scrollbar { display: none; }
+  /* Four tabs only fit at 390px without their icons, so the labels carry them
+     alone here and all four stay reachable without a sideways scroll. */
+  .portal-subnav { overflow-x: visible; }
+  .portal-subnav button { flex: 1; justify-content: center; min-height: 44px; padding: 0 6px; font-size: 13px; gap: 0; }
+  .portal-subnav button > svg { display: none; }
+  .tab-label-long { display: none; }
+  .tab-label-short { display: inline; }
+
+  /* Same four numbers, a little over half the height. */
+  .inventory-kpi-grid { grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .kpi-tile { padding: 10px 12px !important; border-radius: 12px !important; }
+  .kpi-tile-head { margin-bottom: 2px !important; }
+  .kpi-tile-head span { font-size: 10px !important; letter-spacing: .02em; }
+  .kpi-tile-head > div { width: 22px !important; height: 22px !important; border-radius: 7px !important; }
+  .kpi-tile-head > div > svg { width: 13px; height: 13px; }
+  .kpi-tile-stat { font-size: 19px !important; }
+  .kpi-tile-stat span { font-size: 11px !important; }
+  .kpi-tile-sub { font-size: 10px !important; margin-top: 2px !important; }
+
+  /* Search takes the full width; the two filters share the row beneath it. */
+  .search-filter-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .search-box { grid-column: 1 / -1; min-width: 0; }
+  .search-filter-bar .custom-select-container { width: 100%; min-width: 0; }
+
+  .equipment-grid { grid-template-columns: 1fr; gap: 10px; }
+  .equipment-card { padding: 14px; border-radius: 14px; }
+  .equipment-card h3 { font-size: 16px !important; line-height: 1.25; }
+  .equipment-card-desc {
+    min-height: 0 !important;
+    margin-bottom: 10px !important;
+    font-size: 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* Borrow keeps the wide target; edit and delete become icons beside it. The
+     labels are hidden rather than removed, so the buttons keep their names for
+     screen readers through the aria-label on each one. */
+  .equipment-card-actions { flex-direction: row !important; align-items: stretch; }
+  .equipment-card-actions > .button { flex: 1; min-height: 44px; }
+  .equipment-card-admin-actions {
+    grid-template-columns: 44px 44px !important;
+    gap: 6px !important;
+    margin-top: 0 !important;
+  }
+  .equipment-card-admin-actions .button { min-height: 44px; padding: 0 !important; }
+  .equipment-card-admin-actions .button span { display: none; }
+
+  /* Committee actions ride on one row: the sheets controls shrink to their
+     icons (each keeps an aria-label) and Add Equipment takes what is left. */
+  .equipment-header-actions { flex-wrap: nowrap !important; gap: 8px !important; align-items: stretch !important; }
+  .sheets-sync-toolbar { flex-shrink: 0; }
+  .sheets-sync-toolbar .button { min-height: 44px; padding: 0 12px !important; }
+  .sheets-sync-toolbar .button span:not([title]) { display: none; }
+  .add-equipment-button { flex: 1; min-height: 44px; white-space: nowrap; }
+
+  /* Keep "Request to Borrow" on one line inside the narrower button. */
+  .equipment-card-actions > .button { font-size: 12px; letter-spacing: 0; white-space: nowrap; }
+
+  /* The option count squeezed the filter label into an ellipsis; drop it and
+     tighten the trigger so "All Categories" fits whole. */
+  .search-filter-bar .custom-select-badge { display: none; }
+  .search-filter-bar .custom-select-trigger { padding: 10px 12px !important; min-height: 44px; }
+
+  .desktop-table-view { display: none; }
+  .mobile-card-view { display: flex; flex-direction: column; gap: 10px; }
+
+  /* Dialogs become bottom sheets, clear of the home indicator. */
+  .modal-overlay { padding: 0; align-items: flex-end; }
   .modal-card {
-    padding: 22px 18px !important;
-    border-radius: 20px 20px 16px 16px !important;
-    max-height: 88vh !important;
-    overflow-y: auto !important;
-    max-width: 100% !important;
+    width: 100%;
+    max-width: 100%;
+    padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+    border-radius: 16px 16px 0 0;
+    max-height: 88vh;
+    overflow-y: auto;
   }
+  /* Anything under 16px makes iOS zoom the field and never zoom back out. */
   .modal-card input,
   .modal-card select,
-  .modal-card textarea {
-    font-size: 16px !important; /* Prevents auto-zoom in iOS Safari */
-  }
-  .form-row {
-    grid-template-columns: 1fr !important;
-    gap: 10px !important;
-  }
-  .account-popover {
-    width: calc(100vw - 24px) !important;
-    max-width: 360px !important;
-    right: 0 !important;
-  }
+  .modal-card textarea,
+  .search-box input { font-size: 16px; }
+
+  .form-row { grid-template-columns: 1fr; gap: 10px; }
+  .account-popover { width: calc(100vw - 24px); max-width: 360px; right: 0; }
 }
 
-@media (max-width: 480px) {
-  .inventory-kpi-grid {
-    grid-template-columns: 1fr 1fr !important;
-    gap: 8px !important;
-  }
-  .equipment-portal-shell {
-    padding: 14px 10px !important;
-  }
+@media (max-width: 400px) {
+  .portal-shell { padding: 0 10px 28px; }
+  .equipment-portal-shell { padding: 12px 10px; }
+  .inventory-kpi-grid { gap: 6px; }
 }
 
 /* ==========================================================================
@@ -2825,3 +2858,29 @@ select:focus {
 }
 .roster-email.is-missing { font-style: italic; opacity: .45; }
 .roster-tag.is-off-roster { border-color: rgba(242, 102, 64, .45); background: rgba(242, 102, 64, .08); color: #b23a19; }
+
+.invite-privacy-link { display: inline-block; margin-top: 22px; color: #fff; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
+.auth-privacy-link { display: inline-block; margin-top: 12px; color: var(--ink); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
+.portal-privacy-link { display: inline-block; margin-top: 16px; font-size: 13px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+
+.privacy-page { min-height: 100vh; padding: 0 24px 80px; background: var(--cream); color: var(--ink); }
+.privacy-header { max-width: 980px; margin: 0 auto; padding: 26px 0; display: flex; align-items: center; justify-content: space-between; gap: 24px; border-bottom: 1px solid var(--line); }
+.privacy-brand { display: inline-flex; align-items: center; gap: 13px; font: 800 17px var(--font-display); }
+.privacy-back { font-size: 13px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.privacy-content { max-width: 760px; margin: 64px auto 0; font-size: 16px; line-height: 1.7; }
+.privacy-eyebrow { margin: 0 0 10px; color: var(--forest); font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.privacy-content h1 { margin: 0; font: 800 clamp(42px, 7vw, 64px)/1.1 var(--font-display); }
+.privacy-date { margin: 10px 0 34px; font-size: 13px; opacity: .65; }
+.privacy-content h2 { margin: 44px 0 10px; font: 800 24px/1.25 var(--font-display); }
+.privacy-content p { margin: 0 0 18px; }
+.privacy-content ul { margin: 0 0 20px; padding-left: 24px; }
+.privacy-content li { margin: 0 0 10px; }
+.privacy-content a { color: #087e83; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 640px) {
+  .privacy-page { padding: 0 18px 64px; }
+  .privacy-header { padding: 18px 0; }
+  .privacy-brand { font-size: 14px; }
+  .privacy-back { max-width: 100px; text-align: right; font-size: 11px; }
+  .privacy-content { margin-top: 42px; font-size: 15px; }
+  .privacy-content h2 { font-size: 21px; }
+}

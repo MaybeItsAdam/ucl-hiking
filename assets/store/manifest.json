@@ -1,0 +1,186 @@
+[
+  {
+    "file": "android/feature-graphic.png",
+    "status": "ready",
+    "kind": "feature-graphic",
+    "width": 1024,
+    "height": 500,
+    "alt": "UCL Hiking Club: Ready for the next adventure. Your club equipment, in one place. A mountain range and dotted trail."
+  },
+  {
+    "file": "ios/app-icon.png",
+    "status": "ready",
+    "kind": "app-icon",
+    "width": 1024,
+    "height": 1024
+  },
+  {
+    "file": "android/app-icon.png",
+    "status": "ready",
+    "kind": "app-icon",
+    "width": 512,
+    "height": 512
+  },
+  {
+    "file": "ios/iphone-6.9/screenshots/01-home.png",
+    "status": "ready",
+    "kind": "screenshot",
+    "width": 1320,
+    "height": 2868,
+    "platform": "ios/iphone-6.9",
+    "capture": "captures/ios/01-home.png"
+  },
+  {
+    "file": "ios/iphone-6.9/screenshots/02-join.png",
+    "status": "ready",
+    "kind": "screenshot",
+    "width": 1320,
+    "height": 2868,
+    "platform": "ios/iphone-6.9",
+    "capture": "captures/ios/02-join.png"
+  },
+  {
+    "file": "ios/iphone-6.9/screenshots/03-signin.png",
+    "status": "ready",
+    "kind": "screenshot",
+    "width": 1320,
+    "height": 2868,
+    "platform": "ios/iphone-6.9",
+    "capture": "captures/ios/03-signin.png"
+  },
+  {
+    "file": "templates/ios/iphone-6.9/04-kit-catalogue.png",
+    "status": "template",
+    "kind": "screenshot",
+    "width": 1320,
+    "height": 2868,
+    "platform": "ios/iphone-6.9",
+    "capture": null
+  },
+  {
+    "file": "templates/ios/iphone-6.9/05-kit-request.png",
+    "status": "template",
+    "kind": "screenshot",
+    "width": 1320,
+    "height": 2868,
+    "platform": "ios/iphone-6.9",
+    "capture": null
+  },
+  {
+    "file": "templates/ios/iphone-6.9/06-my-requests.png",
+    "status": "template",
+    "kind": "screenshot",
+    "width": 1320,
+    "height": 2868,
+    "platform": "ios/iphone-6.9",
+    "capture": null
+  },
+  {
+    "file": "ios/ipad-13/screenshots/01-home.png",
+    "status": "ready",
+    "kind": "screenshot",
+    "width": 2064,
+    "height": 2752,
+    "platform": "ios/ipad-13",
+    "capture": "captures/ipad/01-home.png"
+  },
+  {
+    "file": "ios/ipad-13/screenshots/02-join.png",
+    "status": "ready",
+    "kind": "screenshot",
+    "width": 2064,
+    "height": 2752,
+    "platform": "ios/ipad-13",
+    "capture": "captures/ipad/02-join.png"
+  },
+  {
+    "file": "ios/ipad-13/screenshots/03-signin.png",
+    "status": "ready",
+    "kind": "screenshot",
+    "width": 2064,
+    "height": 2752,
+    "platform": "ios/ipad-13",
+    "capture": "captures/ipad/03-signin.png"
+  },
+  {
+    "file": "templates/ios/ipad-13/04-kit-catalogue.png",
+    "status": "template",
+    "kind": "screenshot",
+    "width": 2064,
+    "height": 2752,
+    "platform": "ios/ipad-13",
+    "capture": null
+  },
+  {
+    "file": "templates/ios/ipad-13/05-kit-request.png",
+    "status": "template",
+    "kind": "screenshot",
+    "width": 2064,
+    "height": 2752,
+    "platform": "ios/ipad-13",
+    "capture": null
+  },
+  {
+    "file": "templates/ios/ipad-13/06-my-requests.png",
+    "status": "template",
+    "kind": "screenshot",
+    "width": 2064,
+    "height": 2752,
+    "platform": "ios/ipad-13",
+    "capture": null
+  },
+  {
+    "file": "android/phone/screenshots/01-home.png",
+    "status": "ready",
+    "kind": "screenshot",
+    "width": 1080,
+    "height": 1920,
+    "platform": "android/phone",
+    "capture": "captures/android/01-home.png"
+  },
+  {
+    "file": "android/phone/screenshots/02-join.png",
+    "status": "ready",
+    "kind": "screenshot",
+    "width": 1080,
+    "height": 1920,
+    "platform": "android/phone",
+    "capture": "captures/android/02-join.png"
+  },
+  {
+    "file": "android/phone/screenshots/03-signin.png",
+    "status": "ready",
+    "kind": "screenshot",
+    "width": 1080,
+    "height": 1920,
+    "platform": "android/phone",
+    "capture": "captures/android/03-signin.png"
+  },
+  {
+    "file": "templates/android/phone/04-kit-catalogue.png",
+    "status": "template",
+    "kind": "screenshot",
+    "width": 1080,
+    "height": 1920,
+    "platform": "android/phone",
+    "capture": null
+  },
+  {
+    "file": "templates/android/phone/05-kit-request.png",
+    "status": "template",
+    "kind": "screenshot",
+    "width": 1080,
+    "height": 1920,
+    "platform": "android/phone",
+    "capture": null
+  },
+  {
+    "file": "templates/android/phone/06-my-requests.png",
+    "status": "template",
+    "kind": "screenshot",
+    "width": 1080,
+    "height": 1920,
+    "platform": "android/phone",
+    "capture": null
+  }
+]

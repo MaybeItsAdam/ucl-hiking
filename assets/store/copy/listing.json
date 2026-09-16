@@ -1,0 +1,35 @@
+{
+  "locale": "en-GB",
+  "owner": "MaybeItsSoftware",
+  "privacy_contact": "privacy@uclhiking.org",
+  "support_email": "support@uclhiking.org",
+  "fields": {
+    "app-name": "UCL Hiking Club",
+    "apple-subtitle": "Club equipment and kit loans",
+    "apple-promotional-text": "Get ready for your next hike. Browse club kit, request an equipment loan and check your request status with your UCL account.",
+    "apple-keywords": "UCL,hiking,walking,club,equipment,kit,loans,camping,rucksack,tent,student",
+    "google-short-description": "Browse UCL Hiking Club kit, request equipment and track your loans",
+    "description": "Get ready for your next adventure with UCL Hiking Club.\n\nBROWSE CLUB KIT\nSee the club equipment catalogue, check stock and condition, and filter by category to find the kit you need.\n\nREQUEST AN EQUIPMENT LOAN\nChoose the quantity, borrowing dates and trip details, then send a request for committee review. Check your own requests and loan status in the member portal.\n\nTOOLS FOR THE COMMITTEE\nAuthorised club officers can manage inventory, review equipment requests and keep track of active loans. Features depend on your club role.\n\nSIGN IN WITH UCL\nUse your UCL account through Adam's Campus Toolbox. Equipment requests are available to eligible Standard and Explorer members; access depends on your current club membership.\n\nAn internet connection is required.\n\nOwned and maintained by MaybeItsSoftware for UCL Hiking Club.",
+    "first-release-notes": "UCL Hiking Club on your phone: browse club equipment, request a kit loan and check your requests with UCL sign-in.",
+    "privacy-policy-url": "https://ucl-hiking.vercel.app/privacy",
+    "account-deletion-url": "https://ucl-hiking.vercel.app/privacy#request-deletion",
+    "marketing-url": "https://ucl-hiking.vercel.app",
+    "copyright": "2026 MaybeItsSoftware",
+    "feature-graphic-alt": "UCL Hiking Club: Ready for the next adventure. Your club equipment, in one place. A mountain range and dotted trail.",
+    "support-email": "support@uclhiking.org",
+    "support-url": "https://ucl-hiking.vercel.app/support"
+  },
+  "character_counts": {
+    "app-name": 15,
+    "apple-subtitle": 28,
+    "apple-promotional-text": 125,
+    "apple-keywords": 73,
+    "google-short-description": 66,
+    "description": 827,
+    "first-release-notes": 114,
+    "feature-graphic-alt": 116
+  },
+  "suggested_primary_category": "Sports",
+  "suggested_secondary_apple_category": "Lifestyle",
+  "review_account": "MaybeItsAdam (credentials supplied privately)"
+}

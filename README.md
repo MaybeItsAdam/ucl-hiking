@@ -63,7 +63,7 @@ The native shell loads the deployed Next.js application so it retains server
 routes and Supabase-backed functionality:
 
 ```bash
-CAPACITOR_APP_URL=https://hiking.example.org npm run cap:sync
+CAPACITOR_APP_URL=https://ucl-hiking.vercel.app npm run cap:sync
 npm run cap:ios       # or cap:android
 ```
 
@@ -72,6 +72,17 @@ UCL sign-in opens in the system browser. Toolbox returns to the allow-listed
 registered `uclhiking://auth/callback` scheme, and the in-app listener exchanges
 the fragment for the same `HttpOnly` session used by the website. No universal
 link or second Entra callback registration is required.
+Browser sign-in returns to the domain where it started, so `uclhiking.org` can
+serve the same app later once that domain is attached to Vercel and allowed in
+the Toolbox Hiking organiser. Native builds continue to load the configured
+`CAPACITOR_APP_URL` until rebuilt with a different URL.
+
+## Store materials
+
+Icons, the Google Play feature graphic, listing copy, screenshot guidance and
+tester/reviewer instructions are in [`assets/store/README.md`](./assets/store/README.md).
+The hiking app's own privacy policy is at `/privacy`; the store privacy URL is
+`https://ucl-hiking.vercel.app/privacy` after this change is deployed.
 
 ## Member sync
 

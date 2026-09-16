@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+      <rect width="1024" height="500" fill="#01a2a6"/>
+      <path d="M-20 448 140 412 300 450 450 424 560 452 720 190 810 448 890 316 1044 448V520H-20Z" fill="#2c3e50"/>
+      <path d="M720 190 666 279 706 268 761 309Z" fill="#fff"/>
+      <path d="M890 316 863 361 893 348 936 356Z" fill="#fff"/>
+      <path d="M-20 486C130 468 230 488 340 478s190-6 270-26c40-10 65-24 80-42" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-dasharray="1 26"/>
+      <g fill="#fff" transform="translate(856 70) scale(.478)">
+        <path d="M97 26h6v20h-6z"/>
+        <path d="M89 40h22v7H89z"/>
+        <path d="M58 104c0-46 20-62 42-62s42 16 42 62z"/>
+        <path d="M52 104h96v11H52z"/>
+        <path d="M38 115h124l20 28H18z"/>
+        <path d="M22 143h156v13H22z"/>
+        <path d="M41 156h12v64H41zm21.2 0h12v64h-12zm21.2 0h12v64h-12zm21.2 0h12v64h-12zm21.2 0h12v64h-12zM147 156h12v64h-12z"/>
+        <path d="M24 220h152v15H24z"/>
+        <path d="M10 235h180v18H10z"/>
+      </g>
+      <g transform="translate(735 372)">
+        <circle r="46" fill="#2c3e50"/>
+        <circle r="38" fill="#bdf271"/>
+        <path fill="#2c3e50" fill-rule="evenodd" transform="scale(.5)" d="m-40 43 25-69 69-28-28 69-66 28Zm16-15 30-13-20-20-10 33Z"/>
+      </g>
+      <g font-family="Arial, Helvetica, sans-serif" fill="#fff">
+        <text x="94" y="112" font-size="23" font-weight="700" letter-spacing="2.4">UCL HIKING CLUB</text>
+        <text x="90" y="190" font-size="56" font-weight="800">Ready for</text>
+        <text x="90" y="252" font-size="56" font-weight="800">the next adventure.</text>
+        <text x="94" y="301" font-size="22">Your club equipment, in one place.</text>
+      </g>
+    </svg>

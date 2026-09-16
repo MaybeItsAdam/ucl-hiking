@@ -93,6 +93,7 @@ export default function SignInPage() {
         <Link className="auth-home" href="/">
           ← Return to {societyName} website
         </Link>
+        <Link className="auth-privacy-link" href="/privacy">Privacy policy</Link>
       </section>
     </main>
   );

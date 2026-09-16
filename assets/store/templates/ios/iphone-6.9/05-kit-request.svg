@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="2868" viewBox="0 0 1320 2868">
+      <rect width="1320" height="2868" fill="#2c3e50"/>
+      <path d="M871.2 0H1320V411.4L1135.2 183.92000000000002l-105.60000000000001 72.6Z" fill="#01a2a6"/>
+      <path d="M1135.2 183.92000000000002l60.72 75.02-64.68 26.62-34.32 9.68Z" fill="#fff"/>
+      <path d="M55.44 667.52C125.39999999999999 1195.1399999999999 2.64 1585.12 59.4 1952.16S125.39999999999999 2848 26.400000000000002 2898" fill="none" stroke="#bdf271" stroke-width="9.24" stroke-linecap="round" stroke-dasharray="1 46.2"/>
+      <g font-family="Arial, Helvetica, sans-serif">
+        <text x="132" y="77" fill="#bdf271" font-size="29.04" font-weight="700" letter-spacing="3.1679999999999997">UCL HIKING CLUB</text>
+        <text fill="#fff" font-size="92" font-weight="800"><tspan x="132" y="189">Plan your trip.</tspan><tspan x="132" y="298">Request your kit.</tspan></text>
+        <text x="132" y="389" fill="#dbe7e7" font-size="40">Choose dates and send a loan request.</text>
+        <rect x="132" y="484" width="1056" height="2294" fill="#edf4f3"/>
+          <rect x="152" y="504" width="1016" height="2254" fill="none" stroke="#01a2a6" stroke-width="5" stroke-dasharray="18 18"/>
+          <text x="660.0" y="1599.0" text-anchor="middle" fill="#2c3e50" font-size="44.88">NATIVE APP CAPTURE</text>
+          <text x="660.0" y="1655.0" text-anchor="middle" fill="#2c3e50" font-size="31.68">Kit Request</text>
+          <text x="660.0" y="1713.0" text-anchor="middle" fill="#087f83" font-size="29.04">TEMPLATE — DO NOT UPLOAD</text>
+      </g>
+    </svg>

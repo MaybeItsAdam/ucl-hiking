@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { Header } from "@/components/Header";
 import { PortalDashboard } from "@/components/PortalDashboard";
 import { can } from "@/lib/access";
@@ -42,6 +43,7 @@ export default async function PortalPage(props: {
         <form action="/api/auth/logout" method="post" className="logout-form">
           <button type="submit">Sign out</button>
         </form>
+        <Link className="portal-privacy-link" href="/privacy#request-deletion">Privacy and account deletion</Link>
       </div>
     </main>
   );

@@ -74,6 +74,7 @@ export function PortalDashboard({
     <div style={{ padding: "0 4px 40px" }}>
       {/* 1. TOP CONTEXT HEADER */}
       <div
+        className="portal-context-header"
         style={{
           display: "flex",
           justifyContent: "space-between",
@@ -86,7 +87,7 @@ export function PortalDashboard({
         }}
       >
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+          <div className="portal-context-meta" style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
             <span
               style={{
                 display: "inline-flex",
@@ -111,14 +112,14 @@ export function PortalDashboard({
             </span>
           </div>
 
-          <h1 style={{ margin: "0 0 6px", fontSize: "clamp(26px, 3.5vw, 36px)", fontFamily: "var(--font-display)" }}>
+          <h1 className="portal-context-title" style={{ margin: "0 0 6px", fontSize: "clamp(26px, 3.5vw, 36px)", fontFamily: "var(--font-display)" }}>
             {activeSection === "members"
               ? "Membership List"
               : isOfficerView
                 ? "Committee Inventory System"
                 : "Equipment Locker"}
           </h1>
-          <p style={{ margin: 0, opacity: 0.7, fontSize: "14px" }}>
+          <p className="portal-context-sub" style={{ margin: 0, opacity: 0.7, fontSize: "14px" }}>
             {activeSection === "members"
               ? "Active members synced from the Students' Union roster."
               : isOfficerView
@@ -128,7 +129,7 @@ export function PortalDashboard({
         </div>
 
         {isGovernance && activeSection === "inventory" && (
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <div className="portal-view-switch" style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             {viewMode === "officer" ? (
               <button
                 type="button"

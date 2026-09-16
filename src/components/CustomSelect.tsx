@@ -202,6 +202,7 @@ export function CustomSelect<T extends string = string>({
 
           {selectedOption?.badge !== undefined && (
             <span
+              className="custom-select-badge"
               style={{
                 fontSize: "11px",
                 fontWeight: 800,

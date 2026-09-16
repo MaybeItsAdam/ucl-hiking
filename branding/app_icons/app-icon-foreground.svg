@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Android supplies the teal background and the final mask, so this layer
+       carries the scene only, drawn at 66% into the adaptive safe zone. -->
+  <g transform="translate(174 174) scale(.66)">
+  <!-- The shield's skyline: one dominant peak left of centre, two lesser peaks
+       stepping down to the right, parted by wedges of open sky. The range runs
+       well past the artboard so any launcher mask still lands on terrain. -->
+  <path fill="#2c3e50" d="M-512 1120 300 250 600 790 690 400 846 700 906 534 2572 1976V2400H-512Z"/>
+
+  <!-- Snowfields, in the shield's own shape language: a wedge hugging each
+       ridge, notched underneath so the longer flank draws out into a tail. -->
+  <path fill="#fff" d="M300 250 206 350 345 395 470 556Z"/>
+  <path fill="#fff" d="M690 400 661 525 716 500 764 545Z"/>
+  <path fill="#fff" d="M906 534 888 584 922 574 977 596Z"/>
+
+  <!-- The dotted route, broken where the compass badge sits astride it. -->
+  <g fill="none" stroke="#fff" stroke-width="28" stroke-linecap="round" stroke-dasharray="1 62">
+    <path d="M120 505c50 55 85 95 125 127"/>
+    <path d="M452 728c68 62 93 117 168 140 80 24 170 22 252-2"/>
+  </g>
+
+  <!-- The Wilkins Building portico, set in open sky as it is on the shield. -->
+  <g fill="#fff" transform="translate(707 140) scale(.83)">
+    <path d="M97 26h6v20h-6z"/>
+    <path d="M89 40h22v7H89z"/>
+    <path d="M58 104c0-46 20-62 42-62s42 16 42 62z"/>
+    <path d="M52 104h96v11H52z"/>
+    <path d="M38 115h124l20 28H18z"/>
+    <path d="M22 143h156v13H22z"/>
+    <path d="M41 156h12v64H41zm21.2 0h12v64h-12zm21.2 0h12v64h-12zm21.2 0h12v64h-12zm21.2 0h12v64h-12zM147 156h12v64h-12z"/>
+    <path d="M24 220h152v15H24z"/>
+    <path d="M10 235h180v18H10z"/>
+  </g>
+
+  <!-- The compass badge, the route's waypoint and the only accent colour. -->
+  <g transform="translate(350 690)">
+    <circle r="92" fill="#2c3e50"/>
+    <circle r="76" fill="#bdf271"/>
+    <path fill="#2c3e50" fill-rule="evenodd" d="m-40 43 25-69 69-28-28 69-66 28Zm16-15 30-13-20-20-10 33Z"/>
+  </g>
+  </g>
+</svg>

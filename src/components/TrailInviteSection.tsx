@@ -1,4 +1,5 @@
 import { SignInButton } from "@/components/SignInButton";
+import Link from "next/link";
 
 /**
  * Picks the hero's winding trail up where it leaves the bottom of ZoomedLogoHero and
@@ -96,6 +97,7 @@ export function TrailInviteSection() {
         <div className="invite-actions">
           <SignInButton />
         </div>
+        <Link className="invite-privacy-link" href="/privacy">Privacy policy</Link>
       </div>
     </section>
   );

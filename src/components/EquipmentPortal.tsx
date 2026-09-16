@@ -526,7 +526,7 @@ export function EquipmentPortal({
     <div className="equipment-portal-shell" style={{ marginTop: 0 }}>
       {/* 1. TOP HEADER & INVENTORY ACTIONS */}
       <div className="equipment-header">
-        <div>
+        <div className="equipment-header-copy">
           <h2>{isCommittee ? "Committee Equipment & Inventory System" : "Club Gear Locker"}</h2>
           <p>
             {isCommittee
@@ -536,9 +536,10 @@ export function EquipmentPortal({
         </div>
 
         {isCommittee && (
-          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+          <div className="equipment-header-actions" style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
             {/* Two-Way Sync & Settings Toolbar */}
             <div
+              className="sheets-sync-toolbar"
               style={{
                 display: "inline-flex",
                 borderRadius: "8px",
@@ -564,6 +565,7 @@ export function EquipmentPortal({
                   gap: "6px",
                   padding: "8px 12px",
                 }}
+                aria-label="Push to Sheets"
                 title="Export database to Google Sheets and impose UCL Hiking styling, formulas & validation dropdowns"
               >
                 {syncingSheets && syncDirection === "push" ? (
@@ -589,6 +591,7 @@ export function EquipmentPortal({
                   gap: "6px",
                   padding: "8px 12px",
                 }}
+                aria-label="Pull from Sheets"
                 title="Import edits, quantities, and newly added equipment rows from Google Sheets into website database"
               >
                 {syncingSheets && syncDirection === "pull" ? (
@@ -615,6 +618,7 @@ export function EquipmentPortal({
                   padding: "8px 11px",
                   position: "relative",
                 }}
+                aria-label="Google Sheets settings"
                 title="Configure Google Sheets Webhook URL & Connection"
               >
                 <Settings size={14} style={{ opacity: 0.75 }} />
@@ -644,7 +648,7 @@ export function EquipmentPortal({
                 setNewItemAvailable(2);
                 setShowAddItemModal(true);
               }}
-              className="button primary compact"
+              className="button primary compact add-equipment-button"
             >
               <Plus size={16} />
               <span>Add Equipment Item</span>
@@ -728,6 +732,7 @@ export function EquipmentPortal({
       <div className="inventory-kpi-grid">
         <div
           onClick={() => handleTabSelect("catalog")}
+          className="kpi-tile"
           style={{
             background: "white",
             border: "1px solid var(--line)",
@@ -737,7 +742,7 @@ export function EquipmentPortal({
             boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <div className="kpi-tile-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.65, textTransform: "uppercase" }}>
               Catalog Items
             </span>
@@ -745,16 +750,17 @@ export function EquipmentPortal({
               <Package size={16} />
             </div>
           </div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: "var(--ink)", fontFamily: "var(--font-display)" }}>
+          <div className="kpi-tile-stat" style={{ fontSize: 24, fontWeight: 800, color: "var(--ink)", fontFamily: "var(--font-display)" }}>
             {totalItemsCount} <span style={{ fontSize: 12, fontWeight: 500, opacity: 0.6 }}>models</span>
           </div>
-          <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
+          <div className="kpi-tile-sub" style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
             {totalUnits} total physical units
           </div>
         </div>
 
         <div
           onClick={() => handleTabSelect("catalog")}
+          className="kpi-tile"
           style={{
             background: "white",
             border: "1px solid var(--line)",
@@ -764,7 +770,7 @@ export function EquipmentPortal({
             boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <div className="kpi-tile-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.65, textTransform: "uppercase" }}>
               In Locker Ready
             </span>
@@ -772,16 +778,17 @@ export function EquipmentPortal({
               <CheckCircle2 size={16} />
             </div>
           </div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: "#15803d", fontFamily: "var(--font-display)" }}>
+          <div className="kpi-tile-stat" style={{ fontSize: 24, fontWeight: 800, color: "#15803d", fontFamily: "var(--font-display)" }}>
             {availableUnits} <span style={{ fontSize: 12, fontWeight: 500, opacity: 0.6 }}>available</span>
           </div>
-          <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
+          <div className="kpi-tile-sub" style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
             {Math.round((availableUnits / Math.max(1, totalUnits)) * 100)}% inventory ready
           </div>
         </div>
 
         <div
           onClick={() => (isCommittee ? handleTabSelect("active_loans") : handleTabSelect("my_requests"))}
+          className="kpi-tile"
           style={{
             background: "white",
             border: "1px solid var(--line)",
@@ -791,7 +798,7 @@ export function EquipmentPortal({
             boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <div className="kpi-tile-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
             <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.65, textTransform: "uppercase" }}>
               Out on Loan
             </span>
@@ -799,10 +806,10 @@ export function EquipmentPortal({
               <Layers size={16} />
             </div>
           </div>
-          <div style={{ fontSize: 24, fontWeight: 800, color: "#1d4ed8", fontFamily: "var(--font-display)" }}>
+          <div className="kpi-tile-stat" style={{ fontSize: 24, fontWeight: 800, color: "#1d4ed8", fontFamily: "var(--font-display)" }}>
             {onLoanUnits} <span style={{ fontSize: 12, fontWeight: 500, opacity: 0.6 }}>in field</span>
           </div>
-          <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
+          <div className="kpi-tile-sub" style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
             Across {activeLoans.length} active loans
           </div>
         </div>
@@ -810,6 +817,7 @@ export function EquipmentPortal({
         {isCommittee && (
           <div
             onClick={() => handleTabSelect("requests")}
+            className="kpi-tile"
             style={{
               background: pendingRequests.length > 0 ? "#fffbeb" : "white",
               border: `1px solid ${pendingRequests.length > 0 ? "#fde68a" : "var(--line)"}`,
@@ -819,7 +827,7 @@ export function EquipmentPortal({
               boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <div className="kpi-tile-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: pendingRequests.length > 0 ? "#b45309" : "inherit", opacity: pendingRequests.length > 0 ? 1 : 0.65, textTransform: "uppercase" }}>
                 Loan Requests
               </span>
@@ -827,10 +835,10 @@ export function EquipmentPortal({
                 <Clock size={16} />
               </div>
             </div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: pendingRequests.length > 0 ? "#b45309" : "var(--ink)", fontFamily: "var(--font-display)" }}>
+            <div className="kpi-tile-stat" style={{ fontSize: 24, fontWeight: 800, color: pendingRequests.length > 0 ? "#b45309" : "var(--ink)", fontFamily: "var(--font-display)" }}>
               {pendingRequests.length} <span style={{ fontSize: 12, fontWeight: 500, opacity: 0.6 }}>pending</span>
             </div>
-            <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
+            <div className="kpi-tile-sub" style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
               {pendingRequests.length > 0 ? "Requires review" : "Up to date"}
             </div>
           </div>
@@ -842,6 +850,7 @@ export function EquipmentPortal({
               setStatusFilter("needs_repair");
               handleTabSelect("catalog");
             }}
+            className="kpi-tile"
             style={{
               background: "#fff1f2",
               border: "1px solid #fecdd3",
@@ -851,7 +860,7 @@ export function EquipmentPortal({
               boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
             }}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <div className="kpi-tile-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: "#be123c", textTransform: "uppercase" }}>
                 Needs Repair
               </span>
@@ -859,10 +868,10 @@ export function EquipmentPortal({
                 <Wrench size={16} />
               </div>
             </div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: "#be123c", fontFamily: "var(--font-display)" }}>
+            <div className="kpi-tile-stat" style={{ fontSize: 24, fontWeight: 800, color: "#be123c", fontFamily: "var(--font-display)" }}>
               {repairUnits} <span style={{ fontSize: 12, fontWeight: 500, opacity: 0.6 }}>flagged</span>
             </div>
-            <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4, color: "#be123c" }}>
+            <div className="kpi-tile-sub" style={{ fontSize: 11, opacity: 0.7, marginTop: 4, color: "#be123c" }}>
               Action required
             </div>
           </div>
@@ -877,7 +886,8 @@ export function EquipmentPortal({
           onClick={() => handleTabSelect("catalog")}
         >
           <Package size={15} />
-          <span>{isCommittee ? "Equipment Inventory" : "Available Equipment"} ({items.length})</span>
+          <span className="tab-label-long">{isCommittee ? "Equipment Inventory" : "Available Equipment"} ({items.length})</span>
+          <span className="tab-label-short">{isCommittee ? "Inventory" : "Available"}</span>
         </button>
 
         {isCommittee && (
@@ -887,7 +897,8 @@ export function EquipmentPortal({
             onClick={() => handleTabSelect("requests")}
           >
             <ShieldCheck size={15} />
-            <span>Loan Approvals Queue</span>
+            <span className="tab-label-long">Loan Approvals Queue</span>
+            <span className="tab-label-short">Approvals</span>
             {pendingRequests.length > 0 && (
               <span
                 style={{
@@ -913,7 +924,8 @@ export function EquipmentPortal({
             onClick={() => handleTabSelect("active_loans")}
           >
             <Layers size={15} />
-            <span>Active Loans in Field ({activeLoans.length})</span>
+            <span className="tab-label-long">Active Loans in Field ({activeLoans.length})</span>
+            <span className="tab-label-short">On Loan</span>
           </button>
         )}
 
@@ -923,7 +935,8 @@ export function EquipmentPortal({
           onClick={() => handleTabSelect("my_requests")}
         >
           <FileText size={15} />
-          <span>My Borrow Requests ({myRequests.length})</span>
+          <span className="tab-label-long">My Borrow Requests ({myRequests.length})</span>
+          <span className="tab-label-short">Mine</span>
         </button>
       </div>
 
@@ -993,7 +1006,7 @@ export function EquipmentPortal({
                       </div>
 
                       <h3 style={{ margin: "0 0 6px", fontSize: 18 }}>{item.name}</h3>
-                      <p style={{ minHeight: 36, marginBottom: 14 }}>
+                      <p className="equipment-card-desc" style={{ minHeight: 36, marginBottom: 14 }}>
                         {item.description || "Official UCL Hiking Club kit available for member loan."}
                       </p>
                     </div>
@@ -1034,7 +1047,7 @@ export function EquipmentPortal({
                       </div>
 
                       {/* Action buttons */}
-                      <div style={{ display: "flex", gap: "8px", flexDirection: "column" }}>
+                      <div className="equipment-card-actions" style={{ display: "flex", gap: "8px", flexDirection: "column" }}>
                         {membershipTier === "taster" ? (
                           <small className="taster-notice">Taster members must upgrade to Standard/Explorer to borrow kit.</small>
                         ) : (
@@ -1053,10 +1066,12 @@ export function EquipmentPortal({
                         )}
 
                         {isCommittee && (
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: 4 }}>
+                          <div className="equipment-card-admin-actions" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: 4 }}>
                             <button
                               type="button"
                               onClick={() => handleOpenEdit(item)}
+                              aria-label={`Edit ${item.name}`}
+                              title={`Edit ${item.name}`}
                               className="button compact"
                               style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 12 }}
                             >
@@ -1066,6 +1081,8 @@ export function EquipmentPortal({
                             <button
                               type="button"
                               onClick={() => setDeletingItem(item)}
+                              aria-label={`Delete ${item.name}`}
+                              title={`Delete ${item.name}`}
                               className="button compact"
                               style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 12, color: "#b91c1c" }}
                             >
