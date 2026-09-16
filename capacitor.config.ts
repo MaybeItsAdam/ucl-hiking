@@ -6,6 +6,9 @@ const config: CapacitorConfig = {
   appId: "org.uclhiking.app",
   appName: "UCL Hiking Club",
   webDir: "capacitor-dist",
+  android: {
+    adjustMarginsForEdgeToEdge: "auto",
+  },
   server: {
     url: appUrl,
     cleartext: appUrl.startsWith("http://"),
