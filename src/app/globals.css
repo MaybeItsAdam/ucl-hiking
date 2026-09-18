@@ -2884,3 +2884,10 @@ select:focus {
   .privacy-content { margin-top: 42px; font-size: 15px; }
   .privacy-content h2 { font-size: 21px; }
 }
+
+/* Store-reviewer sign-in, revealed by seven taps on the sign-in eyebrow. 16px
+   inputs so iOS doesn't zoom the page when a field is focused. */
+.review-signin { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--line); text-align: left; }
+.review-signin input { font-size: 16px; }
+.review-signin .button { width: 100%; }
+.auth-card .review-signin-error { margin: 0 0 12px; max-width: none; color: #b42318; font-size: 13px; opacity: 1; }
