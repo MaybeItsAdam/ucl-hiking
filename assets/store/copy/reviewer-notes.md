@@ -1,8 +1,11 @@
 # Review access — private console fields only
 
-Use the real MaybeItsAdam admin account chosen by the app owner. Enter its
-username and password directly in App Store Connect → App Review Information,
-and Google Play Console → App content → App access. Do not include credentials
+Use the Toolbox store-reviewer accounts: `apple@adamscampustoolbox.org.uk` for
+App Store Connect → App Review Information, and
+`android@adamscampustoolbox.org.uk` for Google Play Console → App content → App
+access. Their passwords are set by the Toolbox repo's
+`scripts/seed-review-accounts.ts`; enter them only in those console fields.
+They need no UCL account or second factor, and they get Hiking admin access. Do not include credentials
 in the public description, screenshots or repository.
 
 ## Notes to paste after confirming the account works
@@ -12,10 +15,11 @@ connection is required. Member access uses UCL sign-in through Adam's Campus
 Toolbox and depends on club membership and role. The supplied account has
 Hiking admin access.
 
-Open the app and scroll to “Sign in with UCL”. Tap it to open the external
-UCL/Toolbox sign-in window. Complete sign-in using the supplied credentials,
-then return to UCL Hiking Club. If using the app's sign-in page, tap
-“Continue with UCL Sign-In”.
+Reviewers do not have UCL accounts, so do not use “Continue with UCL Sign-In”.
+Instead: open the app, tap “Sign in with UCL” at the top of the home screen,
+then on the sign-in page tap the small line “UCL Hiking Club × Adam's Campus
+Toolbox” seven times. A reviewer sign-in form appears below the button. Enter
+the supplied email and password and tap “Reviewer sign-in”.
 
 After sign-in, the committee inventory and membership tools are available.
 Use “Preview Member Perspective” to see the equipment catalogue and member
@@ -27,8 +31,8 @@ Privacy: privacy@uclhiking.org
 
 ## Fill privately before sending for review
 
-- Working MaybeItsAdam username and password.
-- Exact second-factor instructions, if the actual login requires them.
+- The reviewer account's email and password.
 - Apple review contact first name, last name and phone number.
 - Confirm the account works from a fresh install on iOS and Android and remains
-  available throughout review. Check the app returns correctly from the browser.
+  available throughout review. Five wrong passwords lock the account for ten
+  minutes.

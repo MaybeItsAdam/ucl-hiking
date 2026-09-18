@@ -114,20 +114,13 @@ Testers with UCL accounts and active Hiking Club membership can use normal UCL
 sign-in after installation. Their Apple/Google tester account is only for
 installing the build; it is not an app login.
 
-The chosen App Store/Play review login is the real MaybeItsAdam admin account.
-Put its working username, password, and exact UCL/Toolbox sign-in steps in App
-Store Connect's App Review Information and Play Console's App content → App
-access. Keep credentials out of this repository and the public listing. The
-review account must work for reviewers from any location and stay usable for
-future reviews. If UCL sign-in asks for a one-time MFA code or locks to a
-particular device, coordinate a reusable reviewer access method before
-submission; a personal admin login may also expose private club records and
-settings to reviewers.
-
-Reviewer notes: “Open the app, tap Continue with UCL Sign-In, and complete the
-UCL/Toolbox sign-in with the supplied account. The account has Hiking admin
-access; the member portal and committee tools are available after sign-in.”
-Include any extra prompts or second-factor steps that a reviewer will see.
+Store reviewers sign in with the Toolbox reviewer accounts
+(`apple@` / `android@adamscampustoolbox.org.uk`), not UCL. On the app's sign-in
+page, seven taps on the “UCL Hiking Club × Adam's Campus Toolbox” line reveal an
+email/password form (`/api/auth/review`, which signs in through Toolbox's
+`/api/auth/backdoor`). Put the email and password in App Store Connect's App
+Review Information and Play Console's App content → App access, never in this
+repository. See `copy/reviewer-notes.md` for the exact steps to paste.
 
 The native shells are configured to load `https://ucl-hiking.vercel.app`.
 Run `npm run cap:sync` before each native build if the deployment URL changes.
