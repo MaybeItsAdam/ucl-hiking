@@ -3,20 +3,31 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Mountain } from "lucide-react";
+import { isNativeAuthCallback } from "@/lib/authCallback";
 
 export default function AuthCallback() {
   const [message, setMessage] = useState("Checking your UCL account…");
   const [failed, setFailed] = useState(false);
+  const [appLink, setAppLink] = useState<string | null>(null);
 
   useEffect(() => {
     async function completeSignIn() {
-      const token = new URLSearchParams(window.location.hash.slice(1)).get("token");
+      const callbackUrl = new URL(window.location.href);
+      const token = new URLSearchParams(callbackUrl.hash.slice(1)).get("token");
+      // Read this before removing the token fragment from the address bar. Calling
+      // replaceState with pathname alone also removes ?native=1 on Android.
+      const nativeCallback = isNativeAuthCallback(callbackUrl);
       history.replaceState(null, "", window.location.pathname);
       if (!token) {
         throw new Error("The sign-in response did not include a token. Please try again.");
       }
-      if (new URLSearchParams(window.location.search).get("native") === "1") {
-        window.location.replace(`uclhiking://auth/callback#token=${encodeURIComponent(token)}`);
+      if (nativeCallback) {
+        const link = `uclhiking://auth/callback#token=${encodeURIComponent(token)}`;
+        // Browsers may refuse a script-initiated jump to a custom scheme, so keep a
+        // tappable link on screen in case the automatic handoff is blocked.
+        setMessage("Opening the Hiking app…");
+        setAppLink(link);
+        window.location.replace(link);
         return;
       }
       const response = await fetch("/api/auth/exchange", {
@@ -42,5 +53,5 @@ export default function AuthCallback() {
       });
   }, []);
 
-  return <main className="auth-page"><section className="auth-card"><span className="auth-mark"><Mountain /></span><h1>{failed ? "Not quite there" : "Nearly on the trail"}</h1><p>{message}</p>{failed ? <Link className="button primary" href="/auth/signin">Try UCL sign in again</Link> : <span className="loading-dots"><i /><i /><i /></span>}<Link className="auth-home" href="/">Back to the homepage</Link></section></main>;
+  return <main className="auth-page"><section className="auth-card"><span className="auth-mark"><Mountain /></span><h1>{failed ? "Not quite there" : "Nearly on the trail"}</h1><p>{message}</p>{failed ? <Link className="button primary" href="/auth/signin">Try UCL sign in again</Link> : appLink ? <a className="button primary" href={appLink}>Open the Hiking app</a> : <span className="loading-dots"><i /><i /><i /></span>}<Link className="auth-home" href="/">Back to the homepage</Link></section></main>;
 }

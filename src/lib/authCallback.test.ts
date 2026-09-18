@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { authCallbackUrl } from "./authCallback";
+import { authCallbackUrl, isNativeAuthCallback } from "./authCallback";
 
 describe("sign-in callback origin", () => {
   it("returns users to whichever hiking domain started sign-in", () => {
@@ -25,5 +25,10 @@ describe("sign-in callback origin", () => {
       .toBeNull();
     expect(authCallbackUrl(request, "https://uclhiking.org/auth/callback?native=1&native=0"))
       .toBeNull();
+  });
+
+  it("recognises the native callback before its URL is cleaned up", () => {
+    expect(isNativeAuthCallback(new URL("https://uclhiking.org/auth/callback?native=1#token=value"))).toBe(true);
+    expect(isNativeAuthCallback(new URL("https://uclhiking.org/auth/callback"))).toBe(false);
   });
 });

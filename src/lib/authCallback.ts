@@ -24,3 +24,8 @@ export function authCallbackUrl(requestUrl: URL, requestedReturnTo?: string | nu
 
   return candidate.toString();
 }
+
+/** Whether this callback must hand the completed sign-in back to the native app. */
+export function isNativeAuthCallback(callbackUrl: URL): boolean {
+  return callbackUrl.searchParams.get("native") === "1";
+}
