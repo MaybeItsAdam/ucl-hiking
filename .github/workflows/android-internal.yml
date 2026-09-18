@@ -1,0 +1,86 @@
+name: Android internal testing
+
+# Builds the Android shell and uploads it to the Play Console internal track.
+#
+# The app is a Capacitor shell that loads https://ucl-hiking.vercel.app, so a
+# website change reaches phones through the Vercel deploy alone — no new store
+# build. This only runs when something baked into the binary changes: the
+# native project, the Capacitor config or plugins (package*.json), fastlane,
+# or this file. Dispatch it by hand to force a build.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "android/**"
+      - "capacitor.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "fastlane/**"
+      - "Gemfile*"
+      - ".github/workflows/android-internal.yml"
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: "beta = internal testing, release = production (10% rollout)"
+        type: choice
+        options: [beta, release]
+        default: beta
+
+# One store upload at a time, and never cancel one halfway.
+concurrency:
+  group: android-play
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Android -> Play ${{ inputs.lane || 'beta' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - run: npm ci
+
+      - name: Sync Capacitor Android shell
+        run: npx cap sync android
+
+      - name: Write signing key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/upload-keystore.jks
+          cat > android/app/key.properties <<PROPS
+          storeFile=../upload-keystore.jks
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          PROPS
+
+      - name: Write Play service account key
+        env:
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: printf '%s' "$PLAY_SERVICE_ACCOUNT_JSON" > fastlane/sa-key-play.json
+
+      - name: Build & upload
+        # No BUILD_NUMBER: the Fastfile reads the highest versionCode on the
+        # Play tracks and adds one, so laptop uploads can't collide with CI.
+        run: bundle exec fastlane android ${{ inputs.lane || 'beta' }}
+        env:
+          PLAY_JSON_KEY_FILE: fastlane/sa-key-play.json
