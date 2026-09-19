@@ -1,23 +1,15 @@
 name: Android internal testing
 
-# Builds the Android shell and uploads it to the Play Console internal track.
+# Every push to main builds the Android shell and uploads it to the Play
+# Console internal track, after lint, typecheck and tests pass.
 #
-# The app is a Capacitor shell that loads https://ucl-hiking.vercel.app, so a
-# website change reaches phones through the Vercel deploy alone — no new store
-# build. This only runs when something baked into the binary changes: the
-# native project, the Capacitor config or plugins (package*.json), fastlane,
-# or this file. Dispatch it by hand to force a build.
+# The app is a Capacitor shell that loads https://ucl-hiking.vercel.app, so
+# most website changes reach phones through the Vercel deploy alone; the
+# per-push build keeps internal testers on a binary that matches main anyway.
+# Dispatch it by hand to re-run, or to push the current main to production.
 on:
   push:
     branches: [main]
-    paths:
-      - "android/**"
-      - "capacitor.config.ts"
-      - "package.json"
-      - "package-lock.json"
-      - "fastlane/**"
-      - "Gemfile*"
-      - ".github/workflows/android-internal.yml"
   workflow_dispatch:
     inputs:
       lane:
@@ -32,8 +24,27 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Gate: nothing reaches testers unless main is green.
+  test:
+    name: Pre-deploy checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
   deploy:
     name: Android -> Play ${{ inputs.lane || 'beta' }}
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
