@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
-import { LogIn, ShieldCheck, Users, ChevronRight } from "lucide-react";
+import { LogIn, ShieldCheck, Users, ChevronRight, X } from "lucide-react";
 import { ClubMark } from "@/components/ClubMark";
 
 const societyName = process.env.NEXT_PUBLIC_SOCIETY_NAME || "UCL Hiking Club";
@@ -66,7 +66,7 @@ export default function SignInPage() {
       <section className="auth-card authenticator-card">
         <div className="auth-header-brand">
           <ClubMark size={52} />
-          <span className="auth-brand-cross">✕</span>
+          <X size={16} strokeWidth={3} className="auth-brand-cross" aria-hidden="true" />
           <Image
             src="/brand/toolbox-logo.png"
             width={52}
@@ -80,7 +80,7 @@ export default function SignInPage() {
         <span className="eyebrow" onClick={handleEyebrowTap}>UCL Hiking Club × Adam&apos;s Campus Toolbox</span>
         <h1>Sign in to {societyName}</h1>
         <p>
-          Authenticate using your official UCL Single Sign-On account to access member features, event bookings, and society portals.
+          Authenticate using your official UCL Single Sign-On account to borrow club kit and access the member portal.
         </p>
 
         <div className="authenticator-info-box">
