@@ -61,16 +61,18 @@ export function can(profile: AccessProfile, capability: Capability): boolean {
     case "manage_members":
     case "view_sync_monitor":
     case "trigger_sync":
+      return governanceRole !== null;
+    // Principals hold the kit: they lend it and never ask to borrow it.
+    // Committee members borrow from a principal.
     case "review_equipment_requests":
     case "manage_equipment":
-      return governanceRole !== null;
     case "manage_committee":
     case "manage_suu_session":
       return governanceRole === "principal" || governanceRole === "admin";
     case "manage_system":
       return governanceRole === "admin";
     case "request_equipment":
-      return membershipTier !== "taster";
+      return membershipTier !== "taster" || governanceRole !== null;
   }
 }
 

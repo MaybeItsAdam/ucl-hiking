@@ -50,6 +50,9 @@ describe("access model", () => {
     expect(can(admin, "manage_suu_session")).toBe(true);
 
     expect(can(committee, "view_sync_monitor")).toBe(true);
-    expect(can(committee, "review_equipment_requests")).toBe(true);
+    expect(can(committee, "review_equipment_requests")).toBe(false);
+    expect(can(committee, "manage_equipment")).toBe(false);
+    expect(can(principal, "review_equipment_requests")).toBe(true);
+    expect(can(principal, "manage_equipment")).toBe(true);
   });
 });

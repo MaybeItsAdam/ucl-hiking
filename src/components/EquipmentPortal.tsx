@@ -20,7 +20,6 @@ import {
   AlertTriangle,
   X,
   Layers,
-  Wrench,
   Send,
   ArrowUpRight,
   ArrowDownLeft,
@@ -48,16 +47,15 @@ const CONDITION_OPTIONS: SelectOption[] = [
 
 interface EquipmentPortalProps {
   memberId: string;
-  membershipTier: string;
-  isCommittee: boolean;
+  /** Principals manage the kit and review loans; everyone else here borrows it. */
+  isPrincipal: boolean;
   initialTab?: "catalog" | "requests" | "committee_review" | "active_loans" | "my_requests";
   onTabChange?: (tab: "catalog" | "requests" | "active_loans" | "my_requests") => void;
 }
 
 export function EquipmentPortal({
   memberId,
-  membershipTier,
-  isCommittee,
+  isPrincipal,
   initialTab = "catalog",
   onTabChange,
 }: EquipmentPortalProps) {
@@ -170,7 +168,7 @@ export function EquipmentPortal({
 
   // Fetch webhook configuration status for committee
   useEffect(() => {
-    if (isCommittee) {
+    if (isPrincipal) {
       fetch("/api/equipment/settings")
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
@@ -182,7 +180,7 @@ export function EquipmentPortal({
         })
         .catch(() => {});
     }
-  }, [isCommittee]);
+  }, [isPrincipal]);
 
   const handleSyncSheets = async (direction: "push" | "pull" = "push") => {
     setSyncDirection(direction);
@@ -445,13 +443,6 @@ export function EquipmentPortal({
     }
   };
 
-  // Inventory KPI calculations
-  const totalItemsCount = items.length;
-  const totalUnits = useMemo(() => items.reduce((sum, i) => sum + i.total_quantity, 0), [items]);
-  const availableUnits = useMemo(() => items.reduce((sum, i) => sum + i.available_quantity, 0), [items]);
-  const onLoanUnits = Math.max(0, totalUnits - availableUnits);
-  const repairUnits = useMemo(() => items.filter((i) => i.condition === "needs_repair").length, [items]);
-
   const pendingRequests = useMemo(() => requests.filter((r) => r.status === "pending"), [requests]);
   const activeLoans = useMemo(() => requests.filter((r) => r.status === "approved"), [requests]);
   const myRequests = useMemo(() => requests.filter((r) => r.member_id === memberId), [requests, memberId]);
@@ -524,18 +515,9 @@ export function EquipmentPortal({
 
   return (
     <div className="equipment-portal-shell" style={{ marginTop: 0 }}>
-      {/* 1. TOP HEADER & INVENTORY ACTIONS */}
+      {/* 1. PRINCIPAL INVENTORY ACTIONS */}
+      {isPrincipal && (
       <div className="equipment-header">
-        <div className="equipment-header-copy">
-          <h2>{isCommittee ? "Committee Equipment & Inventory System" : "Club Gear Locker"}</h2>
-          <p>
-            {isCommittee
-              ? "Track equipment stock, log kit check-outs, manage repairs, and review student loan requests."
-              : "Standard and Explorer members can request club gear for upcoming hikes and expeditions."}
-          </p>
-        </div>
-
-        {isCommittee && (
           <div className="equipment-header-actions" style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
             {/* Two-Way Sync & Settings Toolbar */}
             <div
@@ -654,8 +636,8 @@ export function EquipmentPortal({
               <span>Add Equipment Item</span>
             </button>
           </div>
-        )}
       </div>
+      )}
 
       {/* 2. ALERT FEEDBACK NOTICES */}
       {msg && (
@@ -687,198 +669,7 @@ export function EquipmentPortal({
         </div>
       )}
 
-      {/* UNCONFIGURED GOOGLE SHEETS HELPER BANNER */}
-      {isCommittee && !isConfigured && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "10px 16px",
-            borderRadius: 12,
-            background: "var(--warn-bg)",
-            border: "1px solid var(--warn-line)",
-            marginBottom: 20,
-            fontSize: 13,
-            gap: 12,
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--warn-fg)" }}>
-            <AlertTriangle size={16} color="#d97706" />
-            <span>
-              <strong>Google Sheets Webhook URL not set:</strong> Configure your Apps Script Web App URL to enable live two-way sync.
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowSettingsModal(true)}
-            className="button compact"
-            style={{
-              padding: "4px 10px",
-              fontSize: 12,
-              background: "var(--surface)",
-              borderColor: "#f59e0b",
-              color: "var(--warn-fg)",
-              fontWeight: 700,
-            }}
-          >
-            Configure Webhook
-          </button>
-        </div>
-      )}
-
-      {/* 3. INVENTORY EXECUTIVE KPI STRIP (RESPONSIVE 2-COL MOBILE GRID) */}
-      <div className="inventory-kpi-grid">
-        <div
-          onClick={() => handleTabSelect("catalog")}
-          className="kpi-tile"
-          style={{
-            background: "var(--surface)",
-            border: "1px solid var(--line)",
-            borderRadius: 16,
-            padding: "16px 18px",
-            cursor: "pointer",
-            boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
-          }}
-        >
-          <div className="kpi-tile-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.65, textTransform: "uppercase" }}>
-              Catalog Items
-            </span>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: "var(--ok-bg)", color: "var(--ok-fg)", display: "grid", placeItems: "center" }}>
-              <Package size={16} />
-            </div>
-          </div>
-          <div className="kpi-tile-stat" style={{ fontSize: 24, fontWeight: 800, color: "var(--ink)", fontFamily: "var(--font-display)" }}>
-            {totalItemsCount} <span style={{ fontSize: 12, fontWeight: 500, opacity: 0.6 }}>models</span>
-          </div>
-          <div className="kpi-tile-sub" style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
-            {totalUnits} total physical units
-          </div>
-        </div>
-
-        <div
-          onClick={() => handleTabSelect("catalog")}
-          className="kpi-tile"
-          style={{
-            background: "var(--surface)",
-            border: "1px solid var(--line)",
-            borderRadius: 16,
-            padding: "16px 18px",
-            cursor: "pointer",
-            boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
-          }}
-        >
-          <div className="kpi-tile-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.65, textTransform: "uppercase" }}>
-              In Locker Ready
-            </span>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: "var(--ok-bg)", color: "#059669", display: "grid", placeItems: "center" }}>
-              <CheckCircle2 size={16} />
-            </div>
-          </div>
-          <div className="kpi-tile-stat" style={{ fontSize: 24, fontWeight: 800, color: "var(--ok-fg)", fontFamily: "var(--font-display)" }}>
-            {availableUnits} <span style={{ fontSize: 12, fontWeight: 500, opacity: 0.6 }}>available</span>
-          </div>
-          <div className="kpi-tile-sub" style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
-            {Math.round((availableUnits / Math.max(1, totalUnits)) * 100)}% inventory ready
-          </div>
-        </div>
-
-        <div
-          onClick={() => (isCommittee ? handleTabSelect("active_loans") : handleTabSelect("my_requests"))}
-          className="kpi-tile"
-          style={{
-            background: "var(--surface)",
-            border: "1px solid var(--line)",
-            borderRadius: 16,
-            padding: "16px 18px",
-            cursor: "pointer",
-            boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
-          }}
-        >
-          <div className="kpi-tile-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.65, textTransform: "uppercase" }}>
-              Out on Loan
-            </span>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: "var(--info-bg)", color: "#2563eb", display: "grid", placeItems: "center" }}>
-              <Layers size={16} />
-            </div>
-          </div>
-          <div className="kpi-tile-stat" style={{ fontSize: 24, fontWeight: 800, color: "var(--info-fg)", fontFamily: "var(--font-display)" }}>
-            {onLoanUnits} <span style={{ fontSize: 12, fontWeight: 500, opacity: 0.6 }}>in field</span>
-          </div>
-          <div className="kpi-tile-sub" style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
-            Across {activeLoans.length} active loans
-          </div>
-        </div>
-
-        {isCommittee && (
-          <div
-            onClick={() => handleTabSelect("requests")}
-            className="kpi-tile"
-            style={{
-              background: pendingRequests.length > 0 ? "var(--warn-bg)" : "var(--surface)",
-              border: `1px solid ${pendingRequests.length > 0 ? "var(--warn-line)" : "var(--line)"}`,
-              borderRadius: 16,
-              padding: "16px 18px",
-              cursor: "pointer",
-              boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
-            }}
-          >
-            <div className="kpi-tile-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: pendingRequests.length > 0 ? "var(--warn-fg)" : "inherit", opacity: pendingRequests.length > 0 ? 1 : 0.65, textTransform: "uppercase" }}>
-                Loan Requests
-              </span>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: pendingRequests.length > 0 ? "var(--warn-bg)" : "var(--surface-2)", color: pendingRequests.length > 0 ? "var(--warn-fg)" : "var(--muted)", display: "grid", placeItems: "center" }}>
-                <Clock size={16} />
-              </div>
-            </div>
-            <div className="kpi-tile-stat" style={{ fontSize: 24, fontWeight: 800, color: pendingRequests.length > 0 ? "var(--warn-fg)" : "var(--ink)", fontFamily: "var(--font-display)" }}>
-              {pendingRequests.length} <span style={{ fontSize: 12, fontWeight: 500, opacity: 0.6 }}>pending</span>
-            </div>
-            <div className="kpi-tile-sub" style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
-              {pendingRequests.length > 0 ? "Requires review" : "Up to date"}
-            </div>
-          </div>
-        )}
-
-        {repairUnits > 0 && (
-          <div
-            onClick={() => {
-              setStatusFilter("needs_repair");
-              handleTabSelect("catalog");
-            }}
-            className="kpi-tile"
-            style={{
-              background: "var(--bad-bg)",
-              border: "1px solid var(--bad-line)",
-              borderRadius: 16,
-              padding: "16px 18px",
-              cursor: "pointer",
-              boxShadow: "0 2px 6px rgba(0,0,0,0.02)",
-            }}
-          >
-            <div className="kpi-tile-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--bad-fg)", textTransform: "uppercase" }}>
-                Needs Repair
-              </span>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: "var(--bad-bg)", color: "var(--bad-fg)", display: "grid", placeItems: "center" }}>
-                <Wrench size={16} />
-              </div>
-            </div>
-            <div className="kpi-tile-stat" style={{ fontSize: 24, fontWeight: 800, color: "var(--bad-fg)", fontFamily: "var(--font-display)" }}>
-              {repairUnits} <span style={{ fontSize: 12, fontWeight: 500, opacity: 0.6 }}>flagged</span>
-            </div>
-            <div className="kpi-tile-sub" style={{ fontSize: 11, opacity: 0.7, marginTop: 4, color: "var(--bad-fg)" }}>
-              Action required
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 4. WORKSPACE SUBNAV (SCROLLABLE ON MOBILE) */}
+      {/* 2. WORKSPACE SUBNAV (SCROLLABLE ON MOBILE) */}
       <div className="portal-subnav">
         <button
           type="button"
@@ -886,11 +677,11 @@ export function EquipmentPortal({
           onClick={() => handleTabSelect("catalog")}
         >
           <Package size={15} />
-          <span className="tab-label-long">{isCommittee ? "Equipment Inventory" : "Available Equipment"} ({items.length})</span>
-          <span className="tab-label-short">{isCommittee ? "Inventory" : "Available"}</span>
+          <span className="tab-label-long">{isPrincipal ? "Equipment Inventory" : "Available Equipment"} ({items.length})</span>
+          <span className="tab-label-short">{isPrincipal ? "Inventory" : "Available"}</span>
         </button>
 
-        {isCommittee && (
+        {isPrincipal && (
           <button
             type="button"
             className={activeTab === "requests" ? "active" : ""}
@@ -917,7 +708,7 @@ export function EquipmentPortal({
           </button>
         )}
 
-        {isCommittee && (
+        {isPrincipal && (
           <button
             type="button"
             className={activeTab === "active_loans" ? "active" : ""}
@@ -929,15 +720,17 @@ export function EquipmentPortal({
           </button>
         )}
 
-        <button
-          type="button"
-          className={activeTab === "my_requests" ? "active" : ""}
-          onClick={() => handleTabSelect("my_requests")}
-        >
-          <FileText size={15} />
-          <span className="tab-label-long">My Borrow Requests ({myRequests.length})</span>
-          <span className="tab-label-short">Mine</span>
-        </button>
+        {!isPrincipal && (
+          <button
+            type="button"
+            className={activeTab === "my_requests" ? "active" : ""}
+            onClick={() => handleTabSelect("my_requests")}
+          >
+            <FileText size={15} />
+            <span className="tab-label-long">My Borrow Requests ({myRequests.length})</span>
+            <span className="tab-label-short">Mine</span>
+          </button>
+        )}
       </div>
 
       {/* 5. TAB 1: EQUIPMENT INVENTORY CATALOG */}
@@ -1048,9 +841,7 @@ export function EquipmentPortal({
 
                       {/* Action buttons */}
                       <div className="equipment-card-actions" style={{ display: "flex", gap: "8px", flexDirection: "column" }}>
-                        {membershipTier === "taster" ? (
-                          <small className="taster-notice">Taster members must upgrade to Standard/Explorer to borrow kit.</small>
-                        ) : (
+                        {!isPrincipal && (
                           <button
                             type="button"
                             disabled={!isAvailable}
@@ -1065,7 +856,7 @@ export function EquipmentPortal({
                           </button>
                         )}
 
-                        {isCommittee && (
+                        {isPrincipal && (
                           <div className="equipment-card-admin-actions" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: 4 }}>
                             <button
                               type="button"
@@ -1102,7 +893,7 @@ export function EquipmentPortal({
       )}
 
       {/* 6. TAB 2: COMMITTEE REVIEW QUEUE */}
-      {activeTab === "requests" && isCommittee && (
+      {activeTab === "requests" && isPrincipal && (
         <div className="committee-review-section">
           {/* REQUEST FILTER BAR */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 18 }}>
@@ -1335,7 +1126,7 @@ export function EquipmentPortal({
       )}
 
       {/* 7. TAB 3: ACTIVE LOANS ROSTER (IN FIELD) */}
-      {activeTab === "active_loans" && isCommittee && (
+      {activeTab === "active_loans" && isPrincipal && (
         <div>
           <div style={{ marginBottom: 18 }}>
             <h3 style={{ margin: "0 0 4px", fontSize: 18, font: "800 18px var(--font-display)" }}>

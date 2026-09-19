@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AppShell } from "@/components/AppShell";
 import { redirect } from "next/navigation";
-import { ClubMark } from "@/components/ClubMark";
 import { DeleteAccountForm } from "@/components/DeleteAccountForm";
 import { ThemeSetting } from "@/components/ThemeSetting";
 import { GOVERNANCE_LABELS, MEMBERSHIP_LABELS } from "@/lib/access";
@@ -25,18 +25,8 @@ export default async function AccountPage() {
   const role = member?.governance_role ? GOVERNANCE_LABELS[member.governance_role] : null;
 
   return (
-    <main className="privacy-page">
-      <header className="privacy-header">
-        <Link href="/" className="privacy-brand" aria-label="UCL Hiking Club home">
-          <ClubMark size={42} />
-          <span>UCL Hiking Club</span>
-        </Link>
-        <Link href="/portal" className="privacy-back">Back to the portal</Link>
-      </header>
-
-      <article className="privacy-content account-settings">
-        <p className="privacy-eyebrow">Account</p>
-        <h1>Settings</h1>
+    <AppShell active="settings">
+      <article className="account-settings">
 
         <section aria-labelledby="account-details">
           <h2 id="account-details">Your account</h2>
@@ -87,6 +77,6 @@ export default async function AccountPage() {
           <DeleteAccountForm />
         </section>
       </article>
-    </main>
+    </AppShell>
   );
 }

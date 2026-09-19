@@ -779,8 +779,7 @@ export function CommitteeCommandCenter({
           <div>
             <EquipmentPortal
               memberId={member.id}
-              membershipTier={member.membership_tier}
-              isCommittee={true}
+              isPrincipal={true}
               initialTab="committee_review"
             />
           </div>

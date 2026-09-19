@@ -2983,3 +2983,56 @@ select:focus {
 .delete-account-danger:disabled, .delete-account-cancel:disabled { opacity: .6; cursor: default; }
 .delete-account-error { color: var(--bad-fg); font-weight: 700; }
 .portal-account-links { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+
+/* Signed-in app frame: full width, a flat top bar holding the section tabs on
+   wide screens; on phones (and in the native app) the tabs drop to a bottom
+   tab bar and the top bar shrinks to the brand. */
+.app-shell { min-height: 100vh; min-height: 100dvh; background: var(--paper-warm); color: var(--ink); }
+.app-bar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 28px;
+  height: calc(60px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) max(24px, env(safe-area-inset-right)) 0 max(24px, env(safe-area-inset-left));
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.app-brand { display: inline-flex; align-items: center; gap: 10px; font: 800 16px var(--font-display); letter-spacing: -.02em; white-space: nowrap; }
+.app-tabs { display: flex; align-self: stretch; gap: 4px; }
+.app-tabs a {
+  display: inline-flex; align-items: center; gap: 8px; padding: 0 14px;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+  font-size: 14px; font-weight: 700; color: var(--ink); opacity: .6;
+}
+.app-tabs a:hover { opacity: 1; }
+.app-tabs a.active { opacity: 1; color: var(--forest); border-bottom-color: var(--forest); }
+.app-bar-account { margin-left: auto; }
+.app-main { padding: 20px max(24px, env(safe-area-inset-right)) 48px max(24px, env(safe-area-inset-left)); }
+
+/* Pages inside the frame run edge to edge rather than as a card on the page. */
+.app-main .equipment-portal-shell { margin: 0; padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+
+.account-settings { max-width: 720px; font-size: 16px; line-height: 1.65; }
+.account-settings h2 { margin: 28px 0 10px; font: 800 13px var(--font-body); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.account-settings section:first-child h2 { margin-top: 4px; }
+.account-settings p { margin: 0 0 14px; }
+.account-settings ul { margin: 0 0 16px; padding-left: 22px; }
+.account-settings a { color: var(--link); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.account-settings .account-danger { margin-top: 36px; }
+
+@media (max-width: 768px) {
+  .app-bar { height: calc(52px + env(safe-area-inset-top)); padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+  .app-tabs {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    gap: 0; padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    background: var(--surface); border-top: 1px solid var(--line);
+  }
+  .app-tabs a {
+    flex: 1; flex-direction: column; justify-content: center; gap: 3px;
+    min-height: 56px; padding: 6px 4px; margin: 0;
+    border-bottom: 0; border-top: 2px solid transparent;
+    font-size: 11px;
+  }
+  .app-tabs a.active { border-top-color: var(--forest); }
+  .app-main { padding: 14px max(12px, env(safe-area-inset-right)) 32px max(12px, env(safe-area-inset-left)); }
+  .app-shell.has-tabs .app-main { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
+  .account-settings { font-size: 15px; }
+}
