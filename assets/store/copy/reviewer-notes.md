@@ -26,8 +26,8 @@ Use “Preview Member Perspective” to see the equipment catalogue and member
 loan request experience. Regular members can browse equipment, request kit
 and check My Borrow Requests. Officers can manage inventory and review loans.
 
-Account deletion: in the member portal, tap “Delete my account” at the bottom,
-then confirm. This deletes the app account and signs you out. The reviewer
+Account deletion: in the member portal, tap “Account settings” at the bottom,
+then “Delete my account”, then confirm. This deletes the app account and signs you out. The reviewer
 account can sign in again afterwards, and a new, empty account is created.
 
 Support: support@uclhiking.org

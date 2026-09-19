@@ -90,8 +90,9 @@ export default function PrivacyPage() {
 
         <h2 id="request-deletion">Delete your app account</h2>
         <p>
-          In the app or on the website, sign in, open the member portal and choose{" "}
-          <Link href="/account/delete">Delete my account</Link>. This immediately deletes
+          In the app or on the website, sign in and open{" "}
+          <Link href="/account">Account settings</Link> (from the member portal), then
+          choose &ldquo;Delete my account&rdquo;. This immediately deletes
           your hiking app account, your equipment requests and your walk bookings. If you
           have club kit out on loan, return it first.
         </p>

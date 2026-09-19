@@ -97,11 +97,11 @@ export function PortalDashboard({
                 fontWeight: 800,
                 textTransform: "uppercase",
                 letterSpacing: "0.05em",
-                background: isGovernance ? "#ecfdf5" : "#eff6ff",
-                color: isGovernance ? "#065f46" : "#1e40af",
+                background: isGovernance ? "var(--ok-bg)" : "var(--info-bg)",
+                color: isGovernance ? "var(--ok-fg)" : "var(--info-fg)",
                 padding: "3px 9px",
                 borderRadius: "999px",
-                border: `1px solid ${isGovernance ? "#a7f3d0" : "#bfdbfe"}`,
+                border: `1px solid ${isGovernance ? "var(--ok-line)" : "var(--info-line)"}`,
               }}
             >
               {isPrincipal ? <Crown size={12} /> : <Shield size={12} />}
@@ -140,7 +140,7 @@ export function PortalDashboard({
                   alignItems: "center",
                   gap: "6px",
                   fontSize: "12px",
-                  background: "white",
+                  background: "var(--surface)",
                   border: "1px solid var(--line)",
                 }}
                 title="Preview what regular club hikers see when requesting kit"
@@ -176,15 +176,15 @@ export function PortalDashboard({
             justifyContent: "space-between",
             alignItems: "center",
             padding: "12px 18px",
-            background: "#eff6ff",
-            border: "1px solid #bfdbfe",
+            background: "var(--info-bg)",
+            border: "1px solid var(--info-line)",
             borderRadius: "12px",
             marginBottom: "20px",
             gap: "12px",
             flexWrap: "wrap",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "#1e40af" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "13px", color: "var(--info-fg)" }}>
             <Package size={16} />
             <span>
               Viewing as <strong>Standard Member</strong> (Gear Locker Request Mode)
@@ -201,7 +201,7 @@ export function PortalDashboard({
               fontWeight: 700,
               background: "none",
               border: "none",
-              color: "#1d4ed8",
+              color: "var(--info-fg)",
               cursor: "pointer",
               padding: 0,
             }}

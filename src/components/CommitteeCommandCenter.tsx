@@ -327,7 +327,7 @@ export function CommitteeCommandCenter({
         >
           <div className="metric-box-top">
             <span className="metric-label">Club Membership</span>
-            <div className="metric-icon-bubble" style={{ background: "#e0f2fe", color: "#0369a1" }}>
+            <div className="metric-icon-bubble" style={{ background: "var(--info-bg)", color: "var(--info-fg)" }}>
               <Users size={18} />
             </div>
           </div>
@@ -352,7 +352,7 @@ export function CommitteeCommandCenter({
         >
           <div className="metric-box-top">
             <span className="metric-label">Hike Schedule &amp; Trips</span>
-            <div className="metric-icon-bubble" style={{ background: "#ecfdf5", color: "#059669" }}>
+            <div className="metric-icon-bubble" style={{ background: "var(--ok-bg)", color: "#059669" }}>
               <Compass size={18} />
             </div>
           </div>
@@ -375,7 +375,7 @@ export function CommitteeCommandCenter({
         >
           <div className="metric-box-top">
             <span className="metric-label">Gear Locker &amp; Loans</span>
-            <div className="metric-icon-bubble" style={{ background: "#fef3c7", color: "#d97706" }}>
+            <div className="metric-icon-bubble" style={{ background: "var(--warn-bg)", color: "#d97706" }}>
               <Package size={18} />
             </div>
           </div>
@@ -823,7 +823,7 @@ export function CommitteeCommandCenter({
                     <label style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text, #0f172a)", display: "flex", alignItems: "center", gap: 6 }}>
                       <span>Target Society / Club to Sync:</span>
                       {syncSocietyGroup !== "Hiking Club" && (
-                        <span style={{ fontSize: 11, background: "#fef3c7", color: "#92400e", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>
+                        <span style={{ fontSize: 11, background: "var(--warn-bg)", color: "var(--warn-fg)", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>
                           Custom Society Testing
                         </span>
                       )}
@@ -832,7 +832,7 @@ export function CommitteeCommandCenter({
                       <button
                         type="button"
                         onClick={() => setSyncSocietyGroup("Hiking Club")}
-                        style={{ fontSize: 11, padding: "4px 8px", background: "none", border: "1px solid #cbd5e0", borderRadius: 6, cursor: "pointer" }}
+                        style={{ fontSize: 11, padding: "4px 8px", background: "none", border: "1px solid var(--line-strong)", borderRadius: 6, cursor: "pointer" }}
                       >
                         Reset to Hiking Club
                       </button>

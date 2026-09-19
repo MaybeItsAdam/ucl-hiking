@@ -55,7 +55,7 @@ export function SUEventsPortal() {
       )}
 
       {events.length === 0 ? (
-        <div style={{ textAlign: "center", padding: "40px", background: "white", borderRadius: 16 }}>
+        <div style={{ textAlign: "center", padding: "40px", background: "var(--surface)", borderRadius: 16 }}>
           <CalendarDays size={32} style={{ opacity: 0.3, marginBottom: 8 }} />
           <p style={{ opacity: 0.7 }}>No upcoming ticketed events found in the SU roster.</p>
         </div>

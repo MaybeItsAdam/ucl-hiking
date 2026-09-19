@@ -43,7 +43,7 @@ const CONDITION_OPTIONS: SelectOption[] = [
   { value: "excellent", label: "Excellent (Like New)", color: "#10b981" },
   { value: "good", label: "Good (Normal Trail Use)", color: "#059669" },
   { value: "fair", label: "Fair (Usable, Cosmetic Wear)", color: "#f59e0b" },
-  { value: "needs_repair", label: "Needs Repair (Flagged/Unsafe)", color: "#dc2626" },
+  { value: "needs_repair", label: "Needs Repair (Flagged/Unsafe)", color: "var(--bad-fg)" },
 ];
 
 interface EquipmentPortalProps {
@@ -545,7 +545,7 @@ export function EquipmentPortal({
                 borderRadius: "8px",
                 overflow: "hidden",
                 border: "1px solid var(--line)",
-                background: "white",
+                background: "var(--surface)",
                 boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
               }}
             >
@@ -668,9 +668,9 @@ export function EquipmentPortal({
             justifyContent: "space-between",
             padding: "12px 18px",
             borderRadius: 12,
-            background: msg.type === "success" ? "#ecfdf5" : "#fef2f2",
-            color: msg.type === "success" ? "#065f46" : "#991b1b",
-            border: `1px solid ${msg.type === "success" ? "#a7f3d0" : "#fecaca"}`,
+            background: msg.type === "success" ? "var(--ok-bg)" : "var(--bad-bg)",
+            color: msg.type === "success" ? "var(--ok-fg)" : "var(--bad-fg)",
+            border: `1px solid ${msg.type === "success" ? "var(--ok-line)" : "var(--bad-line)"}`,
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -696,15 +696,15 @@ export function EquipmentPortal({
             justifyContent: "space-between",
             padding: "10px 16px",
             borderRadius: 12,
-            background: "#fffbeb",
-            border: "1px solid #fde68a",
+            background: "var(--warn-bg)",
+            border: "1px solid var(--warn-line)",
             marginBottom: 20,
             fontSize: 13,
             gap: 12,
             flexWrap: "wrap",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#92400e" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--warn-fg)" }}>
             <AlertTriangle size={16} color="#d97706" />
             <span>
               <strong>Google Sheets Webhook URL not set:</strong> Configure your Apps Script Web App URL to enable live two-way sync.
@@ -717,9 +717,9 @@ export function EquipmentPortal({
             style={{
               padding: "4px 10px",
               fontSize: 12,
-              background: "white",
+              background: "var(--surface)",
               borderColor: "#f59e0b",
-              color: "#b45309",
+              color: "var(--warn-fg)",
               fontWeight: 700,
             }}
           >
@@ -734,7 +734,7 @@ export function EquipmentPortal({
           onClick={() => handleTabSelect("catalog")}
           className="kpi-tile"
           style={{
-            background: "white",
+            background: "var(--surface)",
             border: "1px solid var(--line)",
             borderRadius: 16,
             padding: "16px 18px",
@@ -746,7 +746,7 @@ export function EquipmentPortal({
             <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.65, textTransform: "uppercase" }}>
               Catalog Items
             </span>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: "#f0fdf4", color: "#166534", display: "grid", placeItems: "center" }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: "var(--ok-bg)", color: "var(--ok-fg)", display: "grid", placeItems: "center" }}>
               <Package size={16} />
             </div>
           </div>
@@ -762,7 +762,7 @@ export function EquipmentPortal({
           onClick={() => handleTabSelect("catalog")}
           className="kpi-tile"
           style={{
-            background: "white",
+            background: "var(--surface)",
             border: "1px solid var(--line)",
             borderRadius: 16,
             padding: "16px 18px",
@@ -774,11 +774,11 @@ export function EquipmentPortal({
             <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.65, textTransform: "uppercase" }}>
               In Locker Ready
             </span>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: "#ecfdf5", color: "#059669", display: "grid", placeItems: "center" }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: "var(--ok-bg)", color: "#059669", display: "grid", placeItems: "center" }}>
               <CheckCircle2 size={16} />
             </div>
           </div>
-          <div className="kpi-tile-stat" style={{ fontSize: 24, fontWeight: 800, color: "#15803d", fontFamily: "var(--font-display)" }}>
+          <div className="kpi-tile-stat" style={{ fontSize: 24, fontWeight: 800, color: "var(--ok-fg)", fontFamily: "var(--font-display)" }}>
             {availableUnits} <span style={{ fontSize: 12, fontWeight: 500, opacity: 0.6 }}>available</span>
           </div>
           <div className="kpi-tile-sub" style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
@@ -790,7 +790,7 @@ export function EquipmentPortal({
           onClick={() => (isCommittee ? handleTabSelect("active_loans") : handleTabSelect("my_requests"))}
           className="kpi-tile"
           style={{
-            background: "white",
+            background: "var(--surface)",
             border: "1px solid var(--line)",
             borderRadius: 16,
             padding: "16px 18px",
@@ -802,11 +802,11 @@ export function EquipmentPortal({
             <span style={{ fontSize: 11, fontWeight: 700, opacity: 0.65, textTransform: "uppercase" }}>
               Out on Loan
             </span>
-            <div style={{ width: 28, height: 28, borderRadius: 8, background: "#eff6ff", color: "#2563eb", display: "grid", placeItems: "center" }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: "var(--info-bg)", color: "#2563eb", display: "grid", placeItems: "center" }}>
               <Layers size={16} />
             </div>
           </div>
-          <div className="kpi-tile-stat" style={{ fontSize: 24, fontWeight: 800, color: "#1d4ed8", fontFamily: "var(--font-display)" }}>
+          <div className="kpi-tile-stat" style={{ fontSize: 24, fontWeight: 800, color: "var(--info-fg)", fontFamily: "var(--font-display)" }}>
             {onLoanUnits} <span style={{ fontSize: 12, fontWeight: 500, opacity: 0.6 }}>in field</span>
           </div>
           <div className="kpi-tile-sub" style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
@@ -819,8 +819,8 @@ export function EquipmentPortal({
             onClick={() => handleTabSelect("requests")}
             className="kpi-tile"
             style={{
-              background: pendingRequests.length > 0 ? "#fffbeb" : "white",
-              border: `1px solid ${pendingRequests.length > 0 ? "#fde68a" : "var(--line)"}`,
+              background: pendingRequests.length > 0 ? "var(--warn-bg)" : "var(--surface)",
+              border: `1px solid ${pendingRequests.length > 0 ? "var(--warn-line)" : "var(--line)"}`,
               borderRadius: 16,
               padding: "16px 18px",
               cursor: "pointer",
@@ -828,14 +828,14 @@ export function EquipmentPortal({
             }}
           >
             <div className="kpi-tile-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: pendingRequests.length > 0 ? "#b45309" : "inherit", opacity: pendingRequests.length > 0 ? 1 : 0.65, textTransform: "uppercase" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: pendingRequests.length > 0 ? "var(--warn-fg)" : "inherit", opacity: pendingRequests.length > 0 ? 1 : 0.65, textTransform: "uppercase" }}>
                 Loan Requests
               </span>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: pendingRequests.length > 0 ? "#fef3c7" : "#f1f5f9", color: pendingRequests.length > 0 ? "#b45309" : "#64748b", display: "grid", placeItems: "center" }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: pendingRequests.length > 0 ? "var(--warn-bg)" : "var(--surface-2)", color: pendingRequests.length > 0 ? "var(--warn-fg)" : "var(--muted)", display: "grid", placeItems: "center" }}>
                 <Clock size={16} />
               </div>
             </div>
-            <div className="kpi-tile-stat" style={{ fontSize: 24, fontWeight: 800, color: pendingRequests.length > 0 ? "#b45309" : "var(--ink)", fontFamily: "var(--font-display)" }}>
+            <div className="kpi-tile-stat" style={{ fontSize: 24, fontWeight: 800, color: pendingRequests.length > 0 ? "var(--warn-fg)" : "var(--ink)", fontFamily: "var(--font-display)" }}>
               {pendingRequests.length} <span style={{ fontSize: 12, fontWeight: 500, opacity: 0.6 }}>pending</span>
             </div>
             <div className="kpi-tile-sub" style={{ fontSize: 11, opacity: 0.7, marginTop: 4 }}>
@@ -852,8 +852,8 @@ export function EquipmentPortal({
             }}
             className="kpi-tile"
             style={{
-              background: "#fff1f2",
-              border: "1px solid #fecdd3",
+              background: "var(--bad-bg)",
+              border: "1px solid var(--bad-line)",
               borderRadius: 16,
               padding: "16px 18px",
               cursor: "pointer",
@@ -861,17 +861,17 @@ export function EquipmentPortal({
             }}
           >
             <div className="kpi-tile-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: "#be123c", textTransform: "uppercase" }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--bad-fg)", textTransform: "uppercase" }}>
                 Needs Repair
               </span>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: "#ffe4e6", color: "#be123c", display: "grid", placeItems: "center" }}>
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: "var(--bad-bg)", color: "var(--bad-fg)", display: "grid", placeItems: "center" }}>
                 <Wrench size={16} />
               </div>
             </div>
-            <div className="kpi-tile-stat" style={{ fontSize: 24, fontWeight: 800, color: "#be123c", fontFamily: "var(--font-display)" }}>
+            <div className="kpi-tile-stat" style={{ fontSize: 24, fontWeight: 800, color: "var(--bad-fg)", fontFamily: "var(--font-display)" }}>
               {repairUnits} <span style={{ fontSize: 12, fontWeight: 500, opacity: 0.6 }}>flagged</span>
             </div>
-            <div className="kpi-tile-sub" style={{ fontSize: 11, opacity: 0.7, marginTop: 4, color: "#be123c" }}>
+            <div className="kpi-tile-sub" style={{ fontSize: 11, opacity: 0.7, marginTop: 4, color: "var(--bad-fg)" }}>
               Action required
             </div>
           </div>
@@ -976,7 +976,7 @@ export function EquipmentPortal({
           {filteredItems.length === 0 ? (
             <div
               style={{
-                background: "white",
+                background: "var(--surface)",
                 borderRadius: 18,
                 padding: "48px 24px",
                 textAlign: "center",
@@ -1021,7 +1021,7 @@ export function EquipmentPortal({
                           <span
                             style={{
                               fontWeight: 700,
-                              color: isAvailable ? "#15803d" : "#b91c1c",
+                              color: isAvailable ? "var(--ok-fg)" : "var(--bad-fg)",
                             }}
                           >
                             {isAvailable ? "In Stock" : "Checked Out"}
@@ -1030,7 +1030,7 @@ export function EquipmentPortal({
                         <div
                           style={{
                             height: 6,
-                            background: "#e2e8f0",
+                            background: "var(--surface-3)",
                             borderRadius: 999,
                             overflow: "hidden",
                           }}
@@ -1084,7 +1084,7 @@ export function EquipmentPortal({
                               aria-label={`Delete ${item.name}`}
                               title={`Delete ${item.name}`}
                               className="button compact"
-                              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 12, color: "#b91c1c" }}
+                              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 12, color: "var(--bad-fg)" }}
                             >
                               <Trash2 size={13} />
                               <span>Delete</span>
@@ -1118,7 +1118,7 @@ export function EquipmentPortal({
                     fontSize: 12,
                     fontWeight: 700,
                     border: requestStatusFilter === st ? "1px solid var(--forest)" : "1px solid var(--line)",
-                    background: requestStatusFilter === st ? "var(--forest)" : "white",
+                    background: requestStatusFilter === st ? "var(--forest)" : "var(--surface)",
                     color: requestStatusFilter === st ? "white" : "var(--ink)",
                     cursor: "pointer",
                     textTransform: "capitalize",
@@ -1142,7 +1142,7 @@ export function EquipmentPortal({
           {filteredRequests.length === 0 ? (
             <div
               style={{
-                background: "white",
+                background: "var(--surface)",
                 borderRadius: 18,
                 padding: "48px 24px",
                 textAlign: "center",
@@ -1201,7 +1201,7 @@ export function EquipmentPortal({
                             {req.purpose || "Weekend club trip"}
                           </small>
                           {req.notes && (
-                            <small style={{ display: "block", color: "#b45309", marginTop: 4 }}>
+                            <small style={{ display: "block", color: "var(--warn-fg)", marginTop: 4 }}>
                               <strong>Note:</strong> {req.notes}
                             </small>
                           )}
@@ -1241,12 +1241,12 @@ export function EquipmentPortal({
                             </button>
                           )}
                           {req.status === "returned" && (
-                            <span style={{ fontSize: 11, color: "#166534", fontWeight: 700 }}>
+                            <span style={{ fontSize: 11, color: "var(--ok-fg)", fontWeight: 700 }}>
                               Returned to Locker
                             </span>
                           )}
                           {req.status === "rejected" && (
-                            <span style={{ fontSize: 11, color: "#b91c1c", fontWeight: 600 }}>
+                            <span style={{ fontSize: 11, color: "var(--bad-fg)", fontWeight: 600 }}>
                               Declined
                             </span>
                           )}
@@ -1276,7 +1276,7 @@ export function EquipmentPortal({
                       <span className={`req-status ${req.status}`}>{req.status}</span>
                     </div>
 
-                    <div style={{ background: "#f8fafc", borderRadius: 10, padding: "10px 12px", fontSize: 12 }}>
+                    <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "10px 12px", fontSize: 12 }}>
                       <div style={{ fontWeight: 700, color: "var(--ink)", marginBottom: 3 }}>
                         {req.quantity}x {req.equipment?.name || "Equipment Item"}
                       </div>
@@ -1290,7 +1290,7 @@ export function EquipmentPortal({
                         </div>
                       )}
                       {req.notes && (
-                        <div style={{ marginTop: 6, color: "#b45309", fontSize: 11 }}>
+                        <div style={{ marginTop: 6, color: "var(--warn-fg)", fontSize: 11 }}>
                           <strong>Committee Note:</strong> {req.notes}
                         </div>
                       )}
@@ -1349,7 +1349,7 @@ export function EquipmentPortal({
           {activeLoans.length === 0 ? (
             <div
               style={{
-                background: "white",
+                background: "var(--surface)",
                 borderRadius: 18,
                 padding: "48px 24px",
                 textAlign: "center",
@@ -1435,7 +1435,7 @@ export function EquipmentPortal({
                       <span className="req-status approved">ON LOAN</span>
                     </div>
 
-                    <div style={{ background: "#f8fafc", borderRadius: 10, padding: "10px 12px", fontSize: 12 }}>
+                    <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "10px 12px", fontSize: 12 }}>
                       <div style={{ fontWeight: 700, color: "var(--ink)", marginBottom: 3 }}>
                         {loan.quantity}x {loan.equipment?.name || "Equipment Item"}
                       </div>
@@ -1471,7 +1471,7 @@ export function EquipmentPortal({
       {activeTab === "my_requests" && (
         <div className="requests-section">
           {myRequests.length === 0 ? (
-            <div className="empty-state" style={{ textAlign: "center", padding: "48px 24px", background: "white", borderRadius: 18, border: "1px solid var(--line)" }}>
+            <div className="empty-state" style={{ textAlign: "center", padding: "48px 24px", background: "var(--surface)", borderRadius: 18, border: "1px solid var(--line)" }}>
               <Package size={40} style={{ opacity: 0.3, margin: "0 auto 12px" }} />
               <h3 style={{ margin: "0 0 6px", font: "800 18px var(--font-display)" }}>No borrow requests filed</h3>
               <p style={{ margin: "0 0 16px", opacity: 0.65, fontSize: 13 }}>
@@ -1815,9 +1815,9 @@ export function EquipmentPortal({
       {deletingItem && (
         <div className="modal-overlay">
           <div className="modal-card">
-            <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#b91c1c", marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--bad-fg)", marginBottom: 10 }}>
               <AlertTriangle size={24} />
-              <h3 style={{ margin: 0, color: "#b91c1c" }}>Delete Equipment Item</h3>
+              <h3 style={{ margin: 0, color: "var(--bad-fg)" }}>Delete Equipment Item</h3>
             </div>
             <p>
               Are you sure you want to remove <strong>{deletingItem.name}</strong> from the equipment inventory? This
@@ -1901,8 +1901,8 @@ export function EquipmentPortal({
                 gap: 8,
                 padding: "8px 12px",
                 borderRadius: 8,
-                background: isConfigured ? "#ecfdf5" : "#fffbeb",
-                border: `1px solid ${isConfigured ? "#a7f3d0" : "#fde68a"}`,
+                background: isConfigured ? "var(--ok-bg)" : "var(--warn-bg)",
+                border: `1px solid ${isConfigured ? "var(--ok-line)" : "var(--warn-line)"}`,
                 marginBottom: 16,
                 fontSize: 12,
               }}
@@ -1915,7 +1915,7 @@ export function EquipmentPortal({
                   background: isConfigured ? "#10b981" : "#f59e0b",
                 }}
               />
-              <span style={{ fontWeight: 600, color: isConfigured ? "#065f46" : "#92400e" }}>
+              <span style={{ fontWeight: 600, color: isConfigured ? "var(--ok-fg)" : "var(--warn-fg)" }}>
                 {isConfigured ? "Webhook Connected & Active" : "Webhook Not Configured"}
               </span>
             </div>
@@ -1953,13 +1953,13 @@ export function EquipmentPortal({
 
               <div
                 style={{
-                  background: "#f0fdf4",
-                  border: "1px solid #bbf7d0",
+                  background: "var(--ok-bg)",
+                  border: "1px solid var(--ok-line)",
                   borderRadius: 8,
                   padding: "10px 12px",
                   marginBottom: 16,
                   fontSize: 12,
-                  color: "#166534",
+                  color: "var(--ok-fg)",
                   lineHeight: 1.4,
                 }}
               >

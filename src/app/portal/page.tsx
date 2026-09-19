@@ -45,7 +45,7 @@ export default async function PortalPage(props: {
         </form>
         <div className="portal-account-links">
           <Link className="portal-privacy-link" href="/privacy">Privacy</Link>
-          <Link className="portal-privacy-link" href="/account/delete">Delete my account</Link>
+          <Link className="portal-privacy-link" href="/account">Account settings</Link>
         </div>
       </div>
     </main>

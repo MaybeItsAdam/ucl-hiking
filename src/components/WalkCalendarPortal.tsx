@@ -509,7 +509,7 @@ export function WalkCalendarPortal({
       {activeTab === "my_bookings" && (
         <div className="requests-list">
           {bookings.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "48px 20px", background: "white", borderRadius: 16 }}>
+            <div style={{ textAlign: "center", padding: "48px 20px", background: "var(--surface)", borderRadius: 16 }}>
               <Compass size={36} style={{ opacity: 0.3, marginBottom: 12 }} />
               <h3>No Active Walk Bookings</h3>
               <p style={{ opacity: 0.65, fontSize: 14 }}>
@@ -640,7 +640,7 @@ export function WalkCalendarPortal({
                       </td>
                       <td>{w.capacity}</td>
                       <td>
-                        <span style={{ fontWeight: 700, color: w.spaces_remaining > 0 ? "#166534" : "#b91c1c" }}>
+                        <span style={{ fontWeight: 700, color: w.spaces_remaining > 0 ? "var(--ok-fg)" : "var(--bad-fg)" }}>
                           {w.spaces_remaining}
                         </span>
                       </td>

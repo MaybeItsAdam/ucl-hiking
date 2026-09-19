@@ -12,10 +12,10 @@ export default function NotFound() {
           margin: "80px auto",
           padding: "48px 32px",
           textAlign: "center",
-          background: "#ffffff",
+          background: "var(--surface)",
           borderRadius: 24,
           border: "2px solid var(--ink)",
-          boxShadow: "0 12px 32px rgba(47,67,85,.08)",
+          boxShadow: "0 12px 32px color-mix(in srgb, var(--ink) 8%, transparent)",
         }}
       >
         <div

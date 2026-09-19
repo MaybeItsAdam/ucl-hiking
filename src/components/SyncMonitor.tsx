@@ -188,7 +188,7 @@ export function SyncMonitor({ isPrincipal }: { isPrincipal: boolean }) {
           <label style={{ fontSize: 13, fontWeight: 700, color: "var(--color-text, #0f172a)", display: "flex", alignItems: "center", gap: 6 }}>
             <span>Target Society / Club to Sync:</span>
             {societyGroup !== "Hiking Club" && (
-              <span style={{ fontSize: 11, background: "#fef3c7", color: "#92400e", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>
+              <span style={{ fontSize: 11, background: "var(--warn-bg)", color: "var(--warn-fg)", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>
                 Custom Society Testing
               </span>
             )}
@@ -197,7 +197,7 @@ export function SyncMonitor({ isPrincipal }: { isPrincipal: boolean }) {
             <button
               type="button"
               onClick={() => setSocietyGroup("Hiking Club")}
-              style={{ fontSize: 11, padding: "4px 8px", background: "none", border: "1px solid #cbd5e0", borderRadius: 6, cursor: "pointer" }}
+              style={{ fontSize: 11, padding: "4px 8px", background: "none", border: "1px solid var(--line-strong)", borderRadius: 6, cursor: "pointer" }}
             >
               Reset to Hiking Club
             </button>

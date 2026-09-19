@@ -73,7 +73,7 @@ Dependencies: Python 3, `rsvg-convert`, and ImageMagick (`magick`).
 - Support: **support@uclhiking.org**
 - Support URL: `https://ucl-hiking.vercel.app/support`
 - Privacy URL: `https://ucl-hiking.vercel.app/privacy`
-- Google account deletion URL: `https://ucl-hiking.vercel.app/privacy#request-deletion` (in-app route: `/account/delete`)
+- Google account deletion URL: `https://ucl-hiking.vercel.app/privacy#request-deletion` (in-app: `/account`)
 - Marketing URL: `https://ucl-hiking.vercel.app`
 - Copyright: **2026 MaybeItsSoftware**
 
@@ -91,8 +91,8 @@ The support and privacy pages are implemented in the hiking website. Deploy
 these changes and check both public HTTPS links before using them in either
 console. Check that both contact mailboxes receive messages.
 
-Account deletion is in-app: the member portal's “Delete my account” link opens
-`/account/delete`, which deletes the hiking app account (the `members` row, with
+Account deletion is in-app: the member portal's “Account settings” link opens
+`/account` (appearance, account details, sign out), whose “Delete my account” button deletes the hiking app account (the `members` row, with
 its equipment requests and walk registrations) and signs the person out. It is
 blocked while kit is out on loan. It does not delete the Toolbox/UCL identity or
 SU membership. That covers

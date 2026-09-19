@@ -131,7 +131,7 @@ export default function SignInPage() {
           {process.env.NODE_ENV === "development" && (
             <a
               className="button full-width"
-              style={{ marginTop: 12, background: "#f1f5f9", borderColor: "#94a3b8", color: "#1e293b", fontSize: 13 }}
+              style={{ marginTop: 12, background: "var(--surface-2)", borderColor: "var(--line-strong)", color: "var(--ink)", fontSize: 13 }}
               href="/api/auth/dev-login"
             >
               <span>⚡ Quick Dev Sign-In (Local Admin)</span>

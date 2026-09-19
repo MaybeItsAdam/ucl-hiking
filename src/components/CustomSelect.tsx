@@ -133,8 +133,8 @@ export function CustomSelect<T extends string = string>({
           border: isOpen
             ? "1px solid var(--primary, #500778)"
             : "1px solid var(--line, #e2e8f0)",
-          background: disabled ? "#f8fafc" : "white",
-          color: selectedOption ? "var(--foreground, #0f172a)" : "#64748b",
+          background: disabled ? "var(--surface-2)" : "var(--surface)",
+          color: selectedOption ? "var(--foreground, #0f172a)" : "var(--muted)",
           fontSize: "13px",
           fontWeight: isPill ? 700 : 600,
           cursor: disabled ? "not-allowed" : "pointer",
@@ -208,8 +208,8 @@ export function CustomSelect<T extends string = string>({
                 fontWeight: 800,
                 padding: "1px 6px",
                 borderRadius: "999px",
-                background: "#f1f5f9",
-                color: "#475569",
+                background: "var(--surface-2)",
+                color: "var(--muted)",
                 marginLeft: 2,
               }}
             >
@@ -245,7 +245,7 @@ export function CustomSelect<T extends string = string>({
             maxWidth: "320px",
             maxHeight: "280px",
             overflowY: "auto",
-            background: "white",
+            background: "var(--surface)",
             border: "1px solid var(--line, #e2e8f0)",
             borderRadius: "12px",
             padding: "6px",
@@ -277,13 +277,13 @@ export function CustomSelect<T extends string = string>({
                   color: isSelected
                     ? "var(--primary, #500778)"
                     : "var(--foreground, #1e293b)",
-                  background: isSelected ? "#f3e8ff" : "transparent",
+                  background: isSelected ? "var(--info-bg)" : "transparent",
                   cursor: "pointer",
                   transition: "background 0.12s ease",
                 }}
                 onMouseEnter={(e) => {
                   if (!isSelected) {
-                    e.currentTarget.style.background = "#f8fafc";
+                    e.currentTarget.style.background = "var(--surface-2)";
                   }
                 }}
                 onMouseLeave={(e) => {
@@ -350,8 +350,8 @@ export function CustomSelect<T extends string = string>({
                         fontWeight: 700,
                         padding: "1px 6px",
                         borderRadius: "999px",
-                        background: isSelected ? "rgba(80, 7, 120, 0.12)" : "#f1f5f9",
-                        color: isSelected ? "#500778" : "#64748b",
+                        background: isSelected ? "rgba(80, 7, 120, 0.12)" : "var(--surface-2)",
+                        color: isSelected ? "var(--primary, #500778)" : "var(--muted)",
                       }}
                     >
                       {option.badge}
