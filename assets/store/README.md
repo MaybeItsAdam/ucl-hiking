@@ -73,7 +73,7 @@ Dependencies: Python 3, `rsvg-convert`, and ImageMagick (`magick`).
 - Support: **support@uclhiking.org**
 - Support URL: `https://ucl-hiking.vercel.app/support`
 - Privacy URL: `https://ucl-hiking.vercel.app/privacy`
-- Google account deletion URL: `https://ucl-hiking.vercel.app/privacy#request-deletion`
+- Google account deletion URL: `https://ucl-hiking.vercel.app/privacy#request-deletion` (in-app route: `/account/delete`)
 - Marketing URL: `https://ucl-hiking.vercel.app`
 - Copyright: **2026 MaybeItsSoftware**
 
@@ -91,10 +91,14 @@ The support and privacy pages are implemented in the hiking website. Deploy
 these changes and check both public HTTPS links before using them in either
 console. Check that both contact mailboxes receive messages.
 
-The privacy page currently provides an email deletion request. The full in-app
-account-deletion flow is still outstanding for Apple submission, as described
-in [Apple account deletion guidance](https://developer.apple.com/support/offering-account-deletion-in-your-app/).
-Do not describe the email link as a completed in-app deletion feature.
+Account deletion is in-app: the member portal's “Delete my account” link opens
+`/account/delete`, which deletes the hiking app account (the `members` row, with
+its equipment requests and walk registrations) and signs the person out. It is
+blocked while kit is out on loan. It does not delete the Toolbox/UCL identity or
+SU membership. That covers
+[Apple's account deletion guidance](https://developer.apple.com/support/offering-account-deletion-in-your-app/).
+The privacy page's `#request-deletion` section explains it and keeps an email
+route for people who can't sign in, which is what Google's deletion URL needs.
 
 Supply the real MaybeItsAdam login privately in each console, including any
 second-factor instructions and the Apple review contact's name and phone.
@@ -133,9 +137,28 @@ started, so there is no single production `NEXT_PUBLIC_APP_URL` setting to
 change when another domain is added.
 
 The store privacy questionnaires must be completed from the deployed build and
-its service providers. At minimum, assess name/email/club membership, bookings,
-equipment requests, authentication/session data, and server logs. Do not claim
-the app collects no data.
+its service providers. Do not claim the app collects no data. What the code
+stores (Supabase `members`, `equipment_requests`, `walk_registrations`,
+`audit_log`), and who processes it: Supabase (database), Vercel (hosting and
+request logs), Adam's Campus Toolbox (sign-in; sends name, email and user ID),
+and the committee's Google Sheet ledger (`/api/equipment/sync-sheets` copies
+requests with the member's name and email). There is no analytics SDK, no
+advertising and no tracking. Recheck this list if any of that changes.
+
+Draft answers (check against the release build before submitting):
+
+| | Google Play Data safety | Apple App Privacy |
+| --- | --- | --- |
+| Name, email | Personal info → Name, Email address | Contact Info → Name, Email Address |
+| Toolbox user ID | Personal info → User IDs | Identifiers → User ID |
+| Kit requests (dates, purpose, notes), walk bookings | App activity → Other actions; Other user-generated content | User Content → Other User Content |
+| Purpose | App functionality, Account management | App Functionality |
+| Other answers | Collected, not shared (all recipients are service providers); required; encrypted in transit; users can request deletion | Linked to the user; not used for tracking |
+
+Membership tier, expiry and committee role come from club/SU records rather than
+the user. They have no specific category, so they sit under the account data
+above. Server request logs (IP address, user agent) are kept by Vercel for
+security and are not used for anything else.
 
 ## When uclhiking.org moves to this app
 

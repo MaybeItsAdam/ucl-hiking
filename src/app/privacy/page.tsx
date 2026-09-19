@@ -23,7 +23,7 @@ export default function PrivacyPage() {
       <article className="privacy-content">
         <p className="privacy-eyebrow">UCL Hiking Club website and mobile app</p>
         <h1>Privacy policy</h1>
-        <p className="privacy-date">Last updated 15 September 2026</p>
+        <p className="privacy-date">Last updated 19 September 2026</p>
         <p>
           MaybeItsSoftware owns and operates this UCL Hiking Club app and hiking website.
           This policy explains the personal information we handle when you visit the site,
@@ -88,19 +88,26 @@ export default function PrivacyPage() {
           You can ask us to delete information that is no longer required.
         </p>
 
-        <h2 id="request-deletion">Request app account deletion</h2>
+        <h2 id="request-deletion">Delete your app account</h2>
         <p>
-          To request deletion of your hiking app account and associated bookings or kit
-          information, email{" "}
+          In the app or on the website, sign in, open the member portal and choose{" "}
+          <Link href="/account/delete">Delete my account</Link>. This immediately deletes
+          your hiking app account, your equipment requests and your walk bookings. If you
+          have club kit out on loan, return it first.
+        </p>
+        <p>
+          If you can&apos;t sign in, email{" "}
           <a href={`mailto:${contactEmail}?subject=UCL%20Hiking%20app%20account%20deletion%20request`}>
             {contactEmail}
           </a>{" "}
-          with the subject &ldquo;UCL Hiking app account deletion request&rdquo;.
-          We may need to verify that the request comes from the account holder. This
-          removes the hiking app account and data we no longer need; it does not delete
-          your UCL identity or Students&apos; Union membership. Some records may need to
-          be kept for legal, security or club accountability reasons, and we will
-          explain that when we respond.
+          with the subject &ldquo;UCL Hiking app account deletion request&rdquo;. We may need
+          to verify that the request comes from the account holder.
+        </p>
+        <p>
+          Deleting the app account does not delete your UCL identity, your Adam&apos;s
+          Campus Toolbox sign-in or your Students&apos; Union membership. We keep a record
+          that an account was deleted, without your name or email, and security logs for
+          their normal retention period.
         </p>
 
         <h2>Your choices and rights</h2>

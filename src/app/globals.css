@@ -2891,3 +2891,14 @@ select:focus {
 .review-signin input { font-size: 16px; }
 .review-signin .button { width: 100%; }
 .auth-card .review-signin-error { margin: 0 0 12px; max-width: none; color: #b42318; font-size: 13px; opacity: 1; }
+
+/* In-app account deletion (/account/delete). */
+.delete-account { margin-top: 36px; padding-top: 28px; border-top: 1px solid var(--line); }
+.delete-account-warning { font-weight: 700; }
+.delete-account-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.delete-account-danger, .delete-account-cancel { min-height: 44px; padding: 0 20px; border-radius: 999px; font: 800 15px var(--font-display); cursor: pointer; }
+.delete-account-danger { border: 0; background: #b42318; color: #fff; }
+.delete-account-cancel { border: 1px solid var(--line); background: transparent; color: var(--ink); }
+.delete-account-danger:disabled, .delete-account-cancel:disabled { opacity: .6; cursor: default; }
+.delete-account-error { color: #b42318; font-weight: 700; }
+.portal-account-links { display: flex; flex-wrap: wrap; gap: 8px 20px; }

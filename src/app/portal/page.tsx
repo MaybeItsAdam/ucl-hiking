@@ -43,7 +43,10 @@ export default async function PortalPage(props: {
         <form action="/api/auth/logout" method="post" className="logout-form">
           <button type="submit">Sign out</button>
         </form>
-        <Link className="portal-privacy-link" href="/privacy#request-deletion">Privacy and account deletion</Link>
+        <div className="portal-account-links">
+          <Link className="portal-privacy-link" href="/privacy">Privacy</Link>
+          <Link className="portal-privacy-link" href="/account/delete">Delete my account</Link>
+        </div>
       </div>
     </main>
   );
