@@ -11,6 +11,8 @@ labelled **TEMPLATE — DO NOT UPLOAD** and are kept outside the finished assets
 | Apple iPhone 6.9-inch | `ios/iphone-6.9/screenshots/` | 3 public screenshots, 1320 × 2868 |
 | Apple iPad 13-inch | `ios/ipad-13/screenshots/` | 3 public screenshots, 2064 × 2752 |
 | Google Play phone | `android/phone/screenshots/` | 3 public screenshots, 1080 × 1920 |
+| Google Play 7-inch tablet | `android/tablet-7/screenshots/` | 3 public screenshots, 1200 × 1920 |
+| Google Play 10-inch tablet | `android/tablet-10/screenshots/` | 3 public screenshots, 1600 × 2560 |
 | Apple icon | `ios/app-icon.png` | 1024 × 1024, opaque RGB |
 | Google Play icon | `android/app-icon.png` | 512 × 512, 32-bit PNG |
 | Google feature graphic | `android/feature-graphic.png` | 1024 × 500, opaque RGB |

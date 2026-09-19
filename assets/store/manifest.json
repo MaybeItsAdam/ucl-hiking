@@ -182,5 +182,113 @@
     "height": 1920,
     "platform": "android/phone",
     "capture": null
+  },
+  {
+    "file": "android/tablet-7/screenshots/01-home.png",
+    "status": "ready",
+    "kind": "screenshot",
+    "width": 1200,
+    "height": 1920,
+    "platform": "android/tablet-7",
+    "capture": "captures/android-tablet-7/01-home.png"
+  },
+  {
+    "file": "android/tablet-7/screenshots/02-join.png",
+    "status": "ready",
+    "kind": "screenshot",
+    "width": 1200,
+    "height": 1920,
+    "platform": "android/tablet-7",
+    "capture": "captures/android-tablet-7/02-join.png"
+  },
+  {
+    "file": "android/tablet-7/screenshots/03-signin.png",
+    "status": "ready",
+    "kind": "screenshot",
+    "width": 1200,
+    "height": 1920,
+    "platform": "android/tablet-7",
+    "capture": "captures/android-tablet-7/03-signin.png"
+  },
+  {
+    "file": "templates/android/tablet-7/04-kit-catalogue.png",
+    "status": "template",
+    "kind": "screenshot",
+    "width": 1200,
+    "height": 1920,
+    "platform": "android/tablet-7",
+    "capture": null
+  },
+  {
+    "file": "templates/android/tablet-7/05-kit-request.png",
+    "status": "template",
+    "kind": "screenshot",
+    "width": 1200,
+    "height": 1920,
+    "platform": "android/tablet-7",
+    "capture": null
+  },
+  {
+    "file": "templates/android/tablet-7/06-my-requests.png",
+    "status": "template",
+    "kind": "screenshot",
+    "width": 1200,
+    "height": 1920,
+    "platform": "android/tablet-7",
+    "capture": null
+  },
+  {
+    "file": "android/tablet-10/screenshots/01-home.png",
+    "status": "ready",
+    "kind": "screenshot",
+    "width": 1600,
+    "height": 2560,
+    "platform": "android/tablet-10",
+    "capture": "captures/android-tablet-10/01-home.png"
+  },
+  {
+    "file": "android/tablet-10/screenshots/02-join.png",
+    "status": "ready",
+    "kind": "screenshot",
+    "width": 1600,
+    "height": 2560,
+    "platform": "android/tablet-10",
+    "capture": "captures/android-tablet-10/02-join.png"
+  },
+  {
+    "file": "android/tablet-10/screenshots/03-signin.png",
+    "status": "ready",
+    "kind": "screenshot",
+    "width": 1600,
+    "height": 2560,
+    "platform": "android/tablet-10",
+    "capture": "captures/android-tablet-10/03-signin.png"
+  },
+  {
+    "file": "templates/android/tablet-10/04-kit-catalogue.png",
+    "status": "template",
+    "kind": "screenshot",
+    "width": 1600,
+    "height": 2560,
+    "platform": "android/tablet-10",
+    "capture": null
+  },
+  {
+    "file": "templates/android/tablet-10/05-kit-request.png",
+    "status": "template",
+    "kind": "screenshot",
+    "width": 1600,
+    "height": 2560,
+    "platform": "android/tablet-10",
+    "capture": null
+  },
+  {
+    "file": "templates/android/tablet-10/06-my-requests.png",
+    "status": "template",
+    "kind": "screenshot",
+    "width": 1600,
+    "height": 2560,
+    "platform": "android/tablet-10",
+    "capture": null
   }
 ]

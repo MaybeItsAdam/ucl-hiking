@@ -26,6 +26,8 @@ FORMATS = {
     'ios/iphone-6.9': (1320, 2868, 'ios', 132, 484, 1056, 92, 40),
     'ios/ipad-13': (2064, 2752, 'ipad', 282, 620, 1500, 104, 45),
     'android/phone': (1080, 1920, 'android', 113, 326, 854, 64, 26),
+    'android/tablet-7': (1200, 1920, 'android-tablet-7', 170, 450, 860, 64, 28),
+    'android/tablet-10': (1600, 2560, 'android-tablet-10', 227, 600, 1147, 85, 37),
 }
 manifest = []
 
