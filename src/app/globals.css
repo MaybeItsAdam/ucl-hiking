@@ -87,6 +87,9 @@
 
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
+/* An app, not a document: no rubber-band bounce or pull-to-refresh glow at the
+   ends of the page. Sideways swipes between the app's tabs are TabSwipe's job. */
+html, body { overscroll-behavior: none; }
 body { margin: 0; color: var(--ink); background: var(--paper); font-family: var(--font-body), sans-serif; }
 a { color: inherit; text-decoration: none; }
 button, input { font: inherit; }
@@ -1341,47 +1344,6 @@ select:focus {
 
 .pill-chevron.open {
   transform: rotate(180deg);
-}
-
-.guest-preview-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.guest-preview-pill {
-  all: unset;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 1.5px solid var(--forest);
-  background: var(--ok-bg);
-  color: var(--ink);
-  border-radius: 999px;
-  padding: 6px 14px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all .15s ease;
-}
-
-.guest-preview-pill:hover {
-  background: var(--ok-bg);
-}
-
-.pulse-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #f26640;
-  display: inline-block;
-  flex-shrink: 0;
-  animation: pulseDot 2s ease-in-out infinite;
-}
-
-@keyframes pulseDot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(0.85); }
 }
 
 .account-popover {
@@ -2932,7 +2894,6 @@ select:focus {
 .roster-tag.is-off-roster { border-color: rgba(242, 102, 64, .45); background: rgba(242, 102, 64, .08); color: var(--warn-fg); }
 
 .invite-privacy-link { display: inline-block; margin-top: 22px; color: #fff; font-size: 13px; text-decoration: underline; text-underline-offset: 3px; }
-.auth-privacy-link { display: inline-block; margin-top: 12px; color: var(--ink); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; }
 .portal-privacy-link { display: inline-block; margin-top: 16px; font-size: 13px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 
 .privacy-page { min-height: 100vh; padding: 0 24px 80px; background: var(--cream); color: var(--ink); }
@@ -2963,6 +2924,43 @@ select:focus {
 .review-signin input { font-size: 16px; }
 .review-signin .button { width: 100%; }
 .auth-card .review-signin-error { margin: 0 0 12px; max-width: none; color: var(--bad-fg); font-size: 13px; opacity: 1; }
+
+/* Sign-in page. On a phone it is a full screen rather than a floating card: the
+   explanation sits at the top and the button in the thumb zone at the bottom,
+   clear of the notch and home indicator. */
+.signin-page .eyebrow { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; opacity: .7; cursor: default; -webkit-user-select: none; user-select: none; }
+.signin-page .auth-actions { display: flex; flex-direction: column; gap: 12px; }
+.signin-page .authenticator-btn { min-height: 52px; }
+.auth-card .signin-error { margin: 0; max-width: none; padding: 12px 14px; border: 1px solid var(--bad-line); border-radius: 12px; background: var(--bad-bg); color: var(--bad-fg); font-size: 14px; line-height: 1.45; text-align: left; opacity: 1; }
+.signin-waiting { display: grid; justify-items: center; gap: 12px; }
+.auth-card .signin-waiting p { margin: 0; font-size: 14px; }
+.signin-waiting .button { min-height: 48px; }
+.signin-links { display: flex; justify-content: center; gap: 20px; margin-top: 8px; font-size: 13px; }
+.signin-links a { display: inline-flex; align-items: center; min-height: 44px; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; opacity: .75; }
+
+/* Covers the page while the app swaps a sign-in handoff for a session. */
+.native-auth-overlay { position: fixed; inset: 0; z-index: 2000; display: grid; place-content: center; justify-items: center; gap: 14px; background: var(--paper); color: var(--ink); font-weight: 700; }
+.native-auth-overlay p { margin: 0; }
+
+@media (max-width: 640px) {
+  .auth-page { display: block; padding: 0; background: var(--surface); }
+  .auth-card {
+    width: 100%; min-height: 100vh; min-height: 100dvh;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: calc(28px + env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+    border: 0; border-radius: 0; background: none; box-shadow: none;
+  }
+  .auth-card h1 { font-size: 28px; line-height: 1.15; margin: 4px 0 10px; }
+  .auth-card p { margin-bottom: 20px; font-size: 15px; }
+  .auth-card .button { width: 100%; min-height: 48px; }
+  .authenticator-card { justify-content: space-between; gap: 24px; }
+  .authenticator-card .signin-intro { margin-block: auto; }
+  .auth-header-brand { gap: 10px; margin-bottom: 14px; }
+  .auth-header-brand img { width: 44px; height: 44px; }
+  .signin-page .eyebrow { font-size: 12px; }
+  .authenticator-info-box { margin-bottom: 0; padding: 14px; gap: 12px; }
+  .authenticator-btn { padding: 14px 18px; }
+}
 
 /* In-app account deletion (/account/delete). */
 .delete-account { margin-top: 24px; }
@@ -3005,6 +3003,20 @@ select:focus {
 .app-tabs a:hover { opacity: 1; }
 .app-tabs a.active { opacity: 1; color: var(--forest); border-bottom-color: var(--forest); }
 .app-bar-account { margin-left: auto; }
+.settings-admin { display: none; }
+
+/* Swiping between tabs (TabSwipe). The pane follows the finger; the next tab
+   slides in from the side the swipe came from. Vertical panning stays native. */
+.app-shell { overflow-x: clip; }
+.tab-swipe { touch-action: pan-y pinch-zoom; }
+.tab-enter-right { animation: tab-enter-right .24s cubic-bezier(.2,.8,.2,1); }
+.tab-enter-left { animation: tab-enter-left .24s cubic-bezier(.2,.8,.2,1); }
+@keyframes tab-enter-right { from { transform: translate3d(28%,0,0); opacity: .4; } }
+@keyframes tab-enter-left { from { transform: translate3d(-28%,0,0); opacity: .4; } }
+@media (prefers-reduced-motion: reduce) {
+  .tab-enter-right, .tab-enter-left { animation-duration: .01s; }
+}
+.settings-admin .account-popover { left: 0; right: auto; }
 .app-main { padding: 20px max(24px, env(safe-area-inset-right)) 48px max(24px, env(safe-area-inset-left)); }
 
 /* Pages inside the frame run edge to edge rather than as a card on the page. */
@@ -3019,7 +3031,12 @@ select:focus {
 .account-settings .account-danger { margin-top: 36px; }
 
 @media (max-width: 768px) {
-  .app-bar { height: calc(52px + env(safe-area-inset-top)); padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+  /* On a phone the bottom tabs are the navigation, so the top bar shrinks to a
+     strip that keeps content out from under the status bar and notch. The admin
+     menu it held moves into Settings. */
+  .app-bar { height: env(safe-area-inset-top); padding: 0; gap: 0; border-bottom: 0; background: var(--paper-warm); }
+  .app-brand, .app-bar-account { display: none; }
+  .settings-admin { display: block; }
   .app-tabs {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
     gap: 0; padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -3032,7 +3049,37 @@ select:focus {
     font-size: 11px;
   }
   .app-tabs a.active { border-top-color: var(--forest); }
-  .app-main { padding: 14px max(12px, env(safe-area-inset-right)) 32px max(12px, env(safe-area-inset-left)); }
+  .app-main { padding: 16px max(12px, env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
   .app-shell.has-tabs .app-main { padding-bottom: calc(88px + env(safe-area-inset-bottom)); }
   .account-settings { font-size: 15px; }
+}
+
+/* Members' Events tab (/portal/events): one hairline-ruled list per month, a
+   date column on the left, status chips only where they change what you do. */
+.events-page { max-width: 760px; }
+.events-page section + section { margin-top: 28px; }
+.events-month { margin: 4px 0 10px; font: 800 12px var(--font-body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.events-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.event-row { display: grid; grid-template-columns: 52px 1fr; gap: 14px; padding: 16px; }
+.event-row + .event-row { border-top: 1px solid var(--line); }
+.event-date { display: flex; flex-direction: column; align-items: center; justify-content: center; align-self: start; height: 56px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); line-height: 1; }
+.event-date span { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--forest); }
+.event-date strong { margin-top: 4px; font: 800 22px var(--font-display); }
+.event-body { min-width: 0; }
+.event-body h3 { margin: 2px 0 4px; font: 800 17px/1.3 var(--font-display); overflow-wrap: anywhere; }
+.event-meta { margin: 0; font-size: 14px; color: var(--muted); }
+.event-description { margin: 10px 0 0; font-size: 14px; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.event-link { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-bottom: -12px; color: var(--link); font-size: 14px; font-weight: 700; }
+.event-status { display: inline-block; margin-left: 8px; padding: 2px 8px; border: 1px solid var(--warn-line); border-radius: 999px; background: var(--warn-bg); color: var(--warn-fg); font: 800 10px var(--font-body); letter-spacing: .08em; text-transform: uppercase; vertical-align: 3px; }
+.event-status.is-cancelled { border-color: var(--bad-line); background: var(--bad-bg); color: var(--bad-fg); }
+.event-row.is-cancelled h3 { text-decoration: line-through; text-decoration-thickness: 1px; }
+.event-row.is-cancelled .event-date, .event-row.is-cancelled .event-meta, .event-row.is-cancelled .event-description { opacity: .6; }
+.events-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 20px; border: 1px dashed var(--line-strong); border-radius: 12px; text-align: center; color: var(--muted); }
+.events-empty p { max-width: 340px; margin: 0; font-size: 15px; line-height: 1.55; }
+@media (max-width: 768px) {
+  .events-list { border-radius: 10px; }
+  .event-row { grid-template-columns: 46px 1fr; gap: 12px; padding: 14px 12px; }
+  .event-date { height: 50px; }
+  .event-date strong { font-size: 20px; }
+  .event-body h3 { font-size: 16px; }
 }

@@ -63,6 +63,11 @@ export interface SUEvent {
   price_pence: number;
   source_reference: string | null;
   synced_at: string;
+  description?: string | null;
+  location_url?: string | null;
+  image_url?: string | null;
+  is_all_day?: boolean;
+  source?: string | null;
 }
 
 export interface SUSessionSettings {

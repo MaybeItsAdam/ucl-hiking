@@ -16,7 +16,6 @@ import {
   Users,
   Shield,
   Crown,
-  Globe,
 } from "lucide-react";
 import { accessSummary, type GovernanceRole, type MembershipTier } from "@/lib/access";
 import type { Member } from "@/lib/types";
@@ -38,26 +37,12 @@ interface Preset {
   tier: MembershipTier;
   governance: GovernanceRole | null;
   walkLeader: boolean;
-  simulateSignedOut?: boolean;
   icon: typeof Sparkles;
   iconColor: string;
   iconBg: string;
 }
 
 const PRESETS: Preset[] = [
-  {
-    id: "guest",
-    label: "Public Visitor",
-    badge: "Guest",
-    description: "Simulate an unauthenticated guest visitor",
-    tier: "standard",
-    governance: null,
-    walkLeader: false,
-    simulateSignedOut: true,
-    icon: Globe,
-    iconColor: "#2563eb",
-    iconBg: "#eff6ff",
-  },
   {
     id: "taster",
     label: "Taster Member",
@@ -153,9 +138,6 @@ export function AccountButton({
   const [customWalkLeader, setCustomWalkLeader] = useState<boolean>(
     preview?.isWalkLeader || false
   );
-  const [customSignedOut, setCustomSignedOut] = useState<boolean>(
-    preview?.simulateSignedOut || false
-  );
 
   const isPreviewActive = Boolean(preview?.active);
 
@@ -204,9 +186,8 @@ export function AccountButton({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           membershipTier: p.tier,
-          governanceRole: p.simulateSignedOut ? null : p.governance,
-          isWalkLeader: p.simulateSignedOut ? false : p.walkLeader,
-          simulateSignedOut: Boolean(p.simulateSignedOut),
+          governanceRole: p.governance,
+          isWalkLeader: p.walkLeader,
         }),
       });
       setIsOpen(false);
@@ -224,9 +205,8 @@ export function AccountButton({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           membershipTier: customTier,
-          governanceRole: customSignedOut ? null : customGovernance,
-          isWalkLeader: customSignedOut ? false : customWalkLeader,
-          simulateSignedOut: customSignedOut,
+          governanceRole: customGovernance,
+          isWalkLeader: customWalkLeader,
         }),
       });
       setIsOpen(false);
@@ -236,13 +216,13 @@ export function AccountButton({
     }
   };
 
-  // If user is neither signed in nor a real admin, show simple sign in button
-  if (!member && !isRealAdmin) {
+  // Signed out, or a real admin whose own row can't be read: plain sign-in button.
+  if (!member) {
     return <SignInButton compact />;
   }
 
   // If non-admin user is signed in, standard simple link pill
-  if (member && !isRealAdmin) {
+  if (!isRealAdmin) {
     return (
       <Link className="member-pill" href="/portal">
         <span className="avatar">
@@ -267,9 +247,7 @@ export function AccountButton({
     realMember?.full_name?.split(" ")[0] || member?.full_name?.split(" ")[0] || "Admin";
   const userEmail = realMember?.email || member?.email || "";
 
-  const previewDescription = preview?.simulateSignedOut
-    ? "Guest (Signed Out)"
-    : preview
+  const previewDescription = preview
     ? accessSummary({
         membershipTier: preview.membershipTier,
         governanceRole: preview.governanceRole,
@@ -279,53 +257,34 @@ export function AccountButton({
 
   return (
     <div className="account-menu-container" ref={containerRef}>
-      {member ? (
-        <button
-          type="button"
-          className={`member-pill member-pill-btn ${isPreviewActive ? "is-previewing" : ""}`}
-          onClick={() => setIsOpen(!isOpen)}
-          aria-expanded={isOpen}
-          aria-label="Account and preview menu"
-        >
-          <span className="avatar">
-            <UserRound size={15} />
+      <button
+        type="button"
+        className={`member-pill member-pill-btn ${isPreviewActive ? "is-previewing" : ""}`}
+        onClick={() => setIsOpen(!isOpen)}
+        aria-expanded={isOpen}
+        aria-label="Account and preview menu"
+      >
+        <span className="avatar">
+          <UserRound size={15} />
+        </span>
+        <span className="member-pill-copy">
+          <span className="member-pill-top">
+            <strong>{displayName}</strong>
+            {isPreviewActive ? (
+              <span className="preview-badge-chip">PREVIEW</span>
+            ) : (
+              <span className="admin-badge-chip">ADMIN</span>
+            )}
           </span>
-          <span className="member-pill-copy">
-            <span className="member-pill-top">
-              <strong>{displayName}</strong>
-              {isPreviewActive ? (
-                <span className="preview-badge-chip">PREVIEW</span>
-              ) : (
-                <span className="admin-badge-chip">ADMIN</span>
-              )}
-            </span>
-            <small>
-              {isPreviewActive ? previewDescription : "Full Admin Access"}
-            </small>
-          </span>
-          <ChevronDown
-            size={14}
-            className={`pill-chevron ${isOpen ? "open" : ""}`}
-          />
-        </button>
-      ) : (
-        <div className="guest-preview-group">
-          <SignInButton compact />
-          <button
-            type="button"
-            className="guest-preview-pill"
-            onClick={() => setIsOpen(!isOpen)}
-            aria-expanded={isOpen}
-          >
-            <span className="pulse-dot" />
-            <span>Preview: Guest</span>
-            <ChevronDown
-              size={13}
-              className={`pill-chevron ${isOpen ? "open" : ""}`}
-            />
-          </button>
-        </div>
-      )}
+          <small>
+            {isPreviewActive ? previewDescription : "Full Admin Access"}
+          </small>
+        </span>
+        <ChevronDown
+          size={14}
+          className={`pill-chevron ${isOpen ? "open" : ""}`}
+        />
+      </button>
 
       {isOpen && (
         <div className="account-popover" role="menu">
@@ -405,12 +364,10 @@ export function AccountButton({
               <div className="popover-presets-grid">
                 {PRESETS.map((p) => {
                   const Icon = p.icon;
-                  const isCurrent = p.simulateSignedOut
-                    ? preview?.simulateSignedOut
-                    : !preview?.simulateSignedOut &&
-                      preview?.membershipTier === p.tier &&
-                      preview?.governanceRole === p.governance &&
-                      preview?.isWalkLeader === p.walkLeader;
+                  const isCurrent =
+                    preview?.membershipTier === p.tier &&
+                    preview?.governanceRole === p.governance &&
+                    preview?.isWalkLeader === p.walkLeader;
 
                   return (
                     <button
@@ -442,22 +399,6 @@ export function AccountButton({
               </div>
             ) : (
               <div className="popover-custom-matrix">
-                {/* Switch: Simulate Signed Out */}
-                <div
-                  className="modern-switch-row"
-                  onClick={() => setCustomSignedOut(!customSignedOut)}
-                >
-                  <div className="switch-info">
-                    <strong>Simulate Signed-Out</strong>
-                    <small>View site as an unauthenticated guest</small>
-                  </div>
-                  <div className={`modern-switch ${customSignedOut ? "on" : "off"}`}>
-                    <div className="switch-knob" />
-                  </div>
-                </div>
-
-                {!customSignedOut && (
-                  <>
                     <div className="custom-control-group">
                       <span className="control-label">Membership Tier</span>
                       <div className="segmented-control">
@@ -508,8 +449,6 @@ export function AccountButton({
                         <div className="switch-knob" />
                       </div>
                     </div>
-                  </>
-                )}
 
                 <button
                   type="button"

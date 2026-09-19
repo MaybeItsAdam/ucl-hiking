@@ -11,6 +11,9 @@ export const metadata: Metadata = {
 export const viewport = {
   width: "device-width",
   initialScale: 1,
+  // Lets pages reach under the notch and home indicator in the iOS app, and makes
+  // env(safe-area-inset-*) report real values so they can pad around them.
+  viewportFit: "cover",
   colorScheme: "light dark",
 };
 

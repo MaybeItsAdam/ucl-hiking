@@ -95,7 +95,6 @@ describe("Role Preview API (/api/admin/role-preview)", () => {
         membershipTier: "taster",
         governanceRole: "committee",
         isWalkLeader: true,
-        simulateSignedOut: false,
       }),
     });
 
@@ -108,11 +107,10 @@ describe("Role Preview API (/api/admin/role-preview)", () => {
       membershipTier: "taster",
       governanceRole: "committee",
       isWalkLeader: true,
-      simulateSignedOut: false,
     });
   });
 
-  it("allows real admin to set signed-out preview", async () => {
+  it("ignores a request to preview as signed out", async () => {
     mockRealMember = {
       id: "admin-1",
       email: "admin@ucl.ac.uk",
@@ -131,7 +129,7 @@ describe("Role Preview API (/api/admin/role-preview)", () => {
 
     const res = await POST(req);
     expect(res.status).toBe(200);
-    expect(savedPreview?.simulateSignedOut).toBe(true);
+    expect(savedPreview).not.toHaveProperty("simulateSignedOut");
   });
 
   it("allows real admin to reset preview via DELETE", async () => {

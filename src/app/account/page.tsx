@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AppShell } from "@/components/AppShell";
 import { redirect } from "next/navigation";
+import { AccountButton } from "@/components/AccountButton";
 import { DeleteAccountForm } from "@/components/DeleteAccountForm";
 import { ThemeSetting } from "@/components/ThemeSetting";
 import { GOVERNANCE_LABELS, MEMBERSHIP_LABELS } from "@/lib/access";
-import { getRealMember, getSession } from "@/lib/session";
+import { getCurrentMember, getRealMember, getRolePreviewState, getSession } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Account settings | UCL Hiking Club",
@@ -17,6 +18,7 @@ export default async function AccountPage() {
   const session = await getSession();
   if (!session) redirect("/auth/signin");
   const member = await getRealMember();
+  const previewState = await getRolePreviewState();
 
   const name = member?.full_name || session.name;
   const membership = member
@@ -41,6 +43,20 @@ export default async function AccountPage() {
             club&apos;s Students&apos; Union records.
           </p>
         </section>
+
+        {previewState.isRealAdmin && (
+          // Phones only: on wider screens the same menu sits in the top bar.
+          <section aria-labelledby="admin-preview" className="settings-admin">
+            <h2 id="admin-preview">Admin</h2>
+            <AccountButton
+              member={await getCurrentMember()}
+              isRealAdmin
+              preview={previewState.preview}
+              realMember={previewState.realMember}
+            />
+            <p className="account-note">See the app as another kind of member.</p>
+          </section>
+        )}
 
         <section aria-labelledby="appearance">
           <h2 id="appearance">Appearance</h2>

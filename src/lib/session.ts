@@ -5,7 +5,10 @@ import type { Member } from "@/lib/types";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 
 const COOKIE_NAME = "ucl_hiking_session";
-const MAX_AGE = 60 * 60 * 24 * 7;
+// Long enough that the phone app doesn't sign people out every week. The cookie
+// only proves identity: access is reloaded from the members table on every
+// request, so revoking or expiring a member still takes effect immediately.
+const MAX_AGE = 60 * 60 * 24 * 90;
 
 export interface HikingSession {
   toolboxUserId: string;
@@ -29,7 +32,7 @@ export async function createSessionToken(session: HikingSession): Promise<string
   return new SignJWT({ ...session })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("7d")
+    .setExpirationTime(`${MAX_AGE}s`)
     .sign(secret());
 }
 
@@ -74,7 +77,6 @@ export interface RolePreviewConfig {
   membershipTier: MembershipTier;
   governanceRole: GovernanceRole | null;
   isWalkLeader: boolean;
-  simulateSignedOut?: boolean;
 }
 
 const ROLE_PREVIEW_COOKIE = "ucl_hiking_role_preview";
@@ -85,6 +87,9 @@ export async function getRolePreview(): Promise<RolePreviewConfig | null> {
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return null;
+    // The old "public visitor" preview hid the admin's own session, and with it
+    // the menu to leave the preview. Treat any such cookie as no preview at all.
+    if (parsed.simulateSignedOut) return null;
     return parsed as RolePreviewConfig;
   } catch {
     return null;
@@ -181,10 +186,6 @@ export async function getCurrentMember(): Promise<Member | null> {
   const preview = await getRolePreview();
   if (!preview || !preview.active) {
     return realMember;
-  }
-
-  if (preview.simulateSignedOut) {
-    return null;
   }
 
   return {

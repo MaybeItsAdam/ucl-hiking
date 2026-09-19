@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef, useState, type FormEvent, type MouseEvent } from "react";
+import { Suspense, useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import { LogIn, ShieldCheck, Users, ChevronRight, X } from "lucide-react";
@@ -10,8 +11,23 @@ import { ClubMark } from "@/components/ClubMark";
 
 const societyName = process.env.NEXT_PUBLIC_SOCIETY_NAME || "UCL Hiking Club";
 
-export default function SignInPage() {
-  const [opening, setOpening] = useState(false);
+function toolboxSignInUrl(): string {
+  const toolbox = (
+    process.env.NEXT_PUBLIC_TOOLBOX_URL || "https://www.adamscampustoolbox.org.uk"
+  ).replace(/\/$/, "");
+  const callback = `${window.location.origin}/auth/callback?native=1`;
+  return `${toolbox}/api/auth/entra?return_to=${encodeURIComponent(callback)}`;
+}
+
+function SignIn() {
+  // "opening": leaving for UCL sign-in. "waiting": the app's system browser is
+  // open, and NativeAuthBridge takes over when it hands back.
+  const [stage, setStage] = useState<"idle" | "opening" | "waiting">("idle");
+  // A failed in-app sign-in comes back here as ?error=, set by NativeAuthBridge.
+  const returnedError = useSearchParams().get("error");
+  const [dismissedError, setDismissedError] = useState(false);
+  const signInError = dismissedError ? null : returnedError;
+
   // Store reviewers have no UCL account. Seven taps on the eyebrow line reveal
   // an email/password form for the Toolbox reviewer accounts — the same
   // seven-tap gesture Toolbox uses, so one set of review notes covers both.
@@ -19,6 +35,20 @@ export default function SignInPage() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewError, setReviewError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Back from UCL sign-in via the browser's back button restores this page
+    // from the back/forward cache, still saying "Opening…".
+    const reset = (event: PageTransitionEvent) => event.persisted && setStage("idle");
+    window.addEventListener("pageshow", reset);
+    if (!Capacitor.isNativePlatform()) return () => window.removeEventListener("pageshow", reset);
+    // Closing the browser without finishing drops back to the button.
+    const listener = Browser.addListener("browserFinished", () => setStage("idle"));
+    return () => {
+      window.removeEventListener("pageshow", reset);
+      void listener.then((handle) => handle.remove());
+    };
+  }, []);
 
   function handleEyebrowTap() {
     taps.current += 1;
@@ -46,70 +76,82 @@ export default function SignInPage() {
   }
 
   async function handleStartSignIn(event: MouseEvent<HTMLAnchorElement>) {
+    setDismissedError(true);
+    setStage("opening");
     if (!Capacitor.isNativePlatform()) return;
     event.preventDefault();
-    setOpening(true);
-    const toolbox = (
-      process.env.NEXT_PUBLIC_TOOLBOX_URL || "https://www.adamscampustoolbox.org.uk"
-    ).replace(/\/$/, "");
-    const callback = `${window.location.origin}/auth/callback?native=1`;
-    const url = `${toolbox}/api/auth/entra?return_to=${encodeURIComponent(callback)}`;
     try {
-      await Browser.open({ url });
-    } finally {
-      setOpening(false);
+      await Browser.open({ url: toolboxSignInUrl() });
+      setStage("waiting");
+    } catch {
+      setStage("idle");
     }
   }
 
   return (
-    <main className="auth-page">
+    <main className="auth-page signin-page">
       <section className="auth-card authenticator-card">
-        <div className="auth-header-brand">
-          <ClubMark size={52} />
-          <X size={16} strokeWidth={3} className="auth-brand-cross" aria-hidden="true" />
-          <Image
-            src="/brand/toolbox-logo.png"
-            width={52}
-            height={52}
-            alt="Adam's Campus Toolbox"
-            className="rounded-xl shadow-sm"
-            priority
-          />
-        </div>
-
-        <span className="eyebrow" onClick={handleEyebrowTap}>UCL Hiking Club × Adam&apos;s Campus Toolbox</span>
-        <h1>Sign in to {societyName}</h1>
-        <p>
-          Authenticate using your official UCL Single Sign-On account to borrow club kit and access the member portal.
-        </p>
-
-        <div className="authenticator-info-box">
-          <div className="info-row">
-            <ShieldCheck size={18} className="info-icon" />
-            <div>
-              <strong>UCL Single Sign-On</strong>
-              <small>Delegated via Adam&apos;s Campus Toolbox to authenticate your UCL student or staff tenant identity.</small>
-            </div>
+        <div className="signin-intro">
+          <div className="auth-header-brand">
+            <ClubMark size={52} />
+            <X size={16} strokeWidth={3} className="auth-brand-cross" aria-hidden="true" />
+            <Image
+              src="/brand/toolbox-logo.png"
+              width={52}
+              height={52}
+              alt="Adam's Campus Toolbox"
+              className="rounded-xl shadow-sm"
+              priority
+            />
           </div>
-          <div className="info-row">
-            <Users size={18} className="info-icon" />
-            <div>
-              <strong>Official Society Roster</strong>
-              <small>Cross-checks your email against the Students&apos; Union roster to assign member roles automatically.</small>
+
+          <span className="eyebrow" onClick={handleEyebrowTap}>UCL Hiking Club × Adam&apos;s Campus Toolbox</span>
+          <h1>Sign in to {societyName}</h1>
+          <p>Use your UCL account to borrow club kit and reach the member portal.</p>
+
+          <div className="authenticator-info-box">
+            <div className="info-row">
+              <ShieldCheck size={18} className="info-icon" aria-hidden="true" />
+              <div>
+                <strong>UCL single sign-on</strong>
+                <small>Your usual UCL login, through Adam&apos;s Campus Toolbox. The club never sees your password.</small>
+              </div>
+            </div>
+            <div className="info-row">
+              <Users size={18} className="info-icon" aria-hidden="true" />
+              <div>
+                <strong>Club membership</strong>
+                <small>We match you to the club&apos;s Students&apos; Union member list to set up your access.</small>
+              </div>
             </div>
           </div>
         </div>
 
         <div className="auth-actions">
-          <a
-            className="button primary full-width authenticator-btn"
-            href="/api/auth/start"
-            onClick={handleStartSignIn}
-          >
-            <LogIn size={18} />
-            <span>{opening ? "Opening UCL Sign-In..." : "Continue with UCL Sign-In"}</span>
-            <ChevronRight size={18} />
-          </a>
+          {signInError && (
+            <p className="signin-error" role="alert">{signInError}</p>
+          )}
+
+          {stage === "waiting" ? (
+            <div className="signin-waiting" role="status">
+              <span className="loading-dots"><i /><i /><i /></span>
+              <p>Finish signing in in the browser window. It brings you straight back here.</p>
+              <a className="button full-width" href="/api/auth/start" onClick={handleStartSignIn}>
+                Open UCL sign-in again
+              </a>
+            </div>
+          ) : (
+            <a
+              className="button primary full-width authenticator-btn"
+              href="/api/auth/start"
+              onClick={handleStartSignIn}
+              aria-busy={stage === "opening"}
+            >
+              <LogIn size={18} aria-hidden="true" />
+              <span>{stage === "opening" ? "Opening UCL sign-in…" : "Continue with UCL sign-in"}</span>
+              <ChevronRight size={18} aria-hidden="true" />
+            </a>
+          )}
 
           {reviewOpen && (
             <form className="su-session-form review-signin" onSubmit={handleReviewSignIn}>
@@ -137,13 +179,22 @@ export default function SignInPage() {
               <span>⚡ Quick Dev Sign-In (Local Admin)</span>
             </a>
           )}
-        </div>
 
-        <Link className="auth-home" href="/">
-          ← Return to {societyName} website
-        </Link>
-        <Link className="auth-privacy-link" href="/privacy">Privacy policy</Link>
+          <nav className="signin-links" aria-label="More">
+            <Link href="/#join">Not a member yet?</Link>
+            <Link href="/privacy">Privacy policy</Link>
+          </nav>
+        </div>
       </section>
     </main>
+  );
+}
+
+// useSearchParams needs a Suspense boundary to keep the page prerenderable.
+export default function SignInPage() {
+  return (
+    <Suspense>
+      <SignIn />
+    </Suspense>
   );
 }

@@ -1,12 +1,14 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Package, Settings, Users } from "lucide-react";
+import { CalendarDays, Package, Settings, Users } from "lucide-react";
 import { ClubMark } from "@/components/ClubMark";
 import { AccountButton } from "@/components/AccountButton";
+import { TabSwipe } from "@/components/TabSwipe";
 import { APP_PAGE_HREFS, availablePages, type AppPage } from "@/lib/app-pages";
 import { getCurrentMember, getRolePreviewState } from "@/lib/session";
 
 const PAGE_META: Record<AppPage, { label: string; icon: typeof Users }> = {
+  events: { label: "Events", icon: CalendarDays },
   members: { label: "Members", icon: Users },
   equipment: { label: "Equipment", icon: Package },
   settings: { label: "Settings", icon: Settings },
@@ -65,7 +67,11 @@ export async function AppShell({ active, children }: { active: AppPage; children
           </div>
         )}
       </header>
-      <main className="app-main">{children}</main>
+      <main className="app-main">
+        <TabSwipe hrefs={pages.map((page) => APP_PAGE_HREFS[page])} active={pages.indexOf(active)}>
+          {children}
+        </TabSwipe>
+      </main>
     </div>
   );
 }

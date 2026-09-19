@@ -108,7 +108,7 @@ describe("session role preview resolution", () => {
     expect(member?.real_governance_role).toBe("admin");
   });
 
-  it("returns null when genuine admin simulates signed-out status", async () => {
+  it("ignores a stored signed-out preview so the admin keeps their own access", async () => {
     const session: HikingSession = {
       toolboxUserId: "admin-1",
       memberId: "member-admin",
@@ -119,24 +119,20 @@ describe("session role preview resolution", () => {
       wasWalkLeaderAtSignIn: true,
     };
     mockCookieStore["ucl_hiking_session"] = await createSessionToken(session);
-
-    const preview: RolePreviewConfig = {
+    mockCookieStore["ucl_hiking_role_preview"] = JSON.stringify({
       active: true,
       membershipTier: "standard",
       governanceRole: null,
       isWalkLeader: false,
       simulateSignedOut: true,
-    };
-    mockCookieStore["ucl_hiking_role_preview"] = JSON.stringify(preview);
+    });
 
-    // Site sees user as signed-out guest
     const member = await getCurrentMember();
-    expect(member).toBeNull();
+    expect(member?.governance_role).toBe("admin");
+    expect(member?.is_preview).toBeUndefined();
 
-    // But admin preview state still recognizes that a real admin is previewing
     const state = await getRolePreviewState();
     expect(state.isRealAdmin).toBe(true);
-    expect(state.preview?.simulateSignedOut).toBe(true);
-    expect(state.realMember?.email).toBe("admin@ucl.ac.uk");
+    expect(state.preview).toBeNull();
   });
 });

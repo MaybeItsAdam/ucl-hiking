@@ -6,6 +6,8 @@ const config: CapacitorConfig = {
   appId: "org.uclhiking.app",
   appName: "UCL Hiking Club",
   webDir: "capacitor-dist",
+  // Lets the site tell the app from a phone browser (see src/proxy.ts).
+  appendUserAgent: "UCLHikingApp",
   android: {
     adjustMarginsForEdgeToEdge: "auto",
   },

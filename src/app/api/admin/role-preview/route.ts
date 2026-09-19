@@ -52,14 +52,12 @@ export async function POST(request: Request) {
       : null;
 
     const isWalkLeader = Boolean(body.isWalkLeader);
-    const simulateSignedOut = Boolean(body.simulateSignedOut);
 
     const config: RolePreviewConfig = {
       active: true,
       membershipTier,
       governanceRole,
       isWalkLeader,
-      simulateSignedOut,
     };
 
     await setRolePreviewCookie(config);

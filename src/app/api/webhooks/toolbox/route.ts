@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { toolboxEventRow, type ToolboxEventData } from "@/lib/toolboxEvents";
 
 const SIGNATURE_TOLERANCE_SECONDS = 300;
 
@@ -59,22 +60,7 @@ export async function POST(request: Request) {
     type?: string;
     /** Original assumed field, kept so the sync job's vocabulary still works. */
     event?: string;
-    data?: {
-      id?: string;
-      suuEventId?: string;
-      title?: string;
-      /** Toolbox's field names. */
-      startTime?: string;
-      endTime?: string;
-      /** Original assumed names. */
-      startsAt?: string;
-      endsAt?: string;
-      location?: string;
-      status?: string;
-      capacity?: number;
-      ticketsSold?: number;
-      pricePence?: number;
-    };
+    data?: ToolboxEventData;
   };
 
   try {
@@ -101,50 +87,22 @@ export async function POST(request: Request) {
   // another row and the survivor is delivered separately. Downstream that means
   // the same thing as a deletion — keeping it would show the reader both halves
   // of a duplicate.
-  if (eventType === "event.deleted" || eventType === "event.superseded") {
+  if (eventType === "event.deleted" || eventType === "event.superseded" || data.supersededById) {
     await supabase.from("events").delete().eq("suu_event_id", eventId);
     return NextResponse.json({ received: true, action: "deleted" });
   }
 
-  /**
-   * Only the fields this delivery actually carried.
-   *
-   * Every one of these used to be written unconditionally, so a payload that
-   * omitted `capacity` reset it to 0 — and Toolbox omits capacity, ticketsSold
-   * and pricePence entirely, because they are SU ticketing concepts it has no
-   * source for. An upsert is a merge here, not a replace: whatever the SU sync
-   * job wrote stays until something with an actual value overwrites it.
-   */
-  // `events.title` is `not null` with no default, so an insert must carry one.
-  // Rejecting is better than the old `|| "Untitled Event"`, which quietly
-  // created placeholder rows on a malformed payload and, on an update, renamed
-  // a perfectly good event to the placeholder. Toolbox always sends a title —
-  // its own schema requires a non-empty string — so an absent one is a bug at
-  // the sender, and saying so is more use than absorbing it.
-  if (!data.title) {
-    return NextResponse.json(
-      { error: "Invalid payload format: title is required" },
-      { status: 400 },
-    );
+  // Field-by-field rules (merge, not replace; which kinds are skipped) live in
+  // toolboxEventRow, shared with the daily reconcile in /api/sync/toolbox-events.
+  const mapped = toolboxEventRow(data, new Date().toISOString());
+  if (!mapped.ok) {
+    if (mapped.skip) {
+      // A 2xx, so Toolbox does not keep retrying something we will never store.
+      return NextResponse.json({ received: true, action: "ignored", reason: mapped.reason });
+    }
+    return NextResponse.json({ error: `Invalid payload format: ${mapped.reason}` }, { status: 400 });
   }
-
-  const row: Record<string, unknown> = {
-    suu_event_id: eventId,
-    title: data.title,
-    synced_at: new Date().toISOString(),
-  };
-
-  const startsAt = data.startsAt ?? data.startTime;
-  if (startsAt) row.starts_at = startsAt;
-  const endsAt = data.endsAt ?? data.endTime;
-  if (endsAt) row.ends_at = endsAt;
-  if (data.location) row.location = data.location;
-  if (["upcoming", "sold_out", "cancelled", "completed", "draft"].includes(String(data.status))) {
-    row.status = String(data.status);
-  }
-  if (typeof data.capacity === "number") row.capacity = Math.max(0, data.capacity);
-  if (typeof data.ticketsSold === "number") row.tickets_sold = Math.max(0, data.ticketsSold);
-  if (typeof data.pricePence === "number") row.price_pence = Math.max(0, data.pricePence);
+  const row = mapped.row;
 
   const { error } = await supabase.from("events").upsert(row, { onConflict: "suu_event_id" });
 

@@ -202,6 +202,64 @@ describe("POST /api/webhooks/toolbox", () => {
     expect(db.upserted).toBeNull();
   });
 
+  it("ignores weekly timetable events with a 2xx instead of failing on their HH:MM start", async () => {
+    const req = new Request("http://localhost:3001/api/webhooks/toolbox", {
+      method: "POST",
+      body: JSON.stringify({
+        type: "event.created",
+        data: { kind: "timetable", id: "tt_1", title: "Climbing wall", dayOfWeek: 2, startTime: "18:00" },
+      }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    expect((await res.json()).action).toBe("ignored");
+    expect(db.upserted).toBeNull();
+  });
+
+  it("stores the details the Events tab shows, dropping non-http links", async () => {
+    const req = new Request("http://localhost:3001/api/webhooks/toolbox", {
+      method: "POST",
+      body: JSON.stringify({
+        type: "event.updated",
+        data: {
+          kind: "adhoc",
+          id: "evt_5",
+          title: "Seven Sisters",
+          startTime: "2026-10-03T08:00:00Z",
+          description: "  Bring lunch.  ",
+          locationUrl: "https://maps.example/seaford",
+          imageUrl: "javascript:alert(1)",
+          isAllDay: false,
+        },
+      }),
+    });
+
+    await POST(req);
+    const row = db.upserted as Record<string, unknown>;
+    expect(row).toMatchObject({
+      source: "toolbox",
+      description: "Bring lunch.",
+      location_url: "https://maps.example/seaford",
+      image_url: null,
+      is_all_day: false,
+    });
+  });
+
+  it("removes an event an update marks as superseded", async () => {
+    const req = new Request("http://localhost:3001/api/webhooks/toolbox", {
+      method: "POST",
+      body: JSON.stringify({
+        type: "event.updated",
+        data: { kind: "adhoc", id: "evt_6", title: "Dupe", supersededById: "evt_7" },
+      }),
+    });
+
+    const res = await POST(req);
+    expect((await res.json()).action).toBe("deleted");
+    expect(db.upserted).toBeNull();
+  });
+
   it("rejects an upsert with no title instead of inventing one", async () => {
     // events.title is NOT NULL with no default.
     const req = new Request("http://localhost:3001/api/webhooks/toolbox", {
