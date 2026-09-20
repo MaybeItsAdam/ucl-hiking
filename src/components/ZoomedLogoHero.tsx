@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
 
 export function ZoomedLogoHero() {
   const desktopTextRef = useRef<SVGTextElement>(null);
@@ -285,6 +286,17 @@ export function ZoomedLogoHero() {
             </text>
           </g>
         </svg>
+      </div>
+
+      {/* The hero filled a phone screen with no way forward on it: the sign-in
+          invitation below was entirely under the fold, and the trail running off
+          the bottom edge was the only hint there was more. This is that hint made
+          tappable — and it names the destination, so it is worth a tap. */}
+      <div className="hero-scroll-cue-dock">
+        <a className="hero-trail-scroll-cue" href="#join">
+          <span className="scroll-cue-text">Sign in to join</span>
+          <ChevronDown className="bounce-cue" size={16} aria-hidden="true" />
+        </a>
       </div>
     </section>
   );

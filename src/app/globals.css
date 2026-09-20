@@ -250,7 +250,11 @@ a, button, [role="button"], label, summary, .roster-row, .event-row {
 
 .zoomed-logo-hero {
   position: relative;
+  /* svh, not vh: on mobile Safari `vh` is the height with the toolbars hidden,
+     so an 88vh hero pushed the scroll cue under the fold on first paint —
+     exactly when it is needed. Wide screens have no such gap. */
   min-height: 88vh;
+  min-height: 88svh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -343,6 +347,7 @@ a, button, [role="button"], label, summary, .roster-row, .event-row {
   width: 100%;
   height: 100%;
   min-height: 88vh;
+  min-height: 88svh;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -353,6 +358,7 @@ a, button, [role="button"], label, summary, .roster-row, .event-row {
   width: 100%;
   height: 100%;
   max-height: 88vh;
+  max-height: 88svh;
   display: block;
   overflow: visible;
 }
@@ -372,6 +378,9 @@ a, button, [role="button"], label, summary, .roster-row, .event-row {
   .hero-mobile-stage {
     display: block;
   }
+  /* Keeps the title clear of the cue docked at the bottom edge. */
+  .zoomed-hero-stage { padding-bottom: 56px; }
+  .hero-trail-scroll-cue { padding: 10px 20px; min-height: 44px; }
 }
 
 /* BIG PURPOSEFUL WHITE TITLE (var(--font-display), mixed-case UCL Hiking) */
@@ -488,10 +497,24 @@ a, button, [role="button"], label, summary, .roster-row, .event-row {
   }
 }
 
-/* Trail Scroll Cue Button at Bottom */
-.hero-trail-scroll-cue {
+/* Trail Scroll Cue Button at Bottom.
+
+   The dock does the positioning and the button does the animating: the reveal
+   and the hover both use transform, which would otherwise clobber a centring
+   translate on the same element. */
+.hero-scroll-cue-dock {
   position: absolute;
-  bottom: 24px;
+  left: 0;
+  right: 0;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.hero-trail-scroll-cue {
+  pointer-events: auto;
   display: inline-flex;
   align-items: center;
   gap: 8px;
