@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 import type { Equipment, EquipmentRequest } from "@/lib/types";
 import { CustomSelect, type SelectOption } from "./CustomSelect";
+import { Sheet } from "./Sheet";
+import { useAppRefresh } from "@/lib/refresh";
 
 const EQUIPMENT_CATEGORY_OPTIONS: SelectOption[] = [
   { value: "Tents & Shelter", label: "Tents & Shelter" },
@@ -165,6 +167,8 @@ export function EquipmentPortal({
       active = false;
     };
   }, []);
+
+  useAppRefresh(fetchData);
 
   // Fetch webhook configuration status for committee
   useEffect(() => {
@@ -506,9 +510,18 @@ export function EquipmentPortal({
 
   if (loading) {
     return (
-      <div className="equipment-portal-shell loading" style={{ textAlign: "center", padding: "60px 20px" }}>
-        <Package className="animate-spin" size={32} style={{ margin: "0 auto 16px", color: "var(--forest)" }} />
-        <p style={{ fontWeight: 600, color: "var(--ink)" }}>Loading equipment inventory...</p>
+      <div className="equipment-portal-shell" style={{ marginTop: 0 }} aria-busy="true">
+        <p className="sr-only" role="status">Loading equipment inventory…</p>
+        <div className="equipment-grid" aria-hidden="true">
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="skeleton-card">
+              <span className="skeleton" />
+              <span className="skeleton" />
+              <span className="skeleton" />
+              <span className="skeleton" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -1325,9 +1338,8 @@ export function EquipmentPortal({
 
       {/* MODAL 1: BORROW REQUEST MODAL */}
       {selectedItem && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <h3>Request Kit: {selectedItem.name}</h3>
+        <Sheet onClose={() => setSelectedItem(null)} labelledBy="borrow-sheet">
+            <h3 id="borrow-sheet">Request Kit: {selectedItem.name}</h3>
             <p>Specify dates and expedition purpose for committee review.</p>
 
             <form onSubmit={handleFileRequest}>
@@ -1396,15 +1408,13 @@ export function EquipmentPortal({
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Sheet>
       )}
 
       {/* MODAL 2: ADD EQUIPMENT MODAL (COMMITTEE) */}
       {showAddItemModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <h3>Add Equipment Item to Inventory</h3>
+        <Sheet onClose={() => setShowAddItemModal(false)} labelledBy="add-item-sheet">
+            <h3 id="add-item-sheet">Add Equipment Item to Inventory</h3>
             <p>Create a new piece of club equipment in the master locker list.</p>
 
             <form onSubmit={handleCreateEquipment}>
@@ -1498,15 +1508,13 @@ export function EquipmentPortal({
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Sheet>
       )}
 
       {/* MODAL 3: EDIT EQUIPMENT MODAL (COMMITTEE) */}
       {editingItem && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <h3>Edit Equipment Item</h3>
+        <Sheet onClose={() => setEditingItem(null)} labelledBy="edit-item-sheet">
+            <h3 id="edit-item-sheet">Edit Equipment Item</h3>
             <p>Update stock levels, category, or condition status.</p>
 
             <form onSubmit={handleSaveEdit}>
@@ -1598,17 +1606,15 @@ export function EquipmentPortal({
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Sheet>
       )}
 
       {/* MODAL 4: DELETE CONFIRMATION MODAL */}
       {deletingItem && (
-        <div className="modal-overlay">
-          <div className="modal-card">
+        <Sheet onClose={() => setDeletingItem(null)} labelledBy="delete-item-sheet">
             <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--bad-fg)", marginBottom: 10 }}>
               <AlertTriangle size={24} />
-              <h3 style={{ margin: 0, color: "var(--bad-fg)" }}>Delete Equipment Item</h3>
+              <h3 id="delete-item-sheet" style={{ margin: 0, color: "var(--bad-fg)" }}>Delete Equipment Item</h3>
             </div>
             <p>
               Are you sure you want to remove <strong>{deletingItem.name}</strong> from the equipment inventory? This
@@ -1632,15 +1638,13 @@ export function EquipmentPortal({
                 {submitting ? "Deleting..." : "Confirm Delete"}
               </button>
             </div>
-          </div>
-        </div>
+        </Sheet>
       )}
 
       {/* MODAL 5: REJECTION NOTES MODAL */}
       {rejectingRequestId && (
-        <div className="modal-overlay">
-          <div className="modal-card">
-            <h3>Decline Equipment Request</h3>
+        <Sheet onClose={() => setRejectingRequestId(null)} labelledBy="decline-sheet">
+            <h3 id="decline-sheet">Decline Equipment Request</h3>
             <p>Provide a reason or advice for the member so they know why the kit cannot be loaned.</p>
             <textarea
               rows={3}
@@ -1661,17 +1665,15 @@ export function EquipmentPortal({
                 Confirm Decline
               </button>
             </div>
-          </div>
-        </div>
+        </Sheet>
       )}
 
       {/* MODAL 6: GOOGLE SHEETS WEBHOOK SETTINGS MODAL */}
       {showSettingsModal && (
-        <div className="modal-overlay">
-          <div className="modal-card">
+        <Sheet onClose={() => setShowSettingsModal(false)} labelledBy="sheets-settings-sheet">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
               <div>
-                <h3 style={{ margin: "0 0 4px" }}>Google Sheets Webhook Settings</h3>
+                <h3 id="sheets-settings-sheet" style={{ margin: "0 0 4px" }}>Google Sheets Webhook Settings</h3>
                 <p style={{ margin: 0, opacity: 0.65, fontSize: 13 }}>
                   Connect your Google Sheet for live two-way sync and automatic styling.
                 </p>
@@ -1789,8 +1791,7 @@ export function EquipmentPortal({
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Sheet>
       )}
     </div>
   );

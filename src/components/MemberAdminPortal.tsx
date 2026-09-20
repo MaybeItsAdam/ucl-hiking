@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, Compass, Loader2, Search, Shield, Users, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertCircle, Compass, Search, Shield, Users, X } from "lucide-react";
 import { GOVERNANCE_LABELS, MEMBERSHIP_LABELS, type MembershipTier } from "@/lib/access";
 import type { MembershipListEntry } from "@/lib/roster";
+import { useAppRefresh } from "@/lib/refresh";
 
 type Member = MembershipListEntry;
 
@@ -54,23 +55,30 @@ export function MemberAdminPortal() {
   const [filter, setFilter] = useState<RosterFilter>("all");
   const [limit, setLimit] = useState(PAGE_SIZE);
 
-  useEffect(() => {
-    let active = true;
-    fetch("/api/admin/roster")
-      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((data: { members?: Member[]; syncedAt?: string | null }) => {
-        if (!active) return;
-        setMembers(data.members ?? []);
-        setSyncedAt(data.syncedAt ?? null);
-        setLoadedAt(Date.now());
-      })
-      .catch(() => {
-        if (active) setError("Couldn't load the membership list. Refresh to try again.");
-      });
-    return () => {
-      active = false;
-    };
+  const load = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const res = await fetch("/api/admin/roster", { signal });
+      if (!res.ok) throw new Error(String(res.status));
+      const data: { members?: Member[]; syncedAt?: string | null } = await res.json();
+      if (signal?.aborted) return;
+      setMembers(data.members ?? []);
+      setSyncedAt(data.syncedAt ?? null);
+      setLoadedAt(Date.now());
+      setError(null);
+    } catch {
+      if (!signal?.aborted) setError("Couldn't load the membership list. Pull down to try again.");
+    }
   }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void Promise.resolve().then(() => load(controller.signal));
+    return () => controller.abort();
+  }, [load]);
+
+  useAppRefresh(() => {
+    void load();
+  });
 
   const query = search.trim().toLowerCase();
 
@@ -124,11 +132,19 @@ export function MemberAdminPortal() {
 
   if (!members) {
     return (
-      <div className="roster-panel">
-        <div className="roster-state">
-          <Loader2 className="roster-spinner" size={18} />
-          <span>Loading members…</span>
-        </div>
+      <div className="roster-panel" aria-busy="true">
+        <p className="sr-only" role="status">Loading members…</p>
+        <ul className="skeleton-list" aria-hidden="true">
+          {Array.from({ length: 8 }, (_, i) => (
+            <li key={i}>
+              <span className="skeleton-lines">
+                <span className="skeleton" />
+                <span className="skeleton" />
+              </span>
+              <span className="skeleton skeleton-trailing" />
+            </li>
+          ))}
+        </ul>
       </div>
     );
   }

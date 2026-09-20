@@ -3,6 +3,8 @@ import Link from "next/link";
 import { CalendarDays, Package, Settings, Users } from "lucide-react";
 import { ClubMark } from "@/components/ClubMark";
 import { AccountButton } from "@/components/AccountButton";
+import { AppTitleBar } from "@/components/AppTitleBar";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { TabSwipe } from "@/components/TabSwipe";
 import { APP_PAGE_HREFS, availablePages, type AppPage } from "@/lib/app-pages";
 import { getCurrentMember, getRolePreviewState } from "@/lib/session";
@@ -16,7 +18,8 @@ const PAGE_META: Record<AppPage, { label: string; icon: typeof Users }> = {
 
 /**
  * Full-width frame for the signed-in app. The tabs sit in the top bar on wide
- * screens and become a bottom tab bar on phones and in the native app.
+ * screens and become a bottom tab bar on phones and in the native app, where
+ * the page title takes over the top and pulling down reloads the page.
  */
 export async function AppShell({ active, children }: { active: AppPage; children: ReactNode }) {
   const member = await getCurrentMember();
@@ -49,8 +52,10 @@ export async function AppShell({ active, children }: { active: AppPage; children
                   className={page === active ? "active" : undefined}
                   aria-current={page === active ? "page" : undefined}
                 >
-                  <Icon size={18} aria-hidden="true" />
-                  <span>{label}</span>
+                  <span className="app-tab-icon">
+                    <Icon size={18} aria-hidden="true" />
+                  </span>
+                  <span className="app-tab-label">{label}</span>
                 </Link>
               );
             })}
@@ -67,10 +72,13 @@ export async function AppShell({ active, children }: { active: AppPage; children
           </div>
         )}
       </header>
+      <AppTitleBar title={PAGE_META[active].label} />
       <main className="app-main">
-        <TabSwipe hrefs={pages.map((page) => APP_PAGE_HREFS[page])} active={pages.indexOf(active)}>
-          {children}
-        </TabSwipe>
+        <PullToRefresh>
+          <TabSwipe hrefs={pages.map((page) => APP_PAGE_HREFS[page])} active={pages.indexOf(active)}>
+            {children}
+          </TabSwipe>
+        </PullToRefresh>
       </main>
     </div>
   );
