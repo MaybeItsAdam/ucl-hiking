@@ -1,14 +1,8 @@
-import { exec } from "node:child_process";
-import fs from "node:fs";
-import path from "node:path";
-import { promisify } from "node:util";
 import { NextResponse } from "next/server";
 import { can } from "@/lib/access";
 import { parseServiceAccountKey, ROSTER_SYNC_JOB, runCloudRunJob } from "@/lib/cloudRun";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase";
-
-const execAsync = promisify(exec);
 
 export async function POST(request: Request) {
   const member = await getCurrentMember();
@@ -90,17 +84,8 @@ export async function POST(request: Request) {
   try {
     let output = "";
     if (localExec) {
-      const cloudJobsDir = path.resolve(process.cwd(), "cloud-jobs");
-      const venvPython = path.resolve(cloudJobsDir, ".venv/bin/python3");
-      const pythonBin = fs.existsSync(venvPython) ? venvPython : "python3";
-      const { stdout, stderr } = await execAsync(`"${pythonBin}" -m hiking_sync.roster_sync`, {
-        cwd: cloudJobsDir,
-        env: {
-          ...envVars,
-          PYTHONPATH: path.resolve(cloudJobsDir, "src") + (process.env.PYTHONPATH ? `:${process.env.PYTHONPATH}` : ""),
-        },
-      });
-      output = stdout || stderr;
+      const { runLocalRosterSync } = await import("@/lib/localSync");
+      output = await runLocalRosterSync(process.cwd(), envVars);
     } else {
       if (target === "events") {
         return NextResponse.json(
