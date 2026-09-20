@@ -86,11 +86,22 @@ The hiking app's own privacy policy is at `/privacy`; the store privacy URL is
 
 ## Member sync
 
-The [`cloud-jobs`](./cloud-jobs) package is a Google Cloud Run Job. It uses
-`suu.retrieve.members.fetch_members` and `suu.retrieve.committee.fetch_committee`
-instead of duplicating Students' Union portal automation, maps Hiking-specific
-policy, and posts a full snapshot to `/api/sync/members`. Missing rows in a
-successful non-empty snapshot are revoked immediately.
+Adam's Campus Toolbox is the target source for Hiking membership. Its browser
+connector stores a complete SU roster, principals confirm each roster row's
+Toolbox identity, and a scoped `MEMBERS_READ` developer token exposes only those
+confirmed identities to `/api/sync/toolbox-members`.
+
+Keep `TOOLBOX_MEMBERS_AUTHORITATIVE=false` initially. The daily job then reports
+members present on only one side and tier mismatches without changing access.
+After the identities and comparison have been checked, setting it to `true`
+makes ACT authoritative: confirmed members are upserted and previously ACT-owned
+rows absent from a successful, recent, non-empty snapshot are revoked. Committee
+roles and walk-leader flags remain local Hiking policy.
+
+The [`cloud-jobs`](./cloud-jobs) SU scraper and `/api/sync/roster` name matcher
+remain temporarily available for rollback. Retire them only after the ACT shadow
+comparison has stayed clean through a membership change and at least seven daily
+runs.
 
 ## Toolbox webhooks
 

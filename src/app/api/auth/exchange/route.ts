@@ -74,7 +74,7 @@ export async function POST(request: Request) {
             membership_tier: defaultTier,
             governance_role: autoGovernanceRole,
             is_walk_leader: autoGovernanceRole === "admin" || (member?.is_walk_leader ?? false),
-            sync_source: "toolbox-auth",
+            sync_source: member?.sync_source ?? "toolbox-auth",
             synced_at: now,
             revoked_at: null,
             last_signed_in_at: now,
@@ -98,6 +98,7 @@ export async function POST(request: Request) {
   // with no row, or whose earlier name-matched row was revoked. Fails closed: if
   // the roster table is missing or unreadable, this simply finds nobody.
   if (
+    process.env.TOOLBOX_MEMBERS_AUTHORITATIVE !== "true" &&
     autoGovernanceRole === null &&
     identity.name &&
     (!member || (member.revoked_at && member.sync_source === ROSTER_SYNC_SOURCE))
