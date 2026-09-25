@@ -1799,11 +1799,11 @@ select:focus {
     display: flex; align-items: center; justify-content: center;
     height: calc(44px + var(--safe-top));
     padding: var(--safe-top) 16px 0;
-    background: color-mix(in srgb, var(--paper-warm) 82%, transparent);
+    /* Invisible until the large title has scrolled under it, so that title can
+       sit right below the status bar instead of below an empty band. */
+    background: transparent;
     border-bottom: 1px solid transparent;
-    /* Content passing underneath stays legible as texture, not as text. */
-    -webkit-backdrop-filter: saturate(180%) blur(14px);
-    backdrop-filter: saturate(180%) blur(14px);
+    pointer-events: none;
     transition: border-color .2s ease, background-color .2s ease;
   }
   .app-titlebar-title {
@@ -1811,14 +1811,21 @@ select:focus {
     opacity: 0; transform: translateY(6px);
     transition: opacity .18s ease, transform .18s ease;
   }
-  .app-titlebar.is-condensed { border-bottom-color: var(--line); }
+  .app-titlebar.is-condensed {
+    background: color-mix(in srgb, var(--paper-warm) 82%, transparent);
+    border-bottom-color: var(--line);
+    pointer-events: auto;
+    /* Content passing underneath stays legible as texture, not as text. */
+    -webkit-backdrop-filter: saturate(180%) blur(14px);
+    backdrop-filter: saturate(180%) blur(14px);
+  }
   .app-titlebar.is-condensed .app-titlebar-title { opacity: 1; transform: none; }
 
   /* Large title. It sits in the scroll, so the first screen is mostly content
      rather than chrome, and the compact bar picks the name up on the way past. */
   .app-page-head {
     display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
-    padding: calc(52px + var(--safe-top)) max(16px, var(--safe-left)) 10px
+    padding: calc(14px + var(--safe-top)) max(16px, var(--safe-left)) 10px
              max(16px, var(--safe-right));
   }
   .app-page-head h1 { margin: 0; font: 800 30px/1.1 var(--font-display); letter-spacing: -.02em; }

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertCircle, Compass, Search, Shield, Users, X } from "lucide-react";
 import { GOVERNANCE_LABELS, MEMBERSHIP_LABELS, type MembershipTier } from "@/lib/access";
 import type { MembershipListEntry } from "@/lib/roster";
+import { readCache, writeCache } from "@/lib/client-cache";
 import { useAppRefresh } from "@/lib/refresh";
 
 type Member = MembershipListEntry;
@@ -46,10 +47,14 @@ function matchesSearch(member: Member, query: string): boolean {
   );
 }
 
+const ROSTER_CACHE_KEY = "roster";
+type RosterCache = { members: Member[]; syncedAt: string | null; loadedAt: number };
+
 export function MemberAdminPortal() {
-  const [members, setMembers] = useState<Member[] | null>(null);
-  const [loadedAt, setLoadedAt] = useState(0);
-  const [syncedAt, setSyncedAt] = useState<string | null>(null);
+  const [cached] = useState(() => readCache<RosterCache>(ROSTER_CACHE_KEY));
+  const [members, setMembers] = useState<Member[] | null>(cached?.members ?? null);
+  const [loadedAt, setLoadedAt] = useState(cached?.loadedAt ?? 0);
+  const [syncedAt, setSyncedAt] = useState<string | null>(cached?.syncedAt ?? null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<RosterFilter>("all");
@@ -61,9 +66,11 @@ export function MemberAdminPortal() {
       if (!res.ok) throw new Error(String(res.status));
       const data: { members?: Member[]; syncedAt?: string | null } = await res.json();
       if (signal?.aborted) return;
-      setMembers(data.members ?? []);
-      setSyncedAt(data.syncedAt ?? null);
-      setLoadedAt(Date.now());
+      const next = { members: data.members ?? [], syncedAt: data.syncedAt ?? null, loadedAt: Date.now() };
+      writeCache<RosterCache>(ROSTER_CACHE_KEY, next);
+      setMembers(next.members);
+      setSyncedAt(next.syncedAt);
+      setLoadedAt(next.loadedAt);
       setError(null);
     } catch {
       if (!signal?.aborted) setError("Couldn't load the membership list. Pull down to try again.");

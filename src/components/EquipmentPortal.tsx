@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { Equipment, EquipmentCondition, EquipmentRequest, EquipmentRequestStatus } from "@/lib/types";
 import { Sheet } from "./Sheet";
+import { readCache, writeCache } from "@/lib/client-cache";
 import { useAppRefresh } from "@/lib/refresh";
 
 type Tab = "catalog" | "requests" | "active_loans" | "my_requests";
@@ -124,6 +125,9 @@ interface EquipmentPortalProps {
  * and a laptop, so there is one layout to maintain rather than a table and a
  * card view kept in step.
  */
+const EQUIPMENT_CACHE_KEY = "equipment";
+type EquipmentCache = { items: Equipment[]; requests: EquipmentRequest[] };
+
 export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog", onTabChange }: EquipmentPortalProps) {
   const [internalTab, setInternalTab] = useState<Tab>(initialTab === "committee_review" ? "requests" : initialTab);
   const tab = onTabChange ? (initialTab === "committee_review" ? "requests" : initialTab) : internalTab;
@@ -132,10 +136,11 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
     onTabChange?.(next);
   };
 
-  const [items, setItems] = useState<Equipment[]>([]);
-  const [requests, setRequests] = useState<EquipmentRequest[]>([]);
-  const [loaded, setLoaded] = useState(false);
-  const [today, setToday] = useState("");
+  const [cached] = useState(() => readCache<EquipmentCache>(EQUIPMENT_CACHE_KEY));
+  const [items, setItems] = useState<Equipment[]>(cached?.items ?? []);
+  const [requests, setRequests] = useState<EquipmentRequest[]>(cached?.requests ?? []);
+  const [loaded, setLoaded] = useState(Boolean(cached));
+  const [today, setToday] = useState(cached ? localToday() : "");
   const [msg, setMsg] = useState<Message | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -169,6 +174,9 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
       if (signal?.aborted) return;
       if (eqData) setItems(eqData.equipment ?? []);
       if (reqData) setRequests(reqData.requests ?? []);
+      if (eqData && reqData) {
+        writeCache<EquipmentCache>(EQUIPMENT_CACHE_KEY, { items: eqData.equipment ?? [], requests: reqData.requests ?? [] });
+      }
       if (!eqRes.ok || !reqRes.ok) setMsg({ type: "error", text: "Couldn't load all of the equipment. Pull down to try again." });
     } catch {
       if (!signal?.aborted) setMsg({ type: "error", text: NETWORK_ERROR });
