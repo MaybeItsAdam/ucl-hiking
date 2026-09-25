@@ -1,1798 +1,1057 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
-  Package,
-  Calendar,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  RotateCcw,
-  Plus,
-  Filter,
-  Search,
   AlertCircle,
-  FileText,
-  ShieldCheck,
+  CheckCircle2,
+  ChevronRight,
   Loader2,
-  Edit2,
-  Trash2,
-  AlertTriangle,
+  Package,
+  Plus,
+  FileSpreadsheet,
+  Search,
   X,
-  Layers,
-  Send,
-  ArrowUpRight,
-  ArrowDownLeft,
-  Settings,
 } from "lucide-react";
-import type { Equipment, EquipmentRequest } from "@/lib/types";
-import { CustomSelect, type SelectOption } from "./CustomSelect";
+import type { Equipment, EquipmentCondition, EquipmentRequest, EquipmentRequestStatus } from "@/lib/types";
 import { Sheet } from "./Sheet";
 import { useAppRefresh } from "@/lib/refresh";
 
-const EQUIPMENT_CATEGORY_OPTIONS: SelectOption[] = [
-  { value: "Tents & Shelter", label: "Tents & Shelter" },
-  { value: "Footwear & Boots", label: "Footwear & Boots" },
-  { value: "Rucksacks & Bags", label: "Rucksacks & Bags" },
-  { value: "Navigation & Safety", label: "Navigation & Safety" },
-  { value: "Cooking & Stoves", label: "Cooking & Stoves" },
-  { value: "Sleeping Gear", label: "Sleeping Gear" },
-  { value: "General & Other", label: "General & Other" },
+type Tab = "catalog" | "requests" | "active_loans" | "my_requests";
+type StockFilter = "all" | "in_stock" | "out_of_stock" | "needs_repair";
+type RequestFilter = "pending" | "approved" | "returned" | "rejected" | "all";
+type Message = { type: "success" | "error"; text: string };
+
+const CATEGORIES = [
+  "Tents & Shelter",
+  "Footwear & Boots",
+  "Rucksacks & Bags",
+  "Navigation & Safety",
+  "Cooking & Stoves",
+  "Sleeping Gear",
+  "General & Other",
 ];
 
-const CONDITION_OPTIONS: SelectOption[] = [
-  { value: "excellent", label: "Excellent (Like New)", color: "#10b981" },
-  { value: "good", label: "Good (Normal Trail Use)", color: "#059669" },
-  { value: "fair", label: "Fair (Usable, Cosmetic Wear)", color: "#f59e0b" },
-  { value: "needs_repair", label: "Needs Repair (Flagged/Unsafe)", color: "var(--bad-fg)" },
+const CONDITION_LABELS: Record<EquipmentCondition, string> = {
+  excellent: "Excellent",
+  good: "Good",
+  fair: "Fair",
+  needs_repair: "Needs repair",
+};
+
+const STATUS_LABELS: Record<EquipmentRequestStatus, string> = {
+  pending: "Pending",
+  approved: "On loan",
+  rejected: "Declined",
+  returned: "Returned",
+  cancelled: "Cancelled",
+};
+
+const STOCK_FILTERS: { value: StockFilter; label: string; test: (item: Equipment) => boolean }[] = [
+  { value: "all", label: "All", test: () => true },
+  { value: "in_stock", label: "In stock", test: (item) => item.available_quantity > 0 },
+  { value: "out_of_stock", label: "Out", test: (item) => item.available_quantity === 0 },
+  { value: "needs_repair", label: "Needs repair", test: (item) => item.condition === "needs_repair" },
 ];
+
+const REQUEST_FILTERS: { value: RequestFilter; label: string }[] = [
+  { value: "pending", label: "Pending" },
+  { value: "approved", label: "On loan" },
+  { value: "returned", label: "Returned" },
+  { value: "rejected", label: "Declined" },
+  { value: "all", label: "All" },
+];
+
+const NETWORK_ERROR = "Couldn't reach the server. Check your connection and try again.";
+
+const shortDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
+
+/** "3–5 Oct", "30 Sept – 2 Oct": the month once when both ends share it. */
+function formatRange(start: string, end: string): string {
+  // Plain YYYY-MM-DD: read as local days, not UTC midnight.
+  const from = new Date(`${start}T00:00:00`);
+  const to = new Date(`${end}T00:00:00`);
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return `${start} – ${end}`;
+  if (start === end) return shortDate.format(from);
+  if (start.slice(0, 7) === end.slice(0, 7)) return `${from.getDate()}–${shortDate.format(to)}`;
+  return `${shortDate.format(from)} – ${shortDate.format(to)}`;
+}
+
+/** Today as YYYY-MM-DD in the phone's own time zone, for date inputs and due dates. */
+function localToday(): string {
+  return new Date().toLocaleDateString("en-CA");
+}
+
+interface ItemDraft {
+  id?: string;
+  name: string;
+  category: string;
+  description: string;
+  total: number;
+  available: number;
+  condition: EquipmentCondition;
+}
+
+const BLANK_ITEM: ItemDraft = {
+  name: "",
+  category: CATEGORIES[0],
+  description: "",
+  total: 2,
+  available: 2,
+  condition: "good",
+};
+
+interface BorrowDraft {
+  item: Equipment;
+  quantity: number;
+  start: string;
+  end: string;
+  purpose: string;
+}
 
 interface EquipmentPortalProps {
   memberId: string;
   /** Principals manage the kit and review loans; everyone else here borrows it. */
   isPrincipal: boolean;
-  initialTab?: "catalog" | "requests" | "committee_review" | "active_loans" | "my_requests";
-  onTabChange?: (tab: "catalog" | "requests" | "active_loans" | "my_requests") => void;
+  initialTab?: Tab | "committee_review";
+  onTabChange?: (tab: Tab) => void;
 }
 
-export function EquipmentPortal({
-  memberId,
-  isPrincipal,
-  initialTab = "catalog",
-  onTabChange,
-}: EquipmentPortalProps) {
-  const normalizedInitialTab = initialTab === "committee_review" ? "requests" : initialTab;
-  const [internalTab, setInternalTab] = useState<"catalog" | "requests" | "active_loans" | "my_requests">(normalizedInitialTab);
-  const activeTab = onTabChange ? normalizedInitialTab : internalTab;
-
-  const handleTabSelect = (tab: "catalog" | "requests" | "active_loans" | "my_requests") => {
-    setInternalTab(tab);
-    onTabChange?.(tab);
+/**
+ * The equipment locker. Borrowers browse what is in and ask for it; principals
+ * keep the inventory, work through the request queue and check kit back in.
+ *
+ * Every list is a single hairline-ruled column that reads the same on a phone
+ * and a laptop, so there is one layout to maintain rather than a table and a
+ * card view kept in step.
+ */
+export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog", onTabChange }: EquipmentPortalProps) {
+  const [internalTab, setInternalTab] = useState<Tab>(initialTab === "committee_review" ? "requests" : initialTab);
+  const tab = onTabChange ? (initialTab === "committee_review" ? "requests" : initialTab) : internalTab;
+  const selectTab = (next: Tab) => {
+    setInternalTab(next);
+    onTabChange?.(next);
   };
 
   const [items, setItems] = useState<Equipment[]>([]);
   const [requests, setRequests] = useState<EquipmentRequest[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loaded, setLoaded] = useState(false);
+  const [today, setToday] = useState("");
+  const [msg, setMsg] = useState<Message | null>(null);
+  const [busy, setBusy] = useState(false);
+
   const [search, setSearch] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | "in_stock" | "out_of_stock" | "needs_repair">("all");
-  const [requestStatusFilter, setRequestStatusFilter] = useState<"all" | "pending" | "approved" | "returned" | "rejected">("all");
-  const [msg, setMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [category, setCategory] = useState("all");
+  const [stock, setStock] = useState<StockFilter>("all");
+  const [requestFilter, setRequestFilter] = useState<RequestFilter>("pending");
 
-  // Borrow Modal State
-  const [selectedItem, setSelectedItem] = useState<Equipment | null>(null);
-  const [borrowQty, setBorrowQty] = useState(1);
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [purpose, setPurpose] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [borrow, setBorrow] = useState<BorrowDraft | null>(null);
+  const [itemDraft, setItemDraft] = useState<ItemDraft | null>(null);
+  const [deleting, setDeleting] = useState<Equipment | null>(null);
+  const [declining, setDeclining] = useState<EquipmentRequest | null>(null);
+  const [declineNotes, setDeclineNotes] = useState("");
 
-  // Add Item Modal State (Committee)
-  const [showAddItemModal, setShowAddItemModal] = useState(false);
-  const [newItemName, setNewItemName] = useState("");
-  const [newItemCategory, setNewItemCategory] = useState("Tents & Shelter");
-  const [newItemDesc, setNewItemDesc] = useState("");
-  const [newItemTotal, setNewItemTotal] = useState(2);
-  const [newItemAvailable, setNewItemAvailable] = useState(2);
-  const [newItemCondition, setNewItemCondition] = useState<"excellent" | "good" | "fair" | "needs_repair">("good");
+  const [showSheets, setShowSheets] = useState(false);
+  const [sheetsUrl, setSheetsUrl] = useState("");
+  const [sheetsId, setSheetsId] = useState("");
+  const [sheetsConfigured, setSheetsConfigured] = useState(false);
+  const [syncing, setSyncing] = useState<"push" | "pull" | null>(null);
 
-  // Edit Item Modal State (Committee)
-  const [editingItem, setEditingItem] = useState<Equipment | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editCategory, setEditCategory] = useState("Tents & Shelter");
-  const [editDesc, setEditDesc] = useState("");
-  const [editTotal, setEditTotal] = useState(1);
-  const [editAvailable, setEditAvailable] = useState(1);
-  const [editCondition, setEditCondition] = useState<"excellent" | "good" | "fair" | "needs_repair">("good");
-
-  // Delete Item Modal State (Committee)
-  const [deletingItem, setDeletingItem] = useState<Equipment | null>(null);
-
-  // Rejection notes modal
-  const [rejectingRequestId, setRejectingRequestId] = useState<string | null>(null);
-  const [rejectionNotes, setRejectionNotes] = useState("");
-  const [syncingSheets, setSyncingSheets] = useState(false);
-  const [syncDirection, setSyncDirection] = useState<"push" | "pull" | null>(null);
-
-  // Google Sheets Webhook Configuration State
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [settingsWebhookUrl, setSettingsWebhookUrl] = useState("");
-  const [settingsSheetId, setSettingsSheetId] = useState("");
-  const [isConfigured, setIsConfigured] = useState(false);
-  const [savingSettings, setSavingSettings] = useState(false);
-
-  const fetchData = async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     try {
       const [eqRes, reqRes] = await Promise.all([
-        fetch("/api/equipment"),
-        fetch("/api/equipment/requests"),
+        fetch("/api/equipment", { signal }),
+        fetch("/api/equipment/requests", { signal }),
       ]);
-
-      if (eqRes.ok) {
-        const eqData = await eqRes.json();
-        setItems(eqData.equipment || []);
-      }
-      if (reqRes.ok) {
-        const reqData = await reqRes.json();
-        setRequests(reqData.requests || []);
-      }
+      const [eqData, reqData] = await Promise.all([
+        eqRes.ok ? eqRes.json() : null,
+        reqRes.ok ? reqRes.json() : null,
+      ]);
+      if (signal?.aborted) return;
+      if (eqData) setItems(eqData.equipment ?? []);
+      if (reqData) setRequests(reqData.requests ?? []);
+      if (!eqRes.ok || !reqRes.ok) setMsg({ type: "error", text: "Couldn't load all of the equipment. Pull down to try again." });
     } catch {
-      setMsg({ type: "error", text: "Failed to load equipment data" });
+      if (!signal?.aborted) setMsg({ type: "error", text: NETWORK_ERROR });
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) {
+        setToday(localToday());
+        setLoaded(true);
+      }
     }
-  };
-
-  useEffect(() => {
-    let active = true;
-    Promise.all([fetch("/api/equipment"), fetch("/api/equipment/requests")])
-      .then(async ([eqRes, reqRes]) => {
-        if (!active) return;
-        if (eqRes.ok) {
-          const eqData = await eqRes.json();
-          setItems(eqData.equipment || []);
-        }
-        if (reqRes.ok) {
-          const reqData = await reqRes.json();
-          setRequests(reqData.requests || []);
-        }
-      })
-      .catch(() => {
-        if (active) setMsg({ type: "error", text: "Failed to load equipment data" });
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
   }, []);
 
-  useAppRefresh(fetchData);
-
-  // Fetch webhook configuration status for committee
   useEffect(() => {
-    if (isPrincipal) {
-      fetch("/api/equipment/settings")
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => {
-          if (d) {
-            setSettingsWebhookUrl(d.webhookUrl || "");
-            setSettingsSheetId(d.sheetId || "");
-            setIsConfigured(Boolean(d.configured));
-          }
-        })
-        .catch(() => {});
-    }
-  }, [isPrincipal]);
+    const controller = new AbortController();
+    void Promise.resolve().then(() => load(controller.signal));
+    return () => controller.abort();
+  }, [load]);
 
-  const handleSyncSheets = async (direction: "push" | "pull" = "push") => {
-    setSyncDirection(direction);
-    setSyncingSheets(true);
-    setMsg(null);
-    try {
-      const res = await fetch("/api/equipment/sync-sheets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ direction }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMsg({
-          type: "error",
-          text: data.error || `Failed to ${direction === "pull" ? "import from" : "sync to"} Google Sheets`,
-        });
-      } else {
-        if (direction === "pull") {
-          const text =
-            data.message ||
-            `Successfully pulled and updated ${data.importedCount} items from Google Sheets!`;
-          setMsg({ type: "success", text });
-          await fetchData();
-        } else {
-          if (data.webhookDelivered) {
-            const text =
-              data.message ||
-              `Pushed to Google Sheets with UCL Hiking styling! ${data.equipmentCount} items formatted in 'Master List', ${data.requestsCount} in 'Ledger Log', and 'Dashboard' formulas updated.`;
-            setMsg({ type: "success", text });
-          } else {
-            setMsg({
-              type: "error",
-              text: data.message || "Failed to deliver styling to Google Sheets. Check your webhook URL, deployment version, and permissions.",
-            });
-          }
-        }
-      }
-    } catch {
-      setMsg({ type: "error", text: `Network error during ${direction} sync with Google Sheets` });
-    } finally {
-      setSyncingSheets(false);
-      setSyncDirection(null);
-    }
-  };
-
-  const handleSaveSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSavingSettings(true);
-    setMsg(null);
-
-    try {
-      const res = await fetch("/api/equipment/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          webhookUrl: settingsWebhookUrl,
-          sheetId: settingsSheetId,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMsg({ type: "error", text: data.error || "Failed to save webhook settings" });
-      } else {
-        setIsConfigured(Boolean(settingsWebhookUrl.trim()));
-        setShowSettingsModal(false);
-        setMsg({
-          type: "success",
-          text: "Google Sheets webhook configuration saved! Two-way sync is active.",
-        });
-      }
-    } catch {
-      setMsg({ type: "error", text: "Network error saving settings" });
-    } finally {
-      setSavingSettings(false);
-    }
-  };
-
-  const handleFileRequest = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedItem) return;
-
-    setSubmitting(true);
-    setMsg(null);
-
-    try {
-      const res = await fetch("/api/equipment/requests", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          equipmentId: selectedItem.id,
-          quantity: borrowQty,
-          startDate,
-          endDate,
-          purpose,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setMsg({ type: "error", text: data.error || "Failed to submit request" });
-      } else {
-        setMsg({ type: "success", text: `Borrow request submitted for ${selectedItem.name}!` });
-        setSelectedItem(null);
-        setBorrowQty(1);
-        setStartDate("");
-        setEndDate("");
-        setPurpose("");
-        handleTabSelect("my_requests");
-        fetchData();
-      }
-    } catch {
-      setMsg({ type: "error", text: "Network error submitting request" });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleUpdateStatus = async (requestId: string, status: string, notes?: string) => {
-    setMsg(null);
-    try {
-      const res = await fetch(`/api/equipment/requests/${requestId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, notes }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setMsg({ type: "error", text: data.error || "Failed to update request" });
-      } else {
-        const statusLabel =
-          status === "approved"
-            ? "Loan approved and stock updated"
-            : status === "returned"
-            ? "Kit marked returned and restored to inventory"
-            : `Request marked as ${status}`;
-        setMsg({ type: "success", text: statusLabel });
-        setRejectingRequestId(null);
-        setRejectionNotes("");
-        fetchData();
-      }
-    } catch {
-      setMsg({ type: "error", text: "Error updating request" });
-    }
-  };
-
-  const handleCreateEquipment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newItemName.trim()) return;
-
-    setSubmitting(true);
-    setMsg(null);
-
-    try {
-      const res = await fetch("/api/equipment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: newItemName.trim(),
-          category: newItemCategory,
-          description: newItemDesc.trim() || undefined,
-          totalQuantity: newItemTotal,
-          availableQuantity: Math.min(newItemAvailable, newItemTotal),
-          condition: newItemCondition,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setMsg({ type: "error", text: data.error || "Failed to add equipment" });
-      } else {
-        setMsg({ type: "success", text: `Added ${newItemName} to inventory!` });
-        setShowAddItemModal(false);
-        setNewItemName("");
-        setNewItemDesc("");
-        setNewItemTotal(2);
-        setNewItemAvailable(2);
-        fetchData();
-      }
-    } catch {
-      setMsg({ type: "error", text: "Error adding equipment" });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleOpenEdit = (item: Equipment) => {
-    setEditingItem(item);
-    setEditName(item.name);
-    setEditCategory(item.category);
-    setEditDesc(item.description || "");
-    setEditTotal(item.total_quantity);
-    setEditAvailable(item.available_quantity);
-    setEditCondition(item.condition);
-  };
-
-  const handleSaveEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingItem || !editName.trim()) return;
-
-    setSubmitting(true);
-    setMsg(null);
-
-    try {
-      const res = await fetch("/api/equipment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: editingItem.id,
-          name: editName.trim(),
-          category: editCategory,
-          description: editDesc.trim() || undefined,
-          totalQuantity: editTotal,
-          availableQuantity: Math.min(editAvailable, editTotal),
-          condition: editCondition,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setMsg({ type: "error", text: data.error || "Failed to update item" });
-      } else {
-        setMsg({ type: "success", text: `Updated ${editName} successfully.` });
-        setEditingItem(null);
-        fetchData();
-      }
-    } catch {
-      setMsg({ type: "error", text: "Error updating equipment" });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleDeleteEquipment = async () => {
-    if (!deletingItem) return;
-
-    setSubmitting(true);
-    setMsg(null);
-
-    try {
-      const res = await fetch("/api/equipment", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: deletingItem.id }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        setMsg({ type: "error", text: data.error || "Failed to delete equipment item" });
-      } else {
-        setMsg({ type: "success", text: `Removed ${deletingItem.name} from inventory.` });
-        setDeletingItem(null);
-        fetchData();
-      }
-    } catch {
-      setMsg({ type: "error", text: "Error deleting equipment" });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const pendingRequests = useMemo(() => requests.filter((r) => r.status === "pending"), [requests]);
-  const activeLoans = useMemo(() => requests.filter((r) => r.status === "approved"), [requests]);
-  const myRequests = useMemo(() => requests.filter((r) => r.member_id === memberId), [requests, memberId]);
-
-  const categories = useMemo(() => {
-    const list = Array.from(new Set(items.map((i) => i.category)));
-    return list.sort();
-  }, [items]);
-
-  const categoryFilterOptions: SelectOption[] = useMemo(() => [
-    { value: "all", label: "All Categories", badge: items.length },
-    ...categories.map((c) => ({
-      value: c,
-      label: c,
-      badge: items.filter((i) => i.category === c).length,
-    })),
-  ], [categories, items]);
-
-  const statusFilterOptions: SelectOption[] = useMemo(() => [
-    { value: "all", label: "All Stock Status", badge: items.length },
-    {
-      value: "in_stock",
-      label: "In Stock Only",
-      color: "#10b981",
-      badge: items.filter((i) => i.available_quantity > 0).length,
-    },
-    {
-      value: "out_of_stock",
-      label: "Out of Stock",
-      color: "#ef4444",
-      badge: items.filter((i) => i.available_quantity === 0).length,
-    },
-    {
-      value: "needs_repair",
-      label: "Needs Repair",
-      color: "#f59e0b",
-      badge: items.filter((i) => i.condition === "needs_repair").length,
-    },
-  ], [items]);
-
-  const filteredItems = items.filter((item) => {
-    const matchesSearch =
-      item.name.toLowerCase().includes(search.toLowerCase()) ||
-      (item.description && item.description.toLowerCase().includes(search.toLowerCase())) ||
-      item.category.toLowerCase().includes(search.toLowerCase());
-
-    const matchesCategory = categoryFilter === "all" || item.category === categoryFilter;
-
-    let matchesStatus = true;
-    if (statusFilter === "in_stock") matchesStatus = item.available_quantity > 0;
-    else if (statusFilter === "out_of_stock") matchesStatus = item.available_quantity === 0;
-    else if (statusFilter === "needs_repair") matchesStatus = item.condition === "needs_repair";
-
-    return matchesSearch && matchesCategory && matchesStatus;
+  useAppRefresh(() => {
+    void load();
   });
 
-  const filteredRequests = useMemo(() => {
-    if (requestStatusFilter === "all") return requests;
-    return requests.filter((r) => r.status === requestStatusFilter);
-  }, [requests, requestStatusFilter]);
+  useEffect(() => {
+    if (!isPrincipal) return;
+    fetch("/api/equipment/settings")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return;
+        setSheetsUrl(d.webhookUrl || "");
+        setSheetsId(d.sheetId || "");
+        setSheetsConfigured(Boolean(d.configured));
+      })
+      .catch(() => {});
+  }, [isPrincipal]);
 
-  if (loading) {
+  // Confirmations clear themselves; errors wait to be read and dismissed.
+  useEffect(() => {
+    if (msg?.type !== "success") return;
+    const timer = setTimeout(() => setMsg(null), 4000);
+    return () => clearTimeout(timer);
+  }, [msg]);
+
+  /** Send a JSON request, reporting failure in the toast. Resolves to the body, or null if it failed. */
+  async function send(url: string, method: string, body: unknown, failure: string) {
+    setMsg(null);
+    try {
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMsg({ type: "error", text: data.error || failure });
+        return null;
+      }
+      return data;
+    } catch {
+      setMsg({ type: "error", text: NETWORK_ERROR });
+      return null;
+    }
+  }
+
+  async function submitBorrow(event: FormEvent) {
+    event.preventDefault();
+    if (!borrow) return;
+    setBusy(true);
+    const data = await send(
+      "/api/equipment/requests",
+      "POST",
+      {
+        equipmentId: borrow.item.id,
+        quantity: borrow.quantity,
+        startDate: borrow.start,
+        endDate: borrow.end,
+        purpose: borrow.purpose,
+      },
+      "Couldn't send the request",
+    );
+    setBusy(false);
+    if (!data) return;
+    setMsg({ type: "success", text: `Asked to borrow ${borrow.item.name}` });
+    setBorrow(null);
+    selectTab("my_requests");
+    void load();
+  }
+
+  async function updateStatus(request: EquipmentRequest, status: EquipmentRequestStatus, notes?: string) {
+    setBusy(true);
+    const data = await send(`/api/equipment/requests/${request.id}`, "PATCH", { status, notes }, "Couldn't update the request");
+    setBusy(false);
+    if (!data) return;
+    const name = request.equipment?.name ?? "Kit";
+    const text =
+      status === "approved"
+        ? `Approved — ${name} is on loan`
+        : status === "returned"
+          ? `${name} checked back in`
+          : status === "rejected"
+            ? "Request declined"
+            : "Request cancelled";
+    setMsg({ type: "success", text });
+    setDeclining(null);
+    setDeclineNotes("");
+    void load();
+  }
+
+  async function saveItem(event: FormEvent) {
+    event.preventDefault();
+    if (!itemDraft || !itemDraft.name.trim()) return;
+    setBusy(true);
+    const data = await send(
+      "/api/equipment",
+      "POST",
+      {
+        id: itemDraft.id,
+        name: itemDraft.name.trim(),
+        category: itemDraft.category,
+        description: itemDraft.description.trim() || undefined,
+        totalQuantity: itemDraft.total,
+        availableQuantity: Math.min(itemDraft.available, itemDraft.total),
+        condition: itemDraft.condition,
+      },
+      itemDraft.id ? "Couldn't save the changes" : "Couldn't add the item",
+    );
+    setBusy(false);
+    if (!data) return;
+    setMsg({ type: "success", text: itemDraft.id ? `Saved ${itemDraft.name.trim()}` : `Added ${itemDraft.name.trim()}` });
+    setItemDraft(null);
+    void load();
+  }
+
+  async function deleteItem() {
+    if (!deleting) return;
+    setBusy(true);
+    const data = await send("/api/equipment", "DELETE", { id: deleting.id }, "Couldn't delete the item");
+    setBusy(false);
+    if (!data) return;
+    setMsg({ type: "success", text: `Removed ${deleting.name}` });
+    setDeleting(null);
+    void load();
+  }
+
+  async function syncSheets(direction: "push" | "pull") {
+    setSyncing(direction);
+    const data = await send(
+      "/api/equipment/sync-sheets",
+      "POST",
+      { direction },
+      direction === "pull" ? "Couldn't import from Google Sheets" : "Couldn't push to Google Sheets",
+    );
+    setSyncing(null);
+    if (!data) return;
+    if (direction === "pull") {
+      setMsg({ type: "success", text: data.message || `Imported ${data.importedCount} items from Google Sheets` });
+      void load();
+    } else if (data.webhookDelivered) {
+      setMsg({ type: "success", text: data.message || `Pushed ${data.equipmentCount} items to Google Sheets` });
+    } else {
+      setMsg({
+        type: "error",
+        text: data.message || "The sheet didn't accept the push. Check the webhook URL and that the script is deployed.",
+      });
+    }
+  }
+
+  async function saveSheetsSettings(event: FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    const data = await send(
+      "/api/equipment/settings",
+      "POST",
+      { webhookUrl: sheetsUrl, sheetId: sheetsId },
+      "Couldn't save the Google Sheets settings",
+    );
+    setBusy(false);
+    if (!data) return;
+    setSheetsConfigured(Boolean(sheetsUrl.trim()));
+    setShowSheets(false);
+    setMsg({ type: "success", text: "Google Sheets connected" });
+  }
+
+  function openBorrow(item: Equipment) {
+    const start = localToday();
+    setBorrow({ item, quantity: 1, start, end: start, purpose: "" });
+  }
+
+  const pending = useMemo(() => requests.filter((r) => r.status === "pending"), [requests]);
+  const onLoan = useMemo(() => requests.filter((r) => r.status === "approved"), [requests]);
+  const mine = useMemo(() => requests.filter((r) => r.member_id === memberId), [requests, memberId]);
+
+  const categories = useMemo(() => Array.from(new Set(items.map((i) => i.category))).sort(), [items]);
+
+  const query = search.trim().toLowerCase();
+  const searched = useMemo(
+    () =>
+      items.filter(
+        (item) =>
+          (category === "all" || item.category === category) &&
+          (!query ||
+            item.name.toLowerCase().includes(query) ||
+            item.category.toLowerCase().includes(query) ||
+            (item.description?.toLowerCase().includes(query) ?? false)),
+      ),
+    [items, category, query],
+  );
+  const stockTest = STOCK_FILTERS.find((f) => f.value === stock)!.test;
+  const visibleItems = searched.filter(stockTest);
+
+  const requestCounts = useMemo(() => {
+    const counts = { all: requests.length } as Record<RequestFilter, number>;
+    for (const { value } of REQUEST_FILTERS) if (value !== "all") counts[value] = requests.filter((r) => r.status === value).length;
+    return counts;
+  }, [requests]);
+  const visibleRequests = requestFilter === "all" ? requests : requests.filter((r) => r.status === requestFilter);
+
+  if (!loaded) {
     return (
-      <div className="equipment-portal-shell" style={{ marginTop: 0 }} aria-busy="true">
-        <p className="sr-only" role="status">Loading equipment inventory…</p>
-        <div className="equipment-grid" aria-hidden="true">
-          {Array.from({ length: 6 }, (_, i) => (
-            <div key={i} className="skeleton-card">
-              <span className="skeleton" />
-              <span className="skeleton" />
-              <span className="skeleton" />
-              <span className="skeleton" />
-            </div>
+      <div className="kit-page" aria-busy="true">
+        <p className="sr-only" role="status">Loading equipment…</p>
+        <ul className="skeleton-list" aria-hidden="true">
+          {Array.from({ length: 8 }, (_, i) => (
+            <li key={i}>
+              <span className="skeleton-lines">
+                <span className="skeleton" />
+                <span className="skeleton" />
+              </span>
+              <span className="skeleton skeleton-trailing" />
+            </li>
           ))}
-        </div>
+        </ul>
       </div>
     );
   }
 
+  const tabs: { value: Tab; label: string; count?: number; alert?: boolean }[] = isPrincipal
+    ? [
+        { value: "catalog", label: "Inventory", count: items.length },
+        { value: "requests", label: "Requests", count: pending.length, alert: pending.length > 0 },
+        { value: "active_loans", label: "On loan", count: onLoan.length },
+      ]
+    : [
+        { value: "catalog", label: "Available", count: items.filter((i) => i.available_quantity > 0).length },
+        { value: "my_requests", label: "Mine", count: mine.length },
+      ];
+
   return (
-    <div className="equipment-portal-shell" style={{ marginTop: 0 }}>
-      {/* 1. PRINCIPAL INVENTORY ACTIONS */}
-      {isPrincipal && (
-      <div className="equipment-header">
-          <div className="equipment-header-actions" style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-            {/* Two-Way Sync & Settings Toolbar */}
-            <div
-              className="sheets-sync-toolbar"
-              style={{
-                display: "inline-flex",
-                borderRadius: "8px",
-                overflow: "hidden",
-                border: "1px solid var(--line)",
-                background: "var(--surface)",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
-              }}
-            >
-              <button
-                type="button"
-                onClick={() => handleSyncSheets("push")}
-                disabled={syncingSheets}
-                className="button compact"
-                style={{
-                  borderRadius: 0,
-                  border: "none",
-                  borderRight: "1px solid var(--line)",
-                  background: "transparent",
-                  fontSize: "12px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "8px 12px",
-                }}
-                aria-label="Push to Sheets"
-                title="Export database to Google Sheets and impose UCL Hiking styling, formulas & validation dropdowns"
-              >
-                {syncingSheets && syncDirection === "push" ? (
-                  <Loader2 className="animate-spin" size={14} />
-                ) : (
-                  <ArrowUpRight size={14} style={{ color: "var(--forest)" }} />
-                )}
-                <span>Push to Sheets</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSyncSheets("pull")}
-                disabled={syncingSheets}
-                className="button compact"
-                style={{
-                  borderRadius: 0,
-                  border: "none",
-                  background: "transparent",
-                  fontSize: "12px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "8px 12px",
-                }}
-                aria-label="Pull from Sheets"
-                title="Import edits, quantities, and newly added equipment rows from Google Sheets into website database"
-              >
-                {syncingSheets && syncDirection === "pull" ? (
-                  <Loader2 className="animate-spin" size={14} />
-                ) : (
-                  <ArrowDownLeft size={14} style={{ color: "#2563eb" }} />
-                )}
-                <span>Pull from Sheets</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowSettingsModal(true)}
-                className="button compact"
-                style={{
-                  borderRadius: 0,
-                  border: "none",
-                  borderLeft: "1px solid var(--line)",
-                  background: "transparent",
-                  fontSize: "12px",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "8px 11px",
-                  position: "relative",
-                }}
-                aria-label="Google Sheets settings"
-                title="Configure Google Sheets Webhook URL & Connection"
-              >
-                <Settings size={14} style={{ opacity: 0.75 }} />
-                {!isConfigured && (
-                  <span
-                    style={{
-                      position: "absolute",
-                      top: 6,
-                      right: 6,
-                      width: 7,
-                      height: 7,
-                      borderRadius: "50%",
-                      background: "#f59e0b",
-                    }}
-                    title="Webhook not configured"
-                  />
-                )}
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setNewItemName("");
-                setNewItemDesc("");
-                setNewItemTotal(2);
-                setNewItemAvailable(2);
-                setShowAddItemModal(true);
-              }}
-              className="button primary compact add-equipment-button"
-            >
-              <Plus size={16} />
-              <span>Add Equipment Item</span>
-            </button>
-          </div>
+    <div className="kit-page">
+      <div className="portal-subnav kit-tabs" role="tablist" aria-label="Equipment">
+        {tabs.map(({ value, label, count, alert }) => (
+          <button
+            key={value}
+            type="button"
+            role="tab"
+            aria-selected={tab === value}
+            className={tab === value ? "active" : ""}
+            onClick={() => selectTab(value)}
+          >
+            {label}
+            {count ? <span className={`kit-count${alert ? " is-alert" : ""}`}>{count}</span> : null}
+          </button>
+        ))}
       </div>
+
+      {tab === "catalog" && (
+        <section aria-label={isPrincipal ? "Inventory" : "Available equipment"}>
+          <div className="kit-toolbar">
+            <label className="roster-search">
+              <Search size={16} aria-hidden="true" />
+              <input
+                type="search"
+                inputMode="search"
+                autoComplete="off"
+                placeholder="Search kit"
+                aria-label="Search equipment"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              {search && (
+                <button type="button" onClick={() => setSearch("")} aria-label="Clear search">
+                  <X size={15} />
+                </button>
+              )}
+            </label>
+            {isPrincipal && (
+              <>
+                <button
+                  type="button"
+                  className="kit-icon-btn"
+                  onClick={() => setShowSheets(true)}
+                  aria-label={sheetsConfigured ? "Google Sheets sync" : "Google Sheets sync (not set up)"}
+                  title="Google Sheets sync"
+                >
+                  <FileSpreadsheet size={18} aria-hidden="true" />
+                  {!sheetsConfigured && <span className="kit-dot" aria-hidden="true" />}
+                </button>
+                <button type="button" className="kit-btn primary" onClick={() => setItemDraft(BLANK_ITEM)}>
+                  <Plus size={16} aria-hidden="true" />
+                  Add
+                </button>
+              </>
+            )}
+          </div>
+
+          {items.length > 0 && (
+          <div className="roster-filters kit-filters" role="group" aria-label="Filter equipment">
+            {categories.length > 1 && (
+              <select
+                className={`kit-chip-select${category !== "all" ? " active" : ""}`}
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                aria-label="Category"
+              >
+                <option value="all">All categories</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            )}
+            {STOCK_FILTERS.map(({ value, label, test }) => {
+              const count = searched.filter(test).length;
+              // A filter that would show nothing is noise, unless it is the one selected.
+              if (value !== "all" && count === 0 && stock !== value) return null;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  className={stock === value ? "active" : ""}
+                  aria-pressed={stock === value}
+                  onClick={() => setStock(value)}
+                >
+                  {label}
+                  <span className="roster-filter-count">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+          )}
+
+          {visibleItems.length === 0 ? (
+            <Empty icon={<Package size={28} aria-hidden="true" />}>
+              {items.length === 0
+                ? isPrincipal
+                  ? "Nothing in the inventory yet. Add the first item, or pull it in from Google Sheets."
+                  : "The committee hasn't listed any kit yet."
+                : "No kit matches. Try another search or filter."}
+            </Empty>
+          ) : (
+            <ul className="kit-list">
+              {visibleItems.map((item) => (
+                <ItemRow
+                  key={item.id}
+                  item={item}
+                  isPrincipal={isPrincipal}
+                  onBorrow={() => openBorrow(item)}
+                  onEdit={() =>
+                    setItemDraft({
+                      id: item.id,
+                      name: item.name,
+                      category: item.category,
+                      description: item.description ?? "",
+                      total: item.total_quantity,
+                      available: item.available_quantity,
+                      condition: item.condition,
+                    })
+                  }
+                />
+              ))}
+            </ul>
+          )}
+        </section>
       )}
 
-      {/* 2. ALERT FEEDBACK NOTICES */}
-      {msg && (
-        <div
-          className={`alert-banner ${msg.type}`}
-          style={{
-            marginBottom: 20,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "12px 18px",
-            borderRadius: 12,
-            background: msg.type === "success" ? "var(--ok-bg)" : "var(--bad-bg)",
-            color: msg.type === "success" ? "var(--ok-fg)" : "var(--bad-fg)",
-            border: `1px solid ${msg.type === "success" ? "var(--ok-line)" : "var(--bad-line)"}`,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {msg.type === "success" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-            <span style={{ fontSize: 13, fontWeight: 600 }}>{msg.text}</span>
+      {tab === "requests" && isPrincipal && (
+        <section aria-label="Requests">
+          <div className="roster-filters kit-filters" role="group" aria-label="Filter requests">
+            {REQUEST_FILTERS.map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                className={requestFilter === value ? "active" : ""}
+                aria-pressed={requestFilter === value}
+                onClick={() => setRequestFilter(value)}
+              >
+                {label}
+                <span className="roster-filter-count">{requestCounts[value]}</span>
+              </button>
+            ))}
           </div>
-          <button
-            type="button"
-            onClick={() => setMsg(null)}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", opacity: 0.6 }}
-          >
+          {visibleRequests.length === 0 ? (
+            <Empty icon={<CheckCircle2 size={28} aria-hidden="true" />}>
+              {requestFilter === "pending" ? "Nothing waiting for a decision." : "No requests here."}
+            </Empty>
+          ) : (
+            <ul className="kit-list">
+              {visibleRequests.map((request) => (
+                <RequestRow
+                  key={request.id}
+                  request={request}
+                  view="committee"
+                  today={today}
+                  actions={
+                    request.status === "pending" ? (
+                      <>
+                        <button type="button" className="kit-btn" disabled={busy} onClick={() => setDeclining(request)}>
+                          Decline
+                        </button>
+                        <button
+                          type="button"
+                          className="kit-btn primary"
+                          disabled={busy}
+                          onClick={() => updateStatus(request, "approved")}
+                        >
+                          Approve
+                        </button>
+                      </>
+                    ) : request.status === "approved" ? (
+                      <button type="button" className="kit-btn" disabled={busy} onClick={() => updateStatus(request, "returned")}>
+                        Check in
+                      </button>
+                    ) : null
+                  }
+                />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {tab === "active_loans" && isPrincipal && (
+        <section aria-label="On loan">
+          {onLoan.length === 0 ? (
+            <Empty icon={<CheckCircle2 size={28} aria-hidden="true" />}>Nothing is out. All the kit is in the locker.</Empty>
+          ) : (
+            <ul className="kit-list">
+              {[...onLoan]
+                .sort((a, b) => a.end_date.localeCompare(b.end_date))
+                .map((loan) => (
+                  <RequestRow
+                    key={loan.id}
+                    request={loan}
+                    view="committee"
+                    today={today}
+                    actions={
+                      <button type="button" className="kit-btn" disabled={busy} onClick={() => updateStatus(loan, "returned")}>
+                        Check in
+                      </button>
+                    }
+                  />
+                ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {tab === "my_requests" && (
+        <section aria-label="Your requests">
+          {mine.length === 0 ? (
+            <Empty icon={<Package size={28} aria-hidden="true" />}>
+              You haven&apos;t asked to borrow anything yet.
+              <button type="button" className="kit-btn" onClick={() => selectTab("catalog")}>
+                Browse kit
+              </button>
+            </Empty>
+          ) : (
+            <ul className="kit-list">
+              {mine.map((request) => (
+                <RequestRow
+                  key={request.id}
+                  request={request}
+                  view="mine"
+                  today={today}
+                  actions={
+                    request.status === "pending" ? (
+                      <button
+                        type="button"
+                        className="kit-btn danger-text"
+                        disabled={busy}
+                        onClick={() => updateStatus(request, "cancelled")}
+                      >
+                        Cancel request
+                      </button>
+                    ) : null
+                  }
+                />
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
+      {msg && (
+        <div className={`kit-toast is-${msg.type}`} role={msg.type === "error" ? "alert" : "status"}>
+          {msg.type === "success" ? <CheckCircle2 size={18} aria-hidden="true" /> : <AlertCircle size={18} aria-hidden="true" />}
+          <span>{msg.text}</span>
+          <button type="button" onClick={() => setMsg(null)} aria-label="Dismiss">
             <X size={16} />
           </button>
         </div>
       )}
 
-      {/* 2. WORKSPACE SUBNAV (SCROLLABLE ON MOBILE) */}
-      <div className="portal-subnav">
-        <button
-          type="button"
-          className={activeTab === "catalog" ? "active" : ""}
-          onClick={() => handleTabSelect("catalog")}
-        >
-          <Package size={15} />
-          <span className="tab-label-long">{isPrincipal ? "Equipment Inventory" : "Available Equipment"} ({items.length})</span>
-          <span className="tab-label-short">{isPrincipal ? "Inventory" : "Available"}</span>
-        </button>
-
-        {isPrincipal && (
-          <button
-            type="button"
-            className={activeTab === "requests" ? "active" : ""}
-            onClick={() => handleTabSelect("requests")}
-          >
-            <ShieldCheck size={15} />
-            <span className="tab-label-long">Loan Approvals Queue</span>
-            <span className="tab-label-short">Approvals</span>
-            {pendingRequests.length > 0 && (
-              <span
-                style={{
-                  background: "#d97706",
-                  color: "white",
-                  fontSize: 11,
-                  fontWeight: 800,
-                  padding: "1px 7px",
-                  borderRadius: 999,
-                  marginLeft: 4,
-                }}
-              >
-                {pendingRequests.length}
-              </span>
-            )}
-          </button>
-        )}
-
-        {isPrincipal && (
-          <button
-            type="button"
-            className={activeTab === "active_loans" ? "active" : ""}
-            onClick={() => handleTabSelect("active_loans")}
-          >
-            <Layers size={15} />
-            <span className="tab-label-long">Active Loans in Field ({activeLoans.length})</span>
-            <span className="tab-label-short">On Loan</span>
-          </button>
-        )}
-
-        {!isPrincipal && (
-          <button
-            type="button"
-            className={activeTab === "my_requests" ? "active" : ""}
-            onClick={() => handleTabSelect("my_requests")}
-          >
-            <FileText size={15} />
-            <span className="tab-label-long">My Borrow Requests ({myRequests.length})</span>
-            <span className="tab-label-short">Mine</span>
-          </button>
-        )}
-      </div>
-
-      {/* 5. TAB 1: EQUIPMENT INVENTORY CATALOG */}
-      {activeTab === "catalog" && (
-        <div className="catalog-section">
-          {/* SEARCH & FILTERS */}
-          <div className="search-filter-bar">
-            <div className="search-box">
-              <Search size={16} style={{ opacity: 0.5 }} />
-              <input
-                type="text"
-                placeholder="Search equipment by name, category, or notes..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-
-            <CustomSelect
-              value={categoryFilter}
-              onChange={setCategoryFilter}
-              options={categoryFilterOptions}
-              icon={<Filter size={14} />}
-              ariaLabel="Filter equipment by category"
-              variant="pill"
-            />
-
-            <CustomSelect
-              value={statusFilter}
-              onChange={(val) => setStatusFilter(val as "all" | "in_stock" | "out_of_stock" | "needs_repair")}
-              options={statusFilterOptions}
-              ariaLabel="Filter equipment by stock status"
-              variant="pill"
-            />
-          </div>
-
-          {filteredItems.length === 0 ? (
-            <div
-              style={{
-                background: "var(--surface)",
-                borderRadius: 18,
-                padding: "48px 24px",
-                textAlign: "center",
-                border: "1px solid var(--line)",
-              }}
-            >
-              <Package size={40} style={{ opacity: 0.3, margin: "0 auto 12px" }} />
-              <h3 style={{ margin: "0 0 6px", font: "800 18px var(--font-display)" }}>No equipment found</h3>
-              <p style={{ margin: 0, opacity: 0.65, fontSize: 13 }}>
-                Try adjusting your search query or filter settings.
-              </p>
-            </div>
-          ) : (
-            <div className="equipment-grid">
-              {filteredItems.map((item) => {
-                const isAvailable = item.available_quantity > 0;
-                const stockPct = Math.min(100, Math.round((item.available_quantity / Math.max(1, item.total_quantity)) * 100));
-
-                return (
-                  <div key={item.id} className="equipment-card">
-                    <div>
-                      <div className="equipment-card-header">
-                        <span className="category-badge">{item.category}</span>
-                        <span className={`condition-badge ${item.condition}`}>
-                          {item.condition.replace("_", " ")}
-                        </span>
-                      </div>
-
-                      <h3 style={{ margin: "0 0 6px", fontSize: 18 }}>{item.name}</h3>
-                      <p className="equipment-card-desc" style={{ minHeight: 36, marginBottom: 14 }}>
-                        {item.description || "Official UCL Hiking Club kit available for member loan."}
-                      </p>
-                    </div>
-
-                    <div>
-                      {/* Visual stock meter */}
-                      <div style={{ marginBottom: 14 }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 5 }}>
-                          <span>
-                            Stock: <strong>{item.available_quantity}</strong> / {item.total_quantity} available
-                          </span>
-                          <span
-                            style={{
-                              fontWeight: 700,
-                              color: isAvailable ? "var(--ok-fg)" : "var(--bad-fg)",
-                            }}
-                          >
-                            {isAvailable ? "In Stock" : "Checked Out"}
-                          </span>
-                        </div>
-                        <div
-                          style={{
-                            height: 6,
-                            background: "var(--surface-3)",
-                            borderRadius: 999,
-                            overflow: "hidden",
-                          }}
-                        >
-                          <div
-                            style={{
-                              height: "100%",
-                              width: `${stockPct}%`,
-                              background: stockPct > 40 ? "#10b981" : stockPct > 0 ? "#f59e0b" : "#ef4444",
-                              borderRadius: 999,
-                            }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Action buttons */}
-                      <div className="equipment-card-actions" style={{ display: "flex", gap: "8px", flexDirection: "column" }}>
-                        {!isPrincipal && (
-                          <button
-                            type="button"
-                            disabled={!isAvailable}
-                            onClick={() => {
-                              setSelectedItem(item);
-                              setBorrowQty(1);
-                            }}
-                            className="button primary compact full-width"
-                          >
-                            <Send size={13} style={{ marginRight: 5 }} />
-                            <span>Request to Borrow</span>
-                          </button>
-                        )}
-
-                        {isPrincipal && (
-                          <div className="equipment-card-admin-actions" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginTop: 4 }}>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEdit(item)}
-                              aria-label={`Edit ${item.name}`}
-                              title={`Edit ${item.name}`}
-                              className="button compact"
-                              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 12 }}
-                            >
-                              <Edit2 size={13} />
-                              <span>Edit</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeletingItem(item)}
-                              aria-label={`Delete ${item.name}`}
-                              title={`Delete ${item.name}`}
-                              className="button compact"
-                              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, fontSize: 12, color: "var(--bad-fg)" }}
-                            >
-                              <Trash2 size={13} />
-                              <span>Delete</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 6. TAB 2: COMMITTEE REVIEW QUEUE */}
-      {activeTab === "requests" && isPrincipal && (
-        <div className="committee-review-section">
-          {/* REQUEST FILTER BAR */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 18 }}>
-            <div style={{ display: "flex", gap: 8, overflowX: "auto", maxWidth: "100%", paddingBottom: 4 }}>
-              {(["all", "pending", "approved", "returned", "rejected"] as const).map((st) => (
-                <button
-                  key={st}
-                  type="button"
-                  onClick={() => setRequestStatusFilter(st)}
-                  style={{
-                    padding: "6px 14px",
-                    borderRadius: 999,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    border: requestStatusFilter === st ? "1px solid var(--forest)" : "1px solid var(--line)",
-                    background: requestStatusFilter === st ? "var(--forest)" : "var(--surface)",
-                    color: requestStatusFilter === st ? "white" : "var(--ink)",
-                    cursor: "pointer",
-                    textTransform: "capitalize",
-                    whiteSpace: "nowrap",
-                    flexShrink: 0,
-                  }}
-                >
-                  {st === "all" ? "All Requests" : st}
-                  {st === "pending" && pendingRequests.length > 0 && (
-                    <span style={{ marginLeft: 6, opacity: 0.9 }}>({pendingRequests.length})</span>
-                  )}
-                </button>
-              ))}
-            </div>
-
-            <span style={{ fontSize: 12, opacity: 0.65 }}>
-              Showing {filteredRequests.length} {filteredRequests.length === 1 ? "request" : "requests"}
-            </span>
-          </div>
-
-          {filteredRequests.length === 0 ? (
-            <div
-              style={{
-                background: "var(--surface)",
-                borderRadius: 18,
-                padding: "48px 24px",
-                textAlign: "center",
-                border: "1px solid var(--line)",
-              }}
-            >
-              <CheckCircle2 size={36} color="#16a34a" style={{ margin: "0 auto 12px" }} />
-              <h3 style={{ margin: "0 0 6px", font: "800 18px var(--font-display)" }}>
-                No requests matching &quot;{requestStatusFilter}&quot;
-              </h3>
-              <p style={{ margin: 0, opacity: 0.65, fontSize: 13 }}>
-                All member gear borrowing requests have been processed.
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* DESKTOP TABLE VIEW */}
-              <div className="desktop-table-view requests-table-wrapper">
-                <table className="requests-table">
-                  <thead>
-                    <tr>
-                      <th>Member Requester</th>
-                      <th>Equipment Item</th>
-                      <th>Qty</th>
-                      <th>Dates</th>
-                      <th>Purpose / Destination</th>
-                      <th>Status</th>
-                      <th>Committee Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredRequests.map((req) => (
-                      <tr key={req.id}>
-                        <td>
-                          <strong>{req.member?.full_name || "Club Member"}</strong>
-                          <br />
-                          <small style={{ color: "var(--forest)", fontWeight: 600 }}>{req.member?.email}</small>
-                          <br />
-                          <small style={{ opacity: 0.6 }}>{req.member?.membership_tier || "standard"} member</small>
-                        </td>
-                        <td>
-                          <strong>{req.equipment?.name || "Equipment item"}</strong>
-                          <br />
-                          <small style={{ opacity: 0.65 }}>{req.equipment?.category}</small>
-                        </td>
-                        <td>
-                          <strong>{req.quantity}x</strong>
-                        </td>
-                        <td>
-                          <small style={{ whiteSpace: "nowrap" }}>
-                            {req.start_date} → {req.end_date}
-                          </small>
-                        </td>
-                        <td>
-                          <small style={{ maxWidth: 220, display: "block", lineHeight: 1.4 }}>
-                            {req.purpose || "Weekend club trip"}
-                          </small>
-                          {req.notes && (
-                            <small style={{ display: "block", color: "var(--warn-fg)", marginTop: 4 }}>
-                              <strong>Note:</strong> {req.notes}
-                            </small>
-                          )}
-                        </td>
-                        <td>
-                          <span className={`req-status ${req.status}`}>{req.status}</span>
-                        </td>
-                        <td className="actions-cell">
-                          {req.status === "pending" && (
-                            <div style={{ display: "flex", gap: 6 }}>
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateStatus(req.id, "approved")}
-                                className="btn-action approve"
-                                title="Approve loan and reserve inventory stock"
-                              >
-                                Approve
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setRejectingRequestId(req.id)}
-                                className="btn-action reject"
-                                title="Decline request with feedback notes"
-                              >
-                                Decline
-                              </button>
-                            </div>
-                          )}
-                          {req.status === "approved" && (
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateStatus(req.id, "returned")}
-                              className="btn-action return"
-                              title="Mark equipment returned and restore available stock"
-                            >
-                              Mark Returned
-                            </button>
-                          )}
-                          {req.status === "returned" && (
-                            <span style={{ fontSize: 11, color: "var(--ok-fg)", fontWeight: 700 }}>
-                              Returned to Locker
-                            </span>
-                          )}
-                          {req.status === "rejected" && (
-                            <span style={{ fontSize: 11, color: "var(--bad-fg)", fontWeight: 600 }}>
-                              Declined
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* MOBILE CARD VIEW */}
-              <div className="mobile-card-view">
-                {filteredRequests.map((req) => (
-                  <div key={req.id} className="mobile-request-card">
-                    <div className="mobile-card-top">
-                      <div>
-                        <strong style={{ fontSize: 15 }}>{req.member?.full_name || "Club Member"}</strong>
-                        <div style={{ fontSize: 12, color: "var(--forest)", fontWeight: 600 }}>
-                          <a href={`mailto:${req.member?.email}`} style={{ color: "inherit", textDecoration: "none" }}>
-                            {req.member?.email}
-                          </a>
-                        </div>
-                        <span style={{ fontSize: 11, opacity: 0.65 }}>
-                          {req.member?.membership_tier || "standard"} member
-                        </span>
-                      </div>
-                      <span className={`req-status ${req.status}`}>{req.status}</span>
-                    </div>
-
-                    <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "10px 12px", fontSize: 12 }}>
-                      <div style={{ fontWeight: 700, color: "var(--ink)", marginBottom: 3 }}>
-                        {req.quantity}x {req.equipment?.name || "Equipment Item"}
-                      </div>
-                      <div style={{ opacity: 0.7, display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
-                        <Calendar size={12} />
-                        <span>{req.start_date} → {req.end_date}</span>
-                      </div>
-                      {req.purpose && (
-                        <div style={{ opacity: 0.8, fontStyle: "italic", lineHeight: 1.4 }}>
-                          &ldquo;{req.purpose}&rdquo;
-                        </div>
-                      )}
-                      {req.notes && (
-                        <div style={{ marginTop: 6, color: "var(--warn-fg)", fontSize: 11 }}>
-                          <strong>Committee Note:</strong> {req.notes}
-                        </div>
-                      )}
-                    </div>
-
-                    {req.status === "pending" && (
-                      <div className="mobile-actions-row">
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateStatus(req.id, "approved")}
-                          className="btn-action approve"
-                        >
-                          Approve Loan
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setRejectingRequestId(req.id)}
-                          className="btn-action reject"
-                        >
-                          Decline
-                        </button>
-                      </div>
-                    )}
-
-                    {req.status === "approved" && (
-                      <div className="mobile-actions-row">
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateStatus(req.id, "returned")}
-                          className="btn-action return"
-                        >
-                          Mark Returned
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* 7. TAB 3: ACTIVE LOANS ROSTER (IN FIELD) */}
-      {activeTab === "active_loans" && isPrincipal && (
-        <div>
-          <div style={{ marginBottom: 18 }}>
-            <h3 style={{ margin: "0 0 4px", fontSize: 18, font: "800 18px var(--font-display)" }}>
-              Equipment Currently in Field
-            </h3>
-            <p style={{ margin: 0, opacity: 0.65, fontSize: 13 }}>
-              Gear actively checked out to club members. Check back in when items are returned to the kit cupboard.
-            </p>
-          </div>
-
-          {activeLoans.length === 0 ? (
-            <div
-              style={{
-                background: "var(--surface)",
-                borderRadius: 18,
-                padding: "48px 24px",
-                textAlign: "center",
-                border: "1px solid var(--line)",
-              }}
-            >
-              <CheckCircle2 size={36} color="#16a34a" style={{ margin: "0 auto 12px" }} />
-              <h3 style={{ margin: "0 0 6px", font: "800 18px var(--font-display)" }}>
-                No equipment currently on loan
-              </h3>
-              <p style={{ margin: 0, opacity: 0.65, fontSize: 13 }}>
-                All club gear is accounted for and stored in the equipment locker.
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* DESKTOP TABLE VIEW */}
-              <div className="desktop-table-view requests-table-wrapper">
-                <table className="requests-table">
-                  <thead>
-                    <tr>
-                      <th>Borrower</th>
-                      <th>Equipment</th>
-                      <th>Qty</th>
-                      <th>Return Due Date</th>
-                      <th>Purpose / Destination</th>
-                      <th>Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activeLoans.map((loan) => (
-                      <tr key={loan.id}>
-                        <td>
-                          <strong>{loan.member?.full_name || "Club Member"}</strong>
-                          <br />
-                          <small style={{ color: "var(--forest)" }}>{loan.member?.email}</small>
-                        </td>
-                        <td>
-                          <strong>{loan.equipment?.name || "Equipment item"}</strong>
-                          <br />
-                          <small style={{ opacity: 0.6 }}>{loan.equipment?.category}</small>
-                        </td>
-                        <td>
-                          <strong>{loan.quantity}x</strong>
-                        </td>
-                        <td>
-                          <span style={{ fontWeight: 700, color: "var(--ink)" }}>{loan.end_date}</span>
-                          <br />
-                          <small style={{ opacity: 0.6 }}>Since {loan.start_date}</small>
-                        </td>
-                        <td>
-                          <small>{loan.purpose || "Weekend trip"}</small>
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            onClick={() => handleUpdateStatus(loan.id, "returned")}
-                            className="btn-action return"
-                            style={{ padding: "6px 12px", fontSize: 12 }}
-                          >
-                            Check Back In
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* MOBILE CARD VIEW */}
-              <div className="mobile-card-view">
-                {activeLoans.map((loan) => (
-                  <div key={loan.id} className="mobile-request-card">
-                    <div className="mobile-card-top">
-                      <div>
-                        <strong style={{ fontSize: 15 }}>{loan.member?.full_name || "Club Member"}</strong>
-                        <div style={{ fontSize: 12, color: "var(--forest)", fontWeight: 600 }}>
-                          <a href={`mailto:${loan.member?.email}`} style={{ color: "inherit", textDecoration: "none" }}>
-                            {loan.member?.email}
-                          </a>
-                        </div>
-                      </div>
-                      <span className="req-status approved">ON LOAN</span>
-                    </div>
-
-                    <div style={{ background: "var(--surface-2)", borderRadius: 10, padding: "10px 12px", fontSize: 12 }}>
-                      <div style={{ fontWeight: 700, color: "var(--ink)", marginBottom: 3 }}>
-                        {loan.quantity}x {loan.equipment?.name || "Equipment Item"}
-                      </div>
-                      <div style={{ opacity: 0.75, marginBottom: 2 }}>
-                        Due back: <strong>{loan.end_date}</strong> (out since {loan.start_date})
-                      </div>
-                      {loan.purpose && (
-                        <div style={{ opacity: 0.8, fontStyle: "italic", marginTop: 4 }}>
-                          &ldquo;{loan.purpose}&rdquo;
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mobile-actions-row">
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateStatus(loan.id, "returned")}
-                        className="btn-action return"
-                        style={{ padding: "10px 14px", fontSize: 13 }}
-                      >
-                        Check Back In (Return to Locker)
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* 8. TAB 4: MY BORROW REQUESTS */}
-      {activeTab === "my_requests" && (
-        <div className="requests-section">
-          {myRequests.length === 0 ? (
-            <div className="empty-state" style={{ textAlign: "center", padding: "48px 24px", background: "var(--surface)", borderRadius: 18, border: "1px solid var(--line)" }}>
-              <Package size={40} style={{ opacity: 0.3, margin: "0 auto 12px" }} />
-              <h3 style={{ margin: "0 0 6px", font: "800 18px var(--font-display)" }}>No borrow requests filed</h3>
-              <p style={{ margin: "0 0 16px", opacity: 0.65, fontSize: 13 }}>
-                You haven&apos;t filed any equipment borrowing requests yet.
-              </p>
-              <button
-                type="button"
-                onClick={() => handleTabSelect("catalog")}
-                className="button primary compact"
-              >
-                Browse Equipment Catalog
-              </button>
-            </div>
-          ) : (
-            <div className="requests-list">
-              {myRequests.map((req) => (
-                <div key={req.id} className="request-card">
-                  <div className="request-header">
-                    <strong>{req.equipment?.name || "Equipment Item"}</strong>
-                    <span className={`req-status ${req.status}`}>
-                      {req.status === "pending" && <Clock size={13} />}
-                      {req.status === "approved" && <CheckCircle2 size={13} />}
-                      {req.status === "rejected" && <XCircle size={13} />}
-                      {req.status === "returned" && <RotateCcw size={13} />}
-                      {req.status.toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="request-details">
-                    <span>
-                      <Calendar size={13} /> {req.start_date} to {req.end_date}
-                    </span>
-                    <span>Quantity: {req.quantity}</span>
-                  </div>
-                  <p className="purpose-text">
-                    <strong>Purpose:</strong> {req.purpose}
-                  </p>
-                  {req.notes && (
-                    <p className="committee-notes">
-                      <strong>Committee Feedback:</strong> {req.notes}
-                    </p>
-                  )}
-
-                  {req.status === "pending" && (
-                    <div style={{ marginTop: 12 }}>
-                      <button
-                        type="button"
-                        onClick={() => handleUpdateStatus(req.id, "cancelled")}
-                        className="button-link text-danger"
-                      >
-                        Cancel Request
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* MODAL 1: BORROW REQUEST MODAL */}
-      {selectedItem && (
-        <Sheet onClose={() => setSelectedItem(null)} labelledBy="borrow-sheet">
-            <h3 id="borrow-sheet">Request Kit: {selectedItem.name}</h3>
-            <p>Specify dates and expedition purpose for committee review.</p>
-
-            <form onSubmit={handleFileRequest}>
-              <div className="form-group" style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
-                  Quantity Needed (Max {selectedItem.available_quantity}):
-                </label>
+      {borrow && (
+        <Sheet onClose={() => setBorrow(null)} labelledBy="borrow-sheet">
+          <h3 id="borrow-sheet">Borrow {borrow.item.name}</h3>
+          <p>A principal will approve it and arrange handover.</p>
+          <form className="kit-form" onSubmit={submitBorrow}>
+            {borrow.item.available_quantity > 1 && (
+              <Field label={`How many (up to ${borrow.item.available_quantity})`}>
                 <input
                   type="number"
+                  inputMode="numeric"
                   min={1}
-                  max={selectedItem.available_quantity}
-                  value={borrowQty}
-                  onChange={(e) => setBorrowQty(parseInt(e.target.value) || 1)}
+                  max={borrow.item.available_quantity}
+                  value={borrow.quantity}
+                  onChange={(e) => setBorrow({ ...borrow, quantity: parseInt(e.target.value) || 1 })}
                   required
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}
                 />
-              </div>
-
-              <div className="form-row" style={{ marginBottom: 14 }}>
-                <div className="form-group">
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Start Date:</label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    required
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}
-                  />
-                </div>
-                <div className="form-group">
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Return Date:</label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    required
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}
-                  />
-                </div>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 18 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
-                  Borrowing Purpose / Hike Details:
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Describe where and when you plan to use this equipment..."
-                  value={purpose}
-                  onChange={(e) => setPurpose(e.target.value)}
-                  required
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)", fontFamily: "inherit" }}
-                />
-              </div>
-
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  onClick={() => setSelectedItem(null)}
-                  className="button compact"
-                >
-                  Cancel
-                </button>
-                <button type="submit" disabled={submitting} className="button primary compact">
-                  {submitting ? "Submitting..." : "Submit Borrow Request"}
-                </button>
-              </div>
-            </form>
-        </Sheet>
-      )}
-
-      {/* MODAL 2: ADD EQUIPMENT MODAL (COMMITTEE) */}
-      {showAddItemModal && (
-        <Sheet onClose={() => setShowAddItemModal(false)} labelledBy="add-item-sheet">
-            <h3 id="add-item-sheet">Add Equipment Item to Inventory</h3>
-            <p>Create a new piece of club equipment in the master locker list.</p>
-
-            <form onSubmit={handleCreateEquipment}>
-              <div className="form-group" style={{ marginBottom: 12 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Equipment Name:</label>
+              </Field>
+            )}
+            <div className="kit-form-row">
+              <Field label="From">
                 <input
-                  type="text"
-                  placeholder="e.g. MSR Hubba Hubba 2-Person Tent"
-                  value={newItemName}
-                  onChange={(e) => setNewItemName(e.target.value)}
-                  required
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 12 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Category:</label>
-                <CustomSelect
-                  value={newItemCategory}
-                  onChange={setNewItemCategory}
-                  options={EQUIPMENT_CATEGORY_OPTIONS}
-                  variant="input"
-                  ariaLabel="Select equipment category"
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 12 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Description &amp; Specifications:</label>
-                <input
-                  type="text"
-                  placeholder="Short description, capacity or specifications"
-                  value={newItemDesc}
-                  onChange={(e) => setNewItemDesc(e.target.value)}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}
-                />
-              </div>
-
-              <div className="form-row" style={{ marginBottom: 12 }}>
-                <div className="form-group">
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Total Units:</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={newItemTotal}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value) || 1;
-                      setNewItemTotal(val);
-                      if (newItemAvailable > val) setNewItemAvailable(val);
-                    }}
-                    required
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}
-                  />
-                </div>
-                <div className="form-group">
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Available in Locker:</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={newItemTotal}
-                    value={newItemAvailable}
-                    onChange={(e) => setNewItemAvailable(parseInt(e.target.value) || 0)}
-                    required
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}
-                  />
-                </div>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 18 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Kit Condition:</label>
-                <CustomSelect
-                  value={newItemCondition}
-                  onChange={(val) =>
-                    setNewItemCondition(val as "excellent" | "good" | "fair" | "needs_repair")
+                  type="date"
+                  min={today}
+                  value={borrow.start}
+                  onChange={(e) =>
+                    setBorrow({ ...borrow, start: e.target.value, end: borrow.end < e.target.value ? e.target.value : borrow.end })
                   }
-                  options={CONDITION_OPTIONS}
-                  variant="input"
-                  ariaLabel="Select kit condition"
-                />
-              </div>
-
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  onClick={() => setShowAddItemModal(false)}
-                  className="button compact"
-                >
-                  Cancel
-                </button>
-                <button type="submit" disabled={submitting} className="button primary compact">
-                  {submitting ? "Adding..." : "Add to Inventory"}
-                </button>
-              </div>
-            </form>
-        </Sheet>
-      )}
-
-      {/* MODAL 3: EDIT EQUIPMENT MODAL (COMMITTEE) */}
-      {editingItem && (
-        <Sheet onClose={() => setEditingItem(null)} labelledBy="edit-item-sheet">
-            <h3 id="edit-item-sheet">Edit Equipment Item</h3>
-            <p>Update stock levels, category, or condition status.</p>
-
-            <form onSubmit={handleSaveEdit}>
-              <div className="form-group" style={{ marginBottom: 12 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Equipment Name:</label>
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
                   required
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}
                 />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 12 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Category:</label>
-                <CustomSelect
-                  value={editCategory}
-                  onChange={setEditCategory}
-                  options={EQUIPMENT_CATEGORY_OPTIONS}
-                  variant="input"
-                  ariaLabel="Edit equipment category"
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 12 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Description:</label>
+              </Field>
+              <Field label="Back by">
                 <input
-                  type="text"
-                  value={editDesc}
-                  onChange={(e) => setEditDesc(e.target.value)}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}
+                  type="date"
+                  min={borrow.start}
+                  value={borrow.end}
+                  onChange={(e) => setBorrow({ ...borrow, end: e.target.value })}
+                  required
                 />
-              </div>
-
-              <div className="form-row" style={{ marginBottom: 12 }}>
-                <div className="form-group">
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Total Physical Units:</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={editTotal}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value) || 1;
-                      setEditTotal(val);
-                      if (editAvailable > val) setEditAvailable(val);
-                    }}
-                    required
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}
-                  />
-                </div>
-                <div className="form-group">
-                  <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Available in Locker:</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={editTotal}
-                    value={editAvailable}
-                    onChange={(e) => setEditAvailable(parseInt(e.target.value) || 0)}
-                    required
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)" }}
-                  />
-                </div>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 18 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Condition:</label>
-                <CustomSelect
-                  value={editCondition}
-                  onChange={(val) =>
-                    setEditCondition(val as "excellent" | "good" | "fair" | "needs_repair")
-                  }
-                  options={CONDITION_OPTIONS}
-                  variant="input"
-                  ariaLabel="Edit equipment condition"
-                />
-              </div>
-
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  onClick={() => setEditingItem(null)}
-                  className="button compact"
-                >
-                  Cancel
-                </button>
-                <button type="submit" disabled={submitting} className="button primary compact">
-                  {submitting ? "Saving..." : "Save Changes"}
-                </button>
-              </div>
-            </form>
-        </Sheet>
-      )}
-
-      {/* MODAL 4: DELETE CONFIRMATION MODAL */}
-      {deletingItem && (
-        <Sheet onClose={() => setDeletingItem(null)} labelledBy="delete-item-sheet">
-            <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--bad-fg)", marginBottom: 10 }}>
-              <AlertTriangle size={24} />
-              <h3 id="delete-item-sheet" style={{ margin: 0, color: "var(--bad-fg)" }}>Delete Equipment Item</h3>
+              </Field>
             </div>
-            <p>
-              Are you sure you want to remove <strong>{deletingItem.name}</strong> from the equipment inventory? This
-              action cannot be undone.
-            </p>
-            <div className="modal-actions">
-              <button
-                type="button"
-                onClick={() => setDeletingItem(null)}
-                className="button compact"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteEquipment}
-                disabled={submitting}
-                className="button compact"
-                style={{ background: "#b91c1c", color: "white", borderColor: "#b91c1c" }}
-              >
-                {submitting ? "Deleting..." : "Confirm Delete"}
-              </button>
-            </div>
-        </Sheet>
-      )}
-
-      {/* MODAL 5: REJECTION NOTES MODAL */}
-      {rejectingRequestId && (
-        <Sheet onClose={() => setRejectingRequestId(null)} labelledBy="decline-sheet">
-            <h3 id="decline-sheet">Decline Equipment Request</h3>
-            <p>Provide a reason or advice for the member so they know why the kit cannot be loaned.</p>
-            <textarea
-              rows={3}
-              placeholder="e.g. This equipment is reserved for the upcoming Lake District expedition..."
-              value={rejectionNotes}
-              onChange={(e) => setRejectionNotes(e.target.value)}
-              style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)", fontFamily: "inherit", marginBottom: 18 }}
-            />
-            <div className="modal-actions">
-              <button onClick={() => setRejectingRequestId(null)} className="button compact">
-                Cancel
-              </button>
-              <button
-                onClick={() => handleUpdateStatus(rejectingRequestId, "rejected", rejectionNotes)}
-                className="button primary compact"
-                style={{ background: "#b91c1c", borderColor: "#b91c1c" }}
-              >
-                Confirm Decline
-              </button>
-            </div>
-        </Sheet>
-      )}
-
-      {/* MODAL 6: GOOGLE SHEETS WEBHOOK SETTINGS MODAL */}
-      {showSettingsModal && (
-        <Sheet onClose={() => setShowSettingsModal(false)} labelledBy="sheets-settings-sheet">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-              <div>
-                <h3 id="sheets-settings-sheet" style={{ margin: "0 0 4px" }}>Google Sheets Webhook Settings</h3>
-                <p style={{ margin: 0, opacity: 0.65, fontSize: 13 }}>
-                  Connect your Google Sheet for live two-way sync and automatic styling.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowSettingsModal(false)}
-                style={{ background: "none", border: "none", cursor: "pointer", opacity: 0.6, padding: 4 }}
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "8px 12px",
-                borderRadius: 8,
-                background: isConfigured ? "var(--ok-bg)" : "var(--warn-bg)",
-                border: `1px solid ${isConfigured ? "var(--ok-line)" : "var(--warn-line)"}`,
-                marginBottom: 16,
-                fontSize: 12,
-              }}
-            >
-              <div
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: "50%",
-                  background: isConfigured ? "#10b981" : "#f59e0b",
-                }}
+            <Field label="What's it for?">
+              <textarea
+                rows={2}
+                placeholder="e.g. Snowdon weekend, 2 nights camping"
+                value={borrow.purpose}
+                onChange={(e) => setBorrow({ ...borrow, purpose: e.target.value })}
+                required
               />
-              <span style={{ fontWeight: 600, color: isConfigured ? "var(--ok-fg)" : "var(--warn-fg)" }}>
-                {isConfigured ? "Webhook Connected & Active" : "Webhook Not Configured"}
-              </span>
+            </Field>
+            <div className="modal-actions">
+              <button type="button" className="kit-btn" onClick={() => setBorrow(null)}>
+                Cancel
+              </button>
+              <button type="submit" className="kit-btn primary" disabled={busy}>
+                {busy ? "Sending…" : "Send request"}
+              </button>
             </div>
-
-            <form onSubmit={handleSaveSettings}>
-              <div className="form-group" style={{ marginBottom: 14 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
-                  Google Apps Script Webhook URL:
-                </label>
-                <input
-                  type="url"
-                  placeholder="https://script.google.com/macros/s/.../exec"
-                  value={settingsWebhookUrl}
-                  onChange={(e) => setSettingsWebhookUrl(e.target.value)}
-                  required
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)", boxSizing: "border-box" }}
-                />
-                <small style={{ display: "block", marginTop: 4, opacity: 0.65, fontSize: 11 }}>
-                  Deployed from <code>google-apps-script/Code.gs</code> as Web App (Execute as: Me, Who has access: Anyone).
-                </small>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 18 }}>
-                <label style={{ display: "block", fontSize: 13, fontWeight: 700, marginBottom: 4 }}>
-                  Google Spreadsheet ID or URL (Optional):
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 1BxiMVs0XR... or full sheet URL"
-                  value={settingsSheetId}
-                  onChange={(e) => setSettingsSheetId(e.target.value)}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)", boxSizing: "border-box" }}
-                />
-              </div>
-
-              <div
-                style={{
-                  background: "var(--ok-bg)",
-                  border: "1px solid var(--ok-line)",
-                  borderRadius: 8,
-                  padding: "10px 12px",
-                  marginBottom: 16,
-                  fontSize: 12,
-                  color: "var(--ok-fg)",
-                  lineHeight: 1.4,
-                }}
-              >
-                <strong>💡 How to Ensure Styling Applies:</strong>
-                <p style={{ margin: "4px 0 0" }}>
-                  1. Copy the updated code from <code>google-apps-script/Code.gs</code> into your Apps Script editor.
-                  <br />
-                  2. Click <strong>Deploy &gt; Manage deployments &gt; Edit (pencil) &gt; Version: New version &gt; Deploy</strong>.
-                  <br />
-                  3. In Google Sheets, you can also click the top menu <strong>🌲 UCL Hiking &gt; 🎨 Apply All Club Styling</strong> at any time.
-                </p>
-              </div>
-
-              <div className="modal-actions" style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                <button
-                  type="button"
-                  onClick={() => setShowSettingsModal(false)}
-                  className="button compact"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={syncingSheets || !settingsWebhookUrl}
-                  onClick={() => {
-                    handleSyncSheets("push");
-                  }}
-                  className="button compact"
-                  style={{ background: "#1e3a2b", color: "white", borderColor: "#1e3a2b" }}
-                  title="Immediately push inventory and format all 3 tabs with UCL club styling"
-                >
-                  {syncingSheets ? "Applying..." : "🎨 Push & Impose Styling"}
-                </button>
-                <button type="submit" disabled={savingSettings} className="button primary compact">
-                  {savingSettings ? "Saving..." : "Save Webhook Settings"}
-                </button>
-              </div>
-            </form>
+          </form>
         </Sheet>
       )}
+
+      {itemDraft && (
+        <Sheet onClose={() => setItemDraft(null)} labelledBy="item-sheet">
+          <h3 id="item-sheet">{itemDraft.id ? "Edit item" : "Add item"}</h3>
+          <form className="kit-form" onSubmit={saveItem}>
+            <Field label="Name">
+              <input
+                type="text"
+                placeholder="e.g. MSR Hubba Hubba 2-person tent"
+                value={itemDraft.name}
+                onChange={(e) => setItemDraft({ ...itemDraft, name: e.target.value })}
+                required
+              />
+            </Field>
+            <div className="kit-form-row is-wide-first">
+              <Field label="Category">
+                <select value={itemDraft.category} onChange={(e) => setItemDraft({ ...itemDraft, category: e.target.value })}>
+                  {(CATEGORIES.includes(itemDraft.category) ? CATEGORIES : [itemDraft.category, ...CATEGORIES]).map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Condition">
+                <select
+                  value={itemDraft.condition}
+                  onChange={(e) => setItemDraft({ ...itemDraft, condition: e.target.value as EquipmentCondition })}
+                >
+                  {(Object.keys(CONDITION_LABELS) as EquipmentCondition[]).map((c) => (
+                    <option key={c} value={c}>{CONDITION_LABELS[c]}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+            <Field label="Notes">
+              <input
+                type="text"
+                placeholder="Size, capacity, what's in the bag"
+                value={itemDraft.description}
+                onChange={(e) => setItemDraft({ ...itemDraft, description: e.target.value })}
+              />
+            </Field>
+            <div className="kit-form-row">
+              <Field label="Total owned">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  value={itemDraft.total}
+                  onChange={(e) => {
+                    const total = parseInt(e.target.value) || 1;
+                    setItemDraft({ ...itemDraft, total, available: Math.min(itemDraft.available, total) });
+                  }}
+                  required
+                />
+              </Field>
+              <Field label="In the locker">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={itemDraft.total}
+                  value={itemDraft.available}
+                  onChange={(e) => setItemDraft({ ...itemDraft, available: parseInt(e.target.value) || 0 })}
+                  required
+                />
+              </Field>
+            </div>
+            {itemDraft.id && (
+              <button
+                type="button"
+                className="kit-btn danger-text kit-delete-link"
+                onClick={() => {
+                  const item = items.find((i) => i.id === itemDraft.id);
+                  setItemDraft(null);
+                  if (item) setDeleting(item);
+                }}
+              >
+                Delete this item…
+              </button>
+            )}
+            <div className="modal-actions">
+              <button type="button" className="kit-btn" onClick={() => setItemDraft(null)}>
+                Cancel
+              </button>
+              <button type="submit" className="kit-btn primary" disabled={busy}>
+                {busy ? "Saving…" : itemDraft.id ? "Save" : "Add item"}
+              </button>
+            </div>
+          </form>
+        </Sheet>
+      )}
+
+      {deleting && (
+        <Sheet onClose={() => setDeleting(null)} labelledBy="delete-sheet">
+          <h3 id="delete-sheet">Delete {deleting.name}?</h3>
+          <p>It comes off the inventory for good. This can&apos;t be undone.</p>
+          <div className="modal-actions">
+            <button type="button" className="kit-btn" onClick={() => setDeleting(null)}>
+              Cancel
+            </button>
+            <button type="button" className="kit-btn danger" onClick={deleteItem} disabled={busy}>
+              {busy ? "Deleting…" : "Delete"}
+            </button>
+          </div>
+        </Sheet>
+      )}
+
+      {declining && (
+        <Sheet onClose={() => setDeclining(null)} labelledBy="decline-sheet">
+          <h3 id="decline-sheet">Decline request</h3>
+          <p>
+            {declining.member?.full_name ?? "The member"} asked for {declining.quantity}× {declining.equipment?.name ?? "kit"}.
+            Say why, so they know what to do instead.
+          </p>
+          <form
+            className="kit-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void updateStatus(declining, "rejected", declineNotes);
+            }}
+          >
+            <Field label="Reason (optional)">
+              <textarea
+                rows={3}
+                placeholder="e.g. Reserved for the Lake District trip that weekend"
+                value={declineNotes}
+                onChange={(e) => setDeclineNotes(e.target.value)}
+              />
+            </Field>
+            <div className="modal-actions">
+              <button type="button" className="kit-btn" onClick={() => setDeclining(null)}>
+                Cancel
+              </button>
+              <button type="submit" className="kit-btn danger" disabled={busy}>
+                Decline
+              </button>
+            </div>
+          </form>
+        </Sheet>
+      )}
+
+      {showSheets && (
+        <Sheet onClose={() => setShowSheets(false)} labelledBy="sheets-sheet">
+          <h3 id="sheets-sheet">Google Sheets</h3>
+          <p className={`kit-sheets-status${sheetsConfigured ? " is-on" : ""}`}>
+            <span className="kit-status-dot" aria-hidden="true" />
+            {sheetsConfigured ? "Connected" : "Not connected yet"}
+          </p>
+          <div className="kit-sheets-actions">
+            <button
+              type="button"
+              className="kit-btn"
+              disabled={!sheetsConfigured || syncing !== null}
+              onClick={() => syncSheets("push")}
+            >
+              {syncing === "push" && <Loader2 size={15} className="roster-spinner" aria-hidden="true" />}
+              Push to sheet
+            </button>
+            <button
+              type="button"
+              className="kit-btn"
+              disabled={!sheetsConfigured || syncing !== null}
+              onClick={() => syncSheets("pull")}
+            >
+              {syncing === "pull" && <Loader2 size={15} className="roster-spinner" aria-hidden="true" />}
+              Pull from sheet
+            </button>
+          </div>
+          <form className="kit-form" onSubmit={saveSheetsSettings}>
+            <Field label="Apps Script web app URL">
+              <input
+                type="url"
+                inputMode="url"
+                placeholder="https://script.google.com/macros/s/…/exec"
+                value={sheetsUrl}
+                onChange={(e) => setSheetsUrl(e.target.value)}
+                required
+              />
+            </Field>
+            <Field label="Spreadsheet ID or URL (optional)">
+              <input type="text" value={sheetsId} onChange={(e) => setSheetsId(e.target.value)} />
+            </Field>
+            <details className="kit-help">
+              <summary>How to set it up</summary>
+              <ol>
+                <li>
+                  Paste <code>google-apps-script/Code.gs</code> into the sheet&apos;s Apps Script editor.
+                </li>
+                <li>Deploy it as a web app (execute as you, anyone can access) and copy the URL here.</li>
+                <li>
+                  After editing the script, deploy a new version: Deploy › Manage deployments › Edit › New version.
+                </li>
+                <li>
+                  In the sheet, <strong>UCL Hiking › Apply Club Brand Styling &amp; Formulas</strong> reapplies the styling.
+                </li>
+              </ol>
+            </details>
+            <div className="modal-actions">
+              <button type="button" className="kit-btn" onClick={() => setShowSheets(false)}>
+                Close
+              </button>
+              <button type="submit" className="kit-btn primary" disabled={busy}>
+                {busy ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </form>
+        </Sheet>
+      )}
+    </div>
+  );
+}
+
+function ItemRow({
+  item,
+  isPrincipal,
+  onBorrow,
+  onEdit,
+}: {
+  item: Equipment;
+  isPrincipal: boolean;
+  onBorrow: () => void;
+  onEdit: () => void;
+}) {
+  const ratio = item.available_quantity / Math.max(1, item.total_quantity);
+  const level = item.available_quantity === 0 ? "is-out" : ratio < 0.4 ? "is-low" : "";
+  const flagged = item.condition === "fair" || item.condition === "needs_repair";
+
+  const summary = (
+    <>
+      <span className="kit-item-name">{item.name}</span>
+      <span className="kit-item-meta">
+        {item.category}
+        {flagged && <span className={`kit-tag is-${item.condition}`}>{CONDITION_LABELS[item.condition]}</span>}
+      </span>
+      {item.description && <span className="kit-item-desc">{item.description}</span>}
+    </>
+  );
+
+  return (
+    <li className="kit-item">
+      {isPrincipal ? (
+        <button type="button" className="kit-item-main" onClick={onEdit} aria-label={`Edit ${item.name}`}>
+          {summary}
+        </button>
+      ) : (
+        <div className="kit-item-main">{summary}</div>
+      )}
+      <span className={`kit-stock ${level}`} aria-label={`${item.available_quantity} of ${item.total_quantity} available`}>
+        <strong>{item.available_quantity}</strong>/{item.total_quantity}
+      </span>
+      {isPrincipal ? (
+        <ChevronRight className="kit-item-chevron" size={18} aria-hidden="true" />
+      ) : (
+        <button type="button" className="kit-btn primary" disabled={item.available_quantity === 0} onClick={onBorrow}>
+          Borrow
+        </button>
+      )}
+    </li>
+  );
+}
+
+function RequestRow({
+  request,
+  view,
+  today,
+  actions,
+}: {
+  request: EquipmentRequest;
+  view: "committee" | "mine";
+  today: string;
+  actions: ReactNode;
+}) {
+  const item = request.equipment?.name ?? "Equipment item";
+  const overdue = request.status === "approved" && today !== "" && request.end_date < today;
+
+  return (
+    <li className="kit-request">
+      <div className="kit-request-body">
+        <div className="kit-request-head">
+          <strong>{view === "committee" ? request.member?.full_name || "Club member" : item}</strong>
+          <span className={`kit-tag is-${overdue ? "overdue" : request.status}`}>
+            {overdue ? "Overdue" : STATUS_LABELS[request.status]}
+          </span>
+        </div>
+        <p className="kit-request-meta">
+          {view === "committee" ? (
+            <>
+              {request.quantity}× {item} · {formatRange(request.start_date, request.end_date)}
+            </>
+          ) : (
+            <>
+              {request.quantity > 1 ? `${request.quantity}× · ` : ""}
+              {formatRange(request.start_date, request.end_date)}
+            </>
+          )}
+        </p>
+        {request.purpose && <p className="kit-request-purpose">{request.purpose}</p>}
+        {request.notes && <p className="kit-request-note">{request.notes}</p>}
+        {view === "committee" && request.member?.email && (
+          <a className="kit-request-email" href={`mailto:${request.member.email}`}>
+            {request.member.email}
+          </a>
+        )}
+      </div>
+      {actions ? <div className="kit-request-actions">{actions}</div> : null}
+    </li>
+  );
+}
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className="kit-field">
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function Empty({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  return (
+    <div className="events-empty kit-empty">
+      {icon}
+      <p>{children}</p>
     </div>
   );
 }

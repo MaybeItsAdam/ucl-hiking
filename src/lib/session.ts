@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import type { GovernanceRole, MembershipTier } from "@/lib/access";
 import type { Member } from "@/lib/types";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
@@ -116,7 +117,13 @@ export async function clearRolePreviewCookie(): Promise<void> {
   });
 }
 
-export async function getRealMember(): Promise<Member | null> {
+/**
+ * The member behind the session cookie, straight from the members table.
+ *
+ * Memoised per request: a page, the app shell around it and the role-preview
+ * check all ask, and each used to be its own round trip to Supabase.
+ */
+export const getRealMember = cache(async (): Promise<Member | null> => {
   const session = await getSession();
   if (!session) return null;
 
@@ -149,7 +156,7 @@ export async function getRealMember(): Promise<Member | null> {
     return null;
   }
   return data as Member;
-}
+});
 
 export async function getRolePreviewState(): Promise<{
   isRealAdmin: boolean;
