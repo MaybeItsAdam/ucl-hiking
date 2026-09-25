@@ -1886,32 +1886,250 @@ select:focus {
   .ptr-indicator.is-refreshing svg { animation: roster-spin .9s linear infinite; }
 }
 
-/* Members' Events tab (/portal/events): one hairline-ruled list per month, a
-   date column on the left, status chips only where they change what you do. */
+/* ==========================================================================
+   EVENTS (/portal/events, /portal/events/[id], /portal/events/map)
+
+   The list is one hairline-ruled card per month with the next event lifted out
+   above it. Each kind of event carries a hue (--kind) that tints its date tile
+   and nothing else, so a month of walks and socials reads at a glance while the
+   chrome stays quiet. Walk grades use the club's own green/blue/red/black.
+   ========================================================================== */
+:root {
+  --grade-beginner: #2e9d5b;
+  --grade-moderate: #2f6fd6;
+  --grade-challenging: #d23c3c;
+  --grade-difficult: #1f2933;
+}
+/* Black runs stay black on paper, but would vanish into a dark map: there they
+   are drawn pale, with the page colour for their number. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --grade-difficult: #cfd8e3; }
+}
+:root[data-theme="dark"] { --grade-difficult: #cfd8e3; }
+.hike-pin.is-difficult:not(.is-upcoming), .hike-pin.is-extreme:not(.is-upcoming) { color: var(--paper); }
+.kind-hike { --kind: var(--forest); }
+.kind-walk { --kind: var(--lime); }
+.kind-social { --kind: var(--peach); }
+.kind-trip { --kind: #7a4de8; }
+.kind-club, .kind-other { --kind: var(--muted); }
+
 .events-page { max-width: 760px; }
 .events-page section + section { margin-top: 28px; }
 .events-month { margin: 4px 0 10px; font: 800 12px var(--font-body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-.events-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
-.event-row { display: grid; grid-template-columns: 52px 1fr; gap: 14px; padding: 16px; }
-.event-row + .event-row { border-top: 1px solid var(--line); }
-.event-date { display: flex; flex-direction: column; align-items: center; justify-content: center; align-self: start; height: 56px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); line-height: 1; }
-.event-date span { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--forest); }
-.event-date strong { margin-top: 4px; font: 800 22px var(--font-display); }
-.event-body { min-width: 0; }
-.event-body h3 { margin: 2px 0 4px; font: 800 17px/1.3 var(--font-display); overflow-wrap: anywhere; }
+.event-eyebrow { display: block; font: 800 10.5px/1.3 var(--font-body); letter-spacing: .13em; text-transform: uppercase; color: var(--muted); overflow-wrap: anywhere; }
 .event-meta { margin: 0; font-size: 14px; color: var(--muted); }
-.event-description { margin: 10px 0 0; font-size: 14px; line-height: 1.55; white-space: pre-line; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
-.event-link { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; margin-bottom: -12px; color: var(--link); font-size: 14px; font-weight: 700; }
+
+/* Next up */
+.event-next {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px 18px 18px; margin-bottom: 12px;
+  border: 1px solid color-mix(in srgb, var(--kind) 45%, var(--line));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--kind) 9%, var(--surface));
+}
+.event-next:hover { border-color: color-mix(in srgb, var(--kind) 70%, var(--line)); }
+.event-next-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.event-next-label { font: 800 11px var(--font-body); letter-spacing: .16em; text-transform: uppercase; color: var(--ink); }
+.event-countdown {
+  display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px;
+  background: var(--ink-fill); color: #fff; font: 800 12px var(--font-body); white-space: nowrap;
+}
+.event-countdown.is-past { background: var(--surface-3); color: var(--ink); }
+.event-next-main { display: grid; grid-template-columns: 56px 1fr; gap: 14px; align-items: center; }
+.event-next-emoji, .event-hero-emoji {
+  display: grid; place-items: center; width: 56px; height: 56px; border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--kind) 45%, var(--line));
+  background: color-mix(in srgb, var(--kind) 18%, var(--surface));
+  font-size: 30px; line-height: 1;
+}
+.event-next-text { min-width: 0; }
+.event-next h2 { margin: 3px 0 4px; font: 800 21px/1.25 var(--font-display); overflow-wrap: anywhere; }
+.event-next .event-lead { margin: 0; font-size: 14px; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.event-next-cta { display: inline-flex; align-items: center; gap: 6px; color: var(--link); font-size: 14px; font-weight: 800; }
+
+/* The year map, one tap from the top of the list */
+.events-map-link {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 26px; padding: 10px 14px 10px 10px;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+}
+.events-map-link:hover { border-color: var(--line-strong); background: var(--surface-2); }
+.events-map-icon { display: grid; place-items: center; flex-shrink: 0; width: 42px; height: 42px; border-radius: 10px; background: color-mix(in srgb, var(--forest) 14%, var(--surface)); color: var(--forest); }
+.events-map-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.events-map-text strong { font: 800 15px var(--font-display); }
+.events-map-text span { font-size: 13px; color: var(--muted); }
+.events-map-chevron, .event-chevron { flex-shrink: 0; color: var(--muted); }
+
+/* The month lists */
+.events-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.events-list > li + li { border-top: 1px solid var(--line); }
+.event-row { display: grid; grid-template-columns: 52px 1fr 18px; gap: 14px; align-items: start; padding: 16px 14px 16px 16px; }
+.event-row:hover { background: var(--surface-2); }
+.event-chevron { align-self: center; }
+.event-date {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; height: 56px;
+  border: 1px solid color-mix(in srgb, var(--kind) 45%, var(--line)); border-radius: 10px;
+  background: color-mix(in srgb, var(--kind) 15%, var(--surface)); line-height: 1;
+}
+.event-date span { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.event-date strong { margin-top: 4px; font: 800 22px var(--font-display); }
+.event-date em { position: absolute; right: -8px; bottom: -8px; font-style: normal; font-size: 17px; line-height: 1; }
+.event-date em:empty { display: none; }
+.event-body { min-width: 0; }
+.event-body h3 { margin: 3px 0 4px; font: 800 17px/1.3 var(--font-display); overflow-wrap: anywhere; }
+.event-description { margin: 8px 0 0; font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.event-route { display: flex; align-items: center; gap: 5px; margin: 8px 0 0; font-size: 13.5px; font-weight: 700; }
+.event-route svg { flex-shrink: 0; color: var(--forest); }
+
+.event-facts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.event-chip {
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px 2px 8px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface-2);
+  font: 700 12px/18px var(--font-body); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.event-chip svg { color: var(--muted); }
+.difficulty-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.event-chip.difficulty.is-beginner { border-color: var(--ok-line); background: var(--ok-bg); color: var(--ok-fg); }
+.event-chip.difficulty.is-moderate { border-color: var(--info-line); background: var(--info-bg); color: var(--info-fg); }
+.event-chip.difficulty.is-challenging { border-color: var(--bad-line); background: var(--bad-bg); color: var(--bad-fg); }
+.event-chip.difficulty.is-difficult,
+.event-chip.difficulty.is-extreme { border-color: var(--ink); background: var(--surface); color: var(--ink); }
+.event-chip.difficulty.is-extreme .difficulty-dot { box-shadow: 10px 0 0 currentColor; margin-right: 10px; }
+
 .event-status { display: inline-block; margin-left: 8px; padding: 2px 8px; border: 1px solid var(--warn-line); border-radius: 999px; background: var(--warn-bg); color: var(--warn-fg); font: 800 10px var(--font-body); letter-spacing: .08em; text-transform: uppercase; vertical-align: 3px; }
 .event-status.is-cancelled { border-color: var(--bad-line); background: var(--bad-bg); color: var(--bad-fg); }
-.event-row.is-cancelled h3 { text-decoration: line-through; text-decoration-thickness: 1px; }
-.event-row.is-cancelled .event-date, .event-row.is-cancelled .event-meta, .event-row.is-cancelled .event-description { opacity: .6; }
+.event-row.is-cancelled h3, .event-page.is-cancelled .event-hero h2 { text-decoration: line-through; text-decoration-thickness: 1px; }
+.event-row.is-cancelled .event-date, .event-row.is-cancelled .event-meta, .event-row.is-cancelled .event-facts,
+.event-row.is-cancelled .event-route, .event-row.is-cancelled .event-description { opacity: .55; }
 .events-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 48px 20px; border: 1px dashed var(--line-strong); border-radius: 12px; text-align: center; color: var(--muted); }
 .events-empty p { max-width: 340px; margin: 0; font-size: 15px; line-height: 1.55; }
+
+/* One event */
+.event-page { max-width: 760px; }
+.event-back { display: inline-flex; align-items: center; gap: 2px; min-height: 44px; margin: -8px 0 4px -6px; padding-right: 8px; color: var(--muted); font-size: 14px; font-weight: 700; }
+.event-back:hover { color: var(--ink); }
+.event-hero-image { display: block; width: 100%; aspect-ratio: 16 / 9; margin-bottom: 16px; object-fit: cover; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); }
+.event-hero { display: grid; grid-template-columns: 64px 1fr; gap: 16px; align-items: start; }
+.event-hero-emoji { width: 64px; height: 64px; border-radius: 16px; font-size: 34px; }
+.event-hero-text { min-width: 0; }
+.event-hero h2 { margin: 4px 0 6px; font: 800 26px/1.2 var(--font-display); overflow-wrap: anywhere; }
+.event-hero-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.event-hero-chips:empty { display: none; }
+.event-hero-chips .event-status { margin-left: 0; vertical-align: 0; }
+
+.event-stats, .walkmap-stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1px; margin: 20px 0 0;
+  border: 1px solid var(--line); border-radius: 12px; background: var(--line); overflow: hidden;
+}
+.event-stats > div, .walkmap-stats > div { padding: 12px 14px; background: var(--surface); }
+.event-stats dt, .walkmap-stats dt { font: 800 10.5px var(--font-body); letter-spacing: .13em; text-transform: uppercase; color: var(--muted); }
+.event-stats dd, .walkmap-stats dd { margin: 5px 0 0; font: 800 20px/1.2 var(--font-display); font-variant-numeric: tabular-nums; }
+.event-stats dd .event-chip { font-size: 13px; }
+
+.event-page-lead { margin: 20px 0 0; font-size: 16px; line-height: 1.65; overflow-wrap: anywhere; }
+.event-section { margin-top: 24px; }
+.event-section-title { margin: 0 0 10px; font: 800 12px var(--font-body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.event-day { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
+.event-day-rows { margin: 0; padding: 0; list-style: none; }
+.event-day-rows li { display: grid; grid-template-columns: 18px 72px 1fr; gap: 10px; align-items: baseline; padding: 12px 14px; font-size: 15px; }
+.event-day-rows li + li { border-top: 1px solid var(--line); }
+.event-day-rows svg { align-self: center; color: var(--forest); }
+.event-day-label { font: 800 10.5px var(--font-body); letter-spacing: .13em; text-transform: uppercase; color: var(--muted); }
+.event-day-value { font-weight: 700; overflow-wrap: anywhere; }
+.event-day .hike-map { border-top: 1px solid var(--line); }
+.event-day-rows:empty + .hike-map { border-top: 0; }
+.event-day-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--line); }
+.event-day-actions:empty { display: none; }
+.event-day > :first-child.event-day-actions { border-top: 0; }
+
+.event-more { margin-top: 24px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.event-more summary { display: flex; align-items: center; min-height: 48px; padding: 0 16px; font-weight: 800; cursor: pointer; }
+.event-more[open] summary { border-bottom: 1px solid var(--line); }
+.event-text { padding: 6px 16px 14px; overflow-wrap: anywhere; }
+.event-section > .event-text { padding: 0; }
+.event-text p { margin: 0 0 8px; font-size: 14.5px; line-height: 1.6; }
+.event-text h4 { margin: 18px 0 6px; font: 800 13px/1.4 var(--font-body); letter-spacing: .02em; }
+
+/* The year map */
+.walkmap-page { max-width: 960px; }
+.walkmap-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.walkmap-head h2 { margin: 4px 0 0; font: 800 28px/1.15 var(--font-display); }
+.walkmap-years { display: flex; gap: 6px; }
+.walkmap-years a { display: inline-flex; align-items: center; gap: 2px; min-height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 14px; font-weight: 700; }
+.walkmap-years a:hover { border-color: var(--ink); }
+.walkmap-stats { grid-template-columns: repeat(4, 1fr); margin-bottom: 14px; }
+.walkmap-stats dd { font-size: 24px; }
+.walkmap-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 2px 0; font-size: 12.5px; color: var(--muted); }
+.walkmap-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.walkmap-records { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin: 20px 0 26px; }
+.walkmap-records a { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.walkmap-records a:hover { background: var(--surface-2); }
+.walkmap-records strong { font: 800 16px/1.3 var(--font-display); }
+.walkmap-records a > span:last-child { font-size: 14px; font-weight: 700; color: var(--forest); font-variant-numeric: tabular-nums; }
+.walkmap-page .events-empty { margin-top: 4px; }
+.walkmap-row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; }
+.walkmap-row:hover { background: var(--surface-2); }
+.walkmap-row > .hike-pin { flex-shrink: 0; width: 30px; height: 30px; }
+.walkmap-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.walkmap-row-text strong { font-size: 15px; line-height: 1.3; overflow-wrap: anywhere; }
+.walkmap-row-text span { font-size: 13px; color: var(--muted); }
+.walkmap-row .event-chip { flex-shrink: 0; }
+
+/* Maps (Leaflet). Its panes stack up to z-index 1000, so the map keeps them in
+   a stacking context of its own, under the sticky bars. */
+.hike-map { position: relative; z-index: 0; isolation: isolate; height: 240px; background: var(--surface-2); }
+.hike-map.is-interactive { height: min(62vh, 560px); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.hike-map.leaflet-container { font-family: var(--font-body); background: var(--surface-2); }
+/* OpenStreetMap's tiles are drawn for a road atlas; greyed down they sit on the
+   page like a printed map, and inverted (hues turned back) they suit the dark theme. */
+.hike-map .leaflet-tile-pane { filter: grayscale(.55) contrast(.92) brightness(1.03); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .hike-map .leaflet-tile-pane { filter: grayscale(.6) invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); }
+}
+:root[data-theme="dark"] .hike-map .leaflet-tile-pane { filter: grayscale(.6) invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); }
+.hike-map .leaflet-control-attribution { background: color-mix(in srgb, var(--surface) 85%, transparent); color: var(--muted); font-size: 10px; }
+.hike-map .leaflet-control-attribution a { color: inherit; }
+.hike-map .leaflet-bar { border: 1px solid var(--line-strong); border-radius: 8px; box-shadow: none; overflow: hidden; }
+.hike-map .leaflet-bar a { width: 36px; height: 36px; line-height: 36px; background: var(--surface); color: var(--ink); border-bottom-color: var(--line); }
+.hike-map .leaflet-bar a:hover { background: var(--surface-2); }
+
+.hike-pin, .hike-end, .hike-route { --pin: var(--forest); }
+.is-beginner:is(.hike-pin, .hike-end, .hike-route) { --pin: var(--grade-beginner); }
+.is-moderate:is(.hike-pin, .hike-end, .hike-route) { --pin: var(--grade-moderate); }
+.is-challenging:is(.hike-pin, .hike-end, .hike-route) { --pin: var(--grade-challenging); }
+.is-difficult:is(.hike-pin, .hike-end, .hike-route),
+.is-extreme:is(.hike-pin, .hike-end, .hike-route) { --pin: var(--grade-difficult); }
+.hike-pin {
+  display: grid; place-items: center; width: 100%; height: 100%;
+  border: 2px solid #fff; border-radius: 999px; background: var(--pin); color: #fff;
+  font: 800 12px/1 var(--font-body); font-variant-numeric: tabular-nums;
+}
+.hike-pin.is-upcoming { border: 2px dashed var(--pin); background: var(--surface); color: var(--pin); }
+.hike-pin.is-key { display: inline-block; width: 12px; height: 12px; border-width: 0; }
+.hike-pin.is-key.is-upcoming { border-width: 2px; }
+.hike-end { display: block; width: 100%; height: 100%; border: 3px solid var(--pin); border-radius: 999px; background: #fff; }
+.hike-route { stroke: var(--pin); }
+.hike-route.is-upcoming { stroke-opacity: .45; }
+.walkmap-list .hike-pin { border-color: var(--surface); }
+
+.hike-map .leaflet-tooltip.hike-tip {
+  padding: 2px 7px; border: 1px solid var(--line-strong); border-radius: 6px; box-shadow: none;
+  background: var(--surface); color: var(--ink); font: 700 12px var(--font-body);
+}
+.hike-map .leaflet-tooltip.hike-tip::before { display: none; }
+.hike-map .leaflet-popup-content-wrapper { border: 1px solid var(--line-strong); border-radius: 10px; box-shadow: none; background: var(--surface); color: var(--ink); }
+.hike-map .leaflet-popup-tip { box-shadow: none; background: var(--surface); border: 1px solid var(--line-strong); }
+.hike-map .leaflet-popup-content { margin: 12px 14px; font-size: 13px; line-height: 1.4; }
+.hike-popup { display: flex; flex-direction: column; gap: 3px; }
+.hike-popup strong { font: 800 15px/1.3 var(--font-display); }
+.hike-popup-date { font: 800 10px var(--font-body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.hike-popup-facts { color: var(--muted); }
+.hike-popup a[data-nav] { display: inline-flex; align-items: center; min-height: 32px; color: var(--link); font-weight: 800; }
+
 @media (max-width: 768px) {
   /* The month is the one piece of context a long list loses as it scrolls, so
      it stays put under the title bar until the next month pushes it off. */
-  .events-month {
+  .events-page .events-month {
     position: sticky; z-index: 10;
     top: calc(44px + var(--safe-top));
     margin: 0 -16px 8px; padding: 10px 16px 8px;
@@ -1921,16 +2139,25 @@ select:focus {
   }
   .events-page section + section { margin-top: 18px; }
   .events-list { border-radius: 14px; }
-  .event-row { grid-template-columns: 48px 1fr; gap: 14px; padding: 14px 14px; }
+  .event-row { grid-template-columns: 48px 1fr 16px; gap: 14px; padding: 14px 12px 14px 14px; }
   .event-date { height: 52px; }
   .event-date strong { font-size: 21px; }
   .event-body h3 { font-size: 16px; }
-  /* Three lines of blurb is enough to decide on a walk from a list; the rest
-     is what the event's own page is for. */
-  .event-description { -webkit-line-clamp: 3; font-size: 13.5px; }
-  /* A map link is a 44px target that should not also be a 44px hole in the row. */
-  .event-link { margin-top: -6px; margin-bottom: -10px; }
+  .event-description { font-size: 13.5px; }
+  .event-next { padding: 14px 14px 16px; }
+  .event-next h2 { font-size: 19px; }
+  .events-map-link { margin-bottom: 20px; }
   .events-empty { padding: 40px 16px; }
+  .event-hero { grid-template-columns: 56px 1fr; gap: 14px; }
+  .event-hero-emoji { width: 56px; height: 56px; font-size: 30px; }
+  .event-hero h2 { font-size: 22px; }
+  .event-stats { grid-template-columns: repeat(2, 1fr); }
+  .event-day-actions .kit-btn { flex: 1 1 auto; min-height: 44px; }
+  .walkmap-head h2 { font-size: 24px; }
+  .walkmap-stats { grid-template-columns: repeat(2, 1fr); }
+  .walkmap-stats dd { font-size: 21px; }
+  .hike-map.is-interactive { height: 56vh; margin: 0 -16px; border-radius: 0; border-left: 0; border-right: 0; }
+  .walkmap-legend { margin-top: 8px; }
 }
 
 /* ==========================================================================

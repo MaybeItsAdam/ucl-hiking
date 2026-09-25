@@ -38,6 +38,38 @@ export function eventWhen(event: Pick<SUEvent, "starts_at" | "ends_at" | "is_all
   return end && end > start ? `${time(start)}–${time(end)}` : time(start);
 }
 
+/** "Saturday 18 October", and the year too when it is not this one. */
+export function longDate(iso: string, now = new Date()): string {
+  const date = new Date(iso);
+  const sameYear = part(date, { year: "numeric" }) === part(now, { year: "numeric" });
+  return part(date, { weekday: "long", day: "numeric", month: "long", ...(sameYear ? {} : { year: "numeric" }) });
+}
+
+/** Days since the epoch of the London calendar date, so "tomorrow" means the date, not 24 hours. */
+function londonDayNumber(date: Date): number {
+  const [y, m, d] = part(date, { year: "numeric", month: "2-digit", day: "2-digit" }).split("/").reverse().map(Number);
+  return Date.UTC(y, m - 1, d) / 86_400_000;
+}
+
+/** "Today", "Tomorrow", "In 5 days", "Happening now", or how long ago it was. */
+export function countdown(
+  event: Pick<SUEvent, "starts_at" | "ends_at">,
+  now = new Date(),
+): { label: string; past: boolean } | null {
+  if (!event.starts_at) return null;
+  const start = new Date(event.starts_at);
+  const end = event.ends_at ? new Date(event.ends_at) : null;
+  if (end && start <= now && now <= end && londonDayNumber(end) !== londonDayNumber(start)) {
+    return { label: "Happening now", past: false };
+  }
+  const days = londonDayNumber(start) - londonDayNumber(now);
+  if (days === 0) return { label: "Today", past: false };
+  if (days === 1) return { label: "Tomorrow", past: false };
+  if (days > 1) return { label: days < 14 ? `In ${days} days` : `In ${Math.round(days / 7)} weeks`, past: false };
+  if (days === -1) return { label: "Yesterday", past: true };
+  return { label: -days < 14 ? `${-days} days ago` : -days < 60 ? `${Math.round(-days / 7)} weeks ago` : "Done", past: true };
+}
+
 /** Events in start order, grouped under a heading per month. */
 export function groupEventsByMonth(events: SUEvent[]): EventMonth[] {
   const months: EventMonth[] = [];

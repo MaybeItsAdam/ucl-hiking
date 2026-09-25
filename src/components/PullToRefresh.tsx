@@ -65,7 +65,7 @@ export function PullToRefresh({ children }: { children: ReactNode }) {
         event.touches.length > 1 ||
         window.scrollY > 0 ||
         !target?.closest(".app-shell") ||
-        target.closest(".app-tabs, [role='dialog'], .modal-overlay")
+        target.closest(".app-tabs, [role='dialog'], .modal-overlay, [data-no-swipe]")
       ) {
         gesture = null;
         return;

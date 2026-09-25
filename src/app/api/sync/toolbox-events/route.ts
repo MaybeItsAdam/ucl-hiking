@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/access";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { eventPlaces } from "@/lib/hikeMap";
+import { fillPlaceGeocodes } from "@/lib/places";
 import { TOOLBOX_EVENT_SOURCE, toolboxEventRow, type ToolboxEventData } from "@/lib/toolboxEvents";
 
 /**
@@ -16,6 +18,9 @@ import { TOOLBOX_EVENT_SOURCE, toolboxEventRow, type ToolboxEventData } from "@/
  *
  * Vercel Cron calls it with `Authorization: Bearer $CRON_SECRET`; committee can
  * also run it by hand while signed in.
+ *
+ * It also puts new walks on the map: the stations their posts name are looked
+ * up once and kept in `place_geocodes` (see lib/places).
  */
 function bearerMatches(header: string | null): boolean {
   const expected = process.env.CRON_SECRET;
@@ -108,5 +113,20 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, upserted: rows.length, skipped, removed });
+  // Pins for last year's walks onwards. A failure here is logged in the response
+  // and left for tomorrow; it is no reason to fail the reconcile it follows.
+  let geocoded: Awaited<ReturnType<typeof fillPlaceGeocodes>> | { error: string };
+  try {
+    const since = `${new Date().getUTCFullYear() - 1}-01-01T00:00:00Z`;
+    const { data: recent, error } = await supabase
+      .from("events")
+      .select("title, description, location")
+      .gte("starts_at", since);
+    if (error) throw new Error(error.message);
+    geocoded = await fillPlaceGeocodes(eventPlaces(recent ?? []), { budgetMs: 120_000 });
+  } catch (error) {
+    geocoded = { error: error instanceof Error ? error.message : "geocoding failed" };
+  }
+
+  return NextResponse.json({ ok: true, upserted: rows.length, skipped, removed, geocoded });
 }

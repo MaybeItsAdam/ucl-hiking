@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { eventWhen, groupEventsByMonth } from "./eventList";
+import { countdown, eventWhen, groupEventsByMonth } from "./eventList";
 import type { SUEvent } from "./types";
 
 function event(overrides: Partial<SUEvent>): SUEvent {
@@ -39,5 +39,23 @@ describe("groupEventsByMonth", () => {
       ["October 2026", ["b", "c"]],
     ]);
     expect(months[0].items[0]).toMatchObject({ weekday: "Wed", day: "30" });
+  });
+});
+
+describe("countdown", () => {
+  const now = new Date("2026-10-03T21:00:00Z"); // 22:00 BST, Saturday 3 Oct
+
+  it("counts London calendar days, not 24-hour periods", () => {
+    // 23:30 UTC on the 3rd is 00:30 BST on the 4th: tomorrow, though under 3 hours away.
+    expect(countdown(event({ starts_at: "2026-10-03T23:30:00Z" }), now)).toEqual({ label: "Tomorrow", past: false });
+    expect(countdown(event({ starts_at: "2026-10-03T08:00:00Z" }), now)).toEqual({ label: "Today", past: false });
+    expect(countdown(event({ starts_at: "2026-10-08T08:00:00Z" }), now)?.label).toBe("In 5 days");
+    expect(countdown(event({ starts_at: "2026-09-26T08:00:00Z" }), now)).toEqual({ label: "7 days ago", past: true });
+  });
+
+  it("says a weekend away is on while it runs", () => {
+    expect(
+      countdown(event({ starts_at: "2026-10-02T08:00:00Z", ends_at: "2026-10-04T18:00:00Z" }), now)?.label,
+    ).toBe("Happening now");
   });
 });
