@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { NativeAuthBridge } from "@/components/NativeAuthBridge";
+import { NativeSystemBars } from "@/components/NativeSystemBars";
 import { themeScript } from "@/lib/theme";
 import "./globals.css";
 
@@ -12,7 +13,8 @@ export const viewport = {
   width: "device-width",
   initialScale: 1,
   // Lets pages reach under the notch and home indicator in the iOS app, and makes
-  // env(safe-area-inset-*) report real values so they can pad around them.
+  // env(safe-area-inset-*) report real values so they can pad around them. The
+  // Android app draws edge to edge too, and supplies its insets itself.
   viewportFit: "cover",
   colorScheme: "light dark",
 };
@@ -25,6 +27,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       </head>
       <body>
         <NativeAuthBridge />
+        <NativeSystemBars />
         {children}
       </body>
     </html>

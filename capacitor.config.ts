@@ -9,7 +9,9 @@ const config: CapacitorConfig = {
   // Lets the site tell the app from a phone browser (see src/proxy.ts).
   appendUserAgent: "UCLHikingApp",
   android: {
-    adjustMarginsForEdgeToEdge: "auto",
+    // Draw behind the status and navigation bars. MainActivity passes the bars'
+    // sizes to the page as --android-inset-* so it can pad around them itself.
+    adjustMarginsForEdgeToEdge: "disable",
   },
   server: {
     url: appUrl,

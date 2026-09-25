@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { AppShell } from "@/components/AppShell";
 import { MemberAdminPortal } from "@/components/MemberAdminPortal";
 import { can } from "@/lib/access";
 import { getCurrentMember } from "@/lib/session";
@@ -20,8 +19,6 @@ export default async function MembersPage() {
   if (!can(profile, "manage_members")) redirect("/portal");
 
   return (
-    <AppShell active="members">
-      <MemberAdminPortal />
-    </AppShell>
+    <MemberAdminPortal />
   );
 }

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { AppShell } from "@/components/AppShell";
 import { EquipmentPortal } from "@/components/EquipmentPortal";
 import { can } from "@/lib/access";
 import { getCurrentMember } from "@/lib/session";
@@ -25,8 +24,6 @@ export default async function EquipmentPage() {
   );
 
   return (
-    <AppShell active="equipment">
-      <EquipmentPortal memberId={member.id} isPrincipal={isPrincipal} />
-    </AppShell>
+    <EquipmentPortal memberId={member.id} isPrincipal={isPrincipal} />
   );
 }

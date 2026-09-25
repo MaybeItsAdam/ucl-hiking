@@ -1,3 +1,13 @@
+/* Safe areas, in one place. iOS reports them through env(); most Android
+   WebViews report 0 there, so the Android app sets --android-inset-* on the root
+   element itself (SystemBarsPlugin) and those win wherever they exist. */
+:root {
+  --safe-top: var(--android-inset-top, env(safe-area-inset-top, 0px));
+  --safe-right: var(--android-inset-right, env(safe-area-inset-right, 0px));
+  --safe-bottom: var(--android-inset-bottom, env(safe-area-inset-bottom, 0px));
+  --safe-left: var(--android-inset-left, env(safe-area-inset-left, 0px));
+}
+
 :root {
   --ink: #2f4355;
   --deep: #2d4153;
@@ -467,7 +477,7 @@ a, button, [role="button"], label, summary, .roster-row, .event-row {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: max(24px, env(safe-area-inset-bottom));
+  bottom: max(24px, var(--safe-bottom));
   z-index: 5;
   display: flex;
   justify-content: center;
@@ -861,7 +871,7 @@ select:focus {
      a list back to the top first. */
   .portal-subnav {
     position: sticky; z-index: 12;
-    top: calc(44px + env(safe-area-inset-top));
+    top: calc(44px + var(--safe-top));
     gap: 2px;
     padding: 3px;
     margin: 0 0 14px;
@@ -938,7 +948,7 @@ select:focus {
   .modal-card {
     width: 100%;
     max-width: 100%;
-    padding: 0 16px calc(20px + env(safe-area-inset-bottom));
+    padding: 0 16px calc(20px + var(--safe-bottom));
     border-radius: 20px 20px 0 0;
     max-height: 88dvh;
     overflow-y: auto;
@@ -961,9 +971,9 @@ select:focus {
   /* Confirm and Cancel stay on the bottom edge of the sheet however long the
      form is — the one part of a dialog a thumb should never have to scroll to. */
   .modal-card .modal-actions {
-    position: sticky; bottom: calc(-20px - env(safe-area-inset-bottom));
-    margin: 20px -16px calc(-20px - env(safe-area-inset-bottom));
-    padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    position: sticky; bottom: calc(-20px - var(--safe-bottom));
+    margin: 20px -16px calc(-20px - var(--safe-bottom));
+    padding: 12px 16px calc(12px + var(--safe-bottom));
     background: var(--surface); border-top: 1px solid var(--line);
   }
   .modal-card .modal-actions > * {
@@ -1595,7 +1605,7 @@ select:focus {
      alternative is scrolling back to the top to change what you are looking at. */
   .roster-toolbar {
     position: sticky; z-index: 12;
-    top: calc(44px + env(safe-area-inset-top));
+    top: calc(44px + var(--safe-top));
     flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 8px;
     margin: 0 -16px; padding: 8px 16px 10px;
     background: color-mix(in srgb, var(--paper-warm) 88%, transparent);
@@ -1676,7 +1686,7 @@ select:focus {
   .auth-card {
     width: 100%; min-height: 100vh; min-height: 100dvh;
     display: flex; flex-direction: column; justify-content: center;
-    padding: calc(28px + env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+    padding: calc(28px + var(--safe-top)) max(20px, var(--safe-right)) calc(20px + var(--safe-bottom)) max(20px, var(--safe-left));
     border: 0; border-radius: 0; background: none; box-shadow: none;
   }
   .auth-card h1 { font-size: 28px; line-height: 1.15; margin: 4px 0 10px; }
@@ -1717,8 +1727,8 @@ select:focus {
 .app-bar {
   position: sticky; top: 0; z-index: 20;
   display: flex; align-items: center; gap: 28px;
-  height: calc(60px + env(safe-area-inset-top));
-  padding: env(safe-area-inset-top) max(24px, env(safe-area-inset-right)) 0 max(24px, env(safe-area-inset-left));
+  height: calc(60px + var(--safe-top));
+  padding: var(--safe-top) max(24px, var(--safe-right)) 0 max(24px, var(--safe-left));
   background: var(--surface); border-bottom: 1px solid var(--line);
 }
 .app-brand { display: inline-flex; align-items: center; gap: 10px; font: 800 16px var(--font-display); letter-spacing: -.02em; white-space: nowrap; }
@@ -1734,9 +1744,10 @@ select:focus {
 .settings-admin { display: none; }
 
 /* Swiping between tabs (TabSwipe). The pane follows the finger; the next tab
-   slides in from the side the swipe came from. Vertical panning stays native. */
-.app-shell { overflow-x: clip; }
-.tab-swipe { touch-action: pan-y pinch-zoom; }
+   slides in from the side the swipe came from. Vertical panning stays native.
+   The whole shell leaves sideways movement to the page, not just the content: a
+   swipe that starts on the empty space under a short page counts too. */
+.app-shell { overflow-x: clip; touch-action: pan-y pinch-zoom; }
 .tab-enter-right { animation: tab-enter-right .24s cubic-bezier(.2,.8,.2,1); }
 .tab-enter-left { animation: tab-enter-left .24s cubic-bezier(.2,.8,.2,1); }
 @keyframes tab-enter-right { from { transform: translate3d(28%,0,0); opacity: .4; } }
@@ -1745,7 +1756,7 @@ select:focus {
   .tab-enter-right, .tab-enter-left { animation-duration: .01s; }
 }
 .settings-admin .account-popover { left: 0; right: auto; }
-.app-main { padding: 20px max(24px, env(safe-area-inset-right)) 48px max(24px, env(safe-area-inset-left)); }
+.app-main { padding: 20px max(24px, var(--safe-right)) 48px max(24px, var(--safe-left)); }
 
 .account-settings { max-width: 720px; font-size: 16px; line-height: 1.65; }
 .account-settings h2 { margin: 28px 0 10px; font: 800 13px var(--font-body); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
@@ -1786,8 +1797,8 @@ select:focus {
   .app-titlebar {
     position: fixed; top: 0; left: 0; right: 0; z-index: 30;
     display: flex; align-items: center; justify-content: center;
-    height: calc(44px + env(safe-area-inset-top));
-    padding: env(safe-area-inset-top) 16px 0;
+    height: calc(44px + var(--safe-top));
+    padding: var(--safe-top) 16px 0;
     background: color-mix(in srgb, var(--paper-warm) 82%, transparent);
     border-bottom: 1px solid transparent;
     /* Content passing underneath stays legible as texture, not as text. */
@@ -1807,8 +1818,8 @@ select:focus {
      rather than chrome, and the compact bar picks the name up on the way past. */
   .app-page-head {
     display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
-    padding: calc(52px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-left)) 10px
-             max(16px, env(safe-area-inset-right));
+    padding: calc(52px + var(--safe-top)) max(16px, var(--safe-left)) 10px
+             max(16px, var(--safe-right));
   }
   .app-page-head h1 { margin: 0; font: 800 30px/1.1 var(--font-display); letter-spacing: -.02em; }
   .app-title-sentinel { display: block; height: 1px; margin-top: -1px; }
@@ -1819,7 +1830,7 @@ select:focus {
   .app-tabs {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
     gap: 0;
-    padding: 6px env(safe-area-inset-right) max(6px, env(safe-area-inset-bottom)) env(safe-area-inset-left);
+    padding: 6px var(--safe-right) max(6px, var(--safe-bottom)) var(--safe-left);
     background: color-mix(in srgb, var(--surface) 86%, transparent);
     -webkit-backdrop-filter: saturate(180%) blur(16px);
     backdrop-filter: saturate(180%) blur(16px);
@@ -1843,16 +1854,16 @@ select:focus {
   /* Content. The horizontal padding is the phone gutter; the bottom clears the
      tab bar and the home indicator so the last row of a list is never under it. */
   .app-main {
-    padding: 0 max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left));
+    padding: 0 max(16px, var(--safe-right)) 32px max(16px, var(--safe-left));
   }
-  .app-shell.has-tabs .app-main { padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
+  .app-shell.has-tabs .app-main { padding-bottom: calc(92px + var(--safe-bottom)); }
   .account-settings { font-size: 15px; }
 
   /* Pull to refresh. The indicator rests hidden behind the compact title bar
      and the gesture carries it down from there, at half the distance the
      finger travels — the same rate the page moves, so the two stay together. */
   .ptr-indicator {
-    position: fixed; top: calc(52px + env(safe-area-inset-top)); left: 50%; z-index: 25;
+    position: fixed; top: calc(52px + var(--safe-top)); left: 50%; z-index: 25;
     display: grid; place-items: center;
     width: 34px; height: 34px; margin-left: -17px;
     border: 1px solid var(--line); border-radius: 50%;
@@ -1895,7 +1906,7 @@ select:focus {
      it stays put under the title bar until the next month pushes it off. */
   .events-month {
     position: sticky; z-index: 10;
-    top: calc(44px + env(safe-area-inset-top));
+    top: calc(44px + var(--safe-top));
     margin: 0 -16px 8px; padding: 10px 16px 8px;
     background: color-mix(in srgb, var(--paper-warm) 88%, transparent);
     -webkit-backdrop-filter: saturate(180%) blur(12px);
@@ -2061,7 +2072,7 @@ button.kit-item-main { cursor: pointer; }
   .kit-request { grid-template-columns: 1fr; padding: 12px; }
   .kit-request-actions > .kit-btn { flex: 1; min-height: 44px; }
   .kit-request-actions > .kit-btn.danger-text { flex: 0 0 auto; }
-  .app-shell.has-tabs .kit-toast { bottom: calc(78px + env(safe-area-inset-bottom)); }
+  .app-shell.has-tabs .kit-toast { bottom: calc(78px + var(--safe-bottom)); }
   .kit-field input, .kit-field textarea, .kit-field select { font-size: 16px; }
   .kit-btn:active, .kit-icon-btn:active { transform: scale(.97); }
 }
