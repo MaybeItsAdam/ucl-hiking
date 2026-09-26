@@ -34,11 +34,11 @@ npm run dev                      # doppler run -- next dev
 | Doppler config | Synced to | Holds |
 | --- | --- | --- |
 | `dev` | your machine, via `doppler run` | local development |
-| `prd` | Vercel Production (MaybeItsSoftware team, `uclhiking.vercel.app`) | everything production needs, including Supabase and `POSTGRES_URL_NON_POOLING` |
+| `prd` | Vercel Production (`ucl-hiking.vercel.app`) | everything production needs, including Supabase and `POSTGRES_URL_NON_POOLING` |
 | `ci` | GitHub Actions | Android signing, the Play service account, `GOOGLE_SERVICES_JSON_BASE64` |
 
-There is no Vercel Supabase integration on this project, so the Supabase and Postgres variables
-live in Doppler like everything else. `SAFETY_DATA_KEY` is in `prd` only: local dev reads the production
+Doppler is the source for the Supabase and Postgres variables too. If the Vercel Supabase
+integration still writes its own copies, Doppler's sync overwrites them; change them in Doppler. `SAFETY_DATA_KEY` is in `prd` only: local dev reads the production
 database, and a different key there would write details production can't decrypt.
 
 Change a secret in Doppler, never in Vercel or GitHub directly (the next sync overwrites it).
