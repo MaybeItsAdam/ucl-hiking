@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { AccountButton } from "@/components/AccountButton";
+import { CalendarFeed } from "@/components/CalendarFeed";
 import { DeleteAccountForm } from "@/components/DeleteAccountForm";
 import { ThemeSetting } from "@/components/ThemeSetting";
 import { GOVERNANCE_LABELS, MEMBERSHIP_LABELS } from "@/lib/access";
@@ -56,6 +57,17 @@ export default async function AccountPage() {
         </section>
       )}
 
+      {member ? (
+        <section aria-labelledby="calendar">
+          <h2 id="calendar">Calendar</h2>
+          <CalendarFeed />
+          <p className="account-note">
+            Every club event, kept up to date in Google Calendar, Apple Calendar or Outlook.
+            The link is private to you; reset it if you shared it by mistake.
+          </p>
+        </section>
+      ) : null}
+
       <section aria-labelledby="appearance">
         <h2 id="appearance">Appearance</h2>
         <ThemeSetting />
@@ -79,7 +91,6 @@ export default async function AccountPage() {
         <ul>
           <li>your name, email and membership details held by the hiking app</li>
           <li>your equipment requests</li>
-          <li>your walk bookings and waitlist places</li>
         </ul>
         <p>
           It does not delete your UCL account, your Adam&apos;s Campus Toolbox sign-in or

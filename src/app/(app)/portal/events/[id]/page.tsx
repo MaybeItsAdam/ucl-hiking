@@ -1,15 +1,36 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { ChevronLeft, Clock, ExternalLink, Flag, Map as MapIcon, MapPin, Navigation, TrainFront } from "lucide-react";
+import {
+  CalendarPlus,
+  ChevronLeft,
+  Clock,
+  CloudSun,
+  ExternalLink,
+  Flag,
+  Map as MapIcon,
+  MapPin,
+  Navigation,
+  Route,
+  Ticket,
+  TrainFront,
+  UserRound,
+  Users,
+} from "lucide-react";
 import { DifficultyChip } from "@/components/EventFacts";
+import { EventPlanEditor } from "@/components/EventPlanEditor";
+import { KitChecklist } from "@/components/KitChecklist";
+import { OpenExternal } from "@/components/OpenExternal";
+import { profileOf } from "@/lib/access";
 import { HikeMap } from "@/components/HikeMap";
 import { DIFFICULTY_LABELS, eventDetails, formatAscent, formatKm, isHeading, KIND_LABELS } from "@/lib/eventDetails";
 import { countdown, eventWhen, longDate } from "@/lib/eventList";
+import { canEditPlan, getEventPlan } from "@/lib/eventPlans";
 import { getEvent } from "@/lib/events";
 import { mapHikes } from "@/lib/hikeMap";
 import { loadPlaces, type LatLng } from "@/lib/places";
 import { getCurrentMember } from "@/lib/session";
+import { getWalkForecast } from "@/lib/weather";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -19,6 +40,8 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 }
 
 /** Google Maps: a walking route between the pins if there are two, the place if there is one. */
+const clock = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit" });
+
 function mapsUrl(start: LatLng | null, finish: LatLng | null, fallback: string | null): string | null {
   const at = (p: LatLng) => `${p[0].toFixed(5)},${p[1].toFixed(5)}`;
   if (start && finish && at(start) !== at(finish)) {
@@ -37,11 +60,21 @@ export default async function EventPage({ params }: Params) {
   if (!event) notFound();
 
   const details = eventDetails(event);
-  const places = await loadPlaces([details.start, details.finish].filter((p): p is string => Boolean(p)));
+  const [places, plan] = await Promise.all([
+    loadPlaces([details.start, details.finish].filter((p): p is string => Boolean(p))),
+    getEventPlan(event.suu_event_id),
+  ]);
   const [hike] = mapHikes([event], places);
   const pinned = hike && (hike.start || hike.finish) ? hike : null;
   const soon = countdown(event);
   const walking = details.kind === "hike" || details.kind === "walk" || details.kind === "trip";
+  const forecastAt = pinned?.start ?? pinned?.finish ?? null;
+  const forecast = walking && forecastAt && event.status !== "cancelled" ? await getWalkForecast(forecastAt, event.starts_at) : null;
+  const editable = Boolean(event.suu_event_id) && canEditPlan(profileOf(member));
+  const planMeet = plan?.meet_at || plan?.meet_point
+    ? [plan.meet_at ? clock.format(new Date(plan.meet_at)) : null, plan.meet_point].filter(Boolean).join(" · ")
+    : null;
+  const meet = planMeet ?? details.meetingPoint;
   const openInMaps = mapsUrl(
     pinned?.start ?? null,
     pinned?.finish ?? null,
@@ -56,13 +89,16 @@ export default async function EventPage({ params }: Params) {
   ].filter((s) => s !== null);
 
   const day = [
-    details.meetingPoint ? { icon: Clock, label: "Meet", value: details.meetingPoint } : null,
-    walking && details.start ? { icon: TrainFront, label: "Train to", value: details.start } : null,
+    meet ? { icon: Clock, label: "Meet", value: meet } : null,
+    plan?.transport ? { icon: TrainFront, label: "Getting there", value: plan.transport } : null,
+    walking && details.start && !plan?.transport ? { icon: TrainFront, label: "Train to", value: details.start } : null,
     walking && details.finish && details.finish !== details.start
       ? { icon: Flag, label: "Finish", value: details.finish }
       : walking && details.finish
         ? { icon: Flag, label: "Finish", value: `Back at ${details.finish}` }
         : null,
+    plan?.leader ? { icon: UserRound, label: "Leader", value: plan.leader.full_name ?? "Named leader" } : null,
+    plan?.backmarker ? { icon: Users, label: "Backmarker", value: plan.backmarker.full_name ?? "Named backmarker" } : null,
   ].filter((row) => row !== null);
 
   const hasFactSheet = details.more.some(isHeading);
@@ -113,7 +149,63 @@ export default async function EventPage({ params }: Params) {
 
       {details.lead ? <p className="event-page-lead">{details.lead}</p> : null}
 
-      {day.length || pinned || openInMaps || event.location_url ? (
+      <div className="event-actions">
+        {plan?.booking_url && event.status !== "cancelled" ? (
+          <OpenExternal className="kit-btn primary" href={plan.booking_url}>
+            <Ticket size={15} aria-hidden="true" />
+            Book on the SU
+          </OpenExternal>
+        ) : null}
+        {event.starts_at ? (
+          <a className="kit-btn" href={`/api/events/${event.id}/ics`} download>
+            <CalendarPlus size={15} aria-hidden="true" />
+            Add to calendar
+          </a>
+        ) : null}
+        {editable ? <EventPlanEditor eventId={event.id} startsAt={event.starts_at} /> : null}
+      </div>
+
+      {forecast ? (
+        <section className="event-section" aria-labelledby="event-weather">
+          <h3 id="event-weather" className="event-section-title">
+            Forecast
+          </h3>
+          <div className="event-forecast">
+            <CloudSun size={22} aria-hidden="true" />
+            <div className="event-forecast-main">
+              <strong>{forecast.summary}</strong>
+              <span>
+                {forecast.tempMin}° to {forecast.tempMax}°C
+              </span>
+            </div>
+            <dl>
+              {forecast.rainChance !== null ? (
+                <div>
+                  <dt>Rain</dt>
+                  <dd>{forecast.rainChance}%</dd>
+                </div>
+              ) : null}
+              {forecast.windMaxKmh !== null ? (
+                <div>
+                  <dt>Wind</dt>
+                  <dd>
+                    {forecast.windMaxKmh}
+                    {forecast.gustMaxKmh !== null && forecast.gustMaxKmh > forecast.windMaxKmh + 10 ? `–${forecast.gustMaxKmh}` : ""} km/h
+                  </dd>
+                </div>
+              ) : null}
+              {forecast.sunset ? (
+                <div>
+                  <dt>Sunset</dt>
+                  <dd>{forecast.sunset.slice(11, 16)}</dd>
+                </div>
+              ) : null}
+            </dl>
+          </div>
+        </section>
+      ) : null}
+
+      {day.length || pinned || openInMaps || event.location_url || plan?.route_url ? (
         <section className="event-section" aria-labelledby="event-day">
           <h3 id="event-day" className="event-section-title">
             {walking ? "The day" : "Where"}
@@ -145,6 +237,13 @@ export default async function EventPage({ params }: Params) {
                   <ExternalLink size={13} aria-hidden="true" />
                 </a>
               ) : null}
+              {plan?.route_url ? (
+                <OpenExternal className="kit-btn" href={plan.route_url}>
+                  <Route size={15} aria-hidden="true" />
+                  Route
+                  <ExternalLink size={13} aria-hidden="true" />
+                </OpenExternal>
+              ) : null}
               {walking ? (
                 <Link className="kit-btn" href="/portal/events/map">
                   <MapIcon size={15} aria-hidden="true" />
@@ -152,6 +251,28 @@ export default async function EventPage({ params }: Params) {
                 </Link>
               ) : null}
             </div>
+          </div>
+        </section>
+      ) : null}
+
+      {plan?.kit_list.length ? (
+        <section className="event-section" aria-labelledby="event-kit">
+          <h3 id="event-kit" className="event-section-title">
+            What to bring
+          </h3>
+          <KitChecklist eventKey={event.suu_event_id ?? event.id} items={plan.kit_list} />
+        </section>
+      ) : null}
+
+      {plan?.notes ? (
+        <section className="event-section" aria-labelledby="event-notes">
+          <h3 id="event-notes" className="event-section-title">
+            From the leader
+          </h3>
+          <div className="event-text">
+            {plan.notes.split(/\n+/).map((line, i) => (
+              <p key={i}>{line}</p>
+            ))}
           </div>
         </section>
       ) : null}
