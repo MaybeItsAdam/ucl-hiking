@@ -37,8 +37,10 @@ npm run dev                      # doppler run -- next dev
 | `prd` | Vercel Production (`ucl-hiking.vercel.app`) | everything production needs, including Supabase and `POSTGRES_URL_NON_POOLING` |
 | `ci` | GitHub Actions | Android signing, the Play service account, `GOOGLE_SERVICES_JSON_BASE64` |
 
-Doppler is the source for the Supabase and Postgres variables too. If the Vercel Supabase
-integration still writes its own copies, Doppler's sync overwrites them; change them in Doppler. `SAFETY_DATA_KEY` is in `prd` only: local dev reads the production
+Vercel's Supabase integration owns the `SUPABASE_*`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`/`_PUBLISHABLE_KEY`
+and `POSTGRES_*` names, so Doppler must not hold them: a sync that tries to write one fails and
+Doppler disables it. The migration connection string is therefore `MIGRATE_DATABASE_URL` in
+Doppler (the session pooler on port 5432), which `deploy-migrate` prefers over the integration's. `SAFETY_DATA_KEY` is in `prd` only: local dev reads the production
 database, and a different key there would write details production can't decrypt.
 
 Change a secret in Doppler, never in Vercel or GitHub directly (the next sync overwrites it).

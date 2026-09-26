@@ -18,8 +18,9 @@ const REQUIRED = {
   prd: [
     "NEXT_PUBLIC_SUPABASE_URL",
     "SUPABASE_SERVICE_ROLE_KEY",
-    // Production builds apply migrations with it; without it the build fails.
-    "POSTGRES_URL_NON_POOLING",
+    // Production builds apply migrations with it; without it the build fails. Not
+    // POSTGRES_URL_NON_POOLING: Vercel's Supabase integration owns that name.
+    "MIGRATE_DATABASE_URL",
     "NEXT_PUBLIC_APP_URL",
     "SESSION_SECRET",
     "SAFETY_DATA_KEY",
@@ -35,7 +36,7 @@ const REQUIRED = {
 
 /** Shape checks for the ones that break quietly when pasted wrong. */
 const SHAPE = {
-  POSTGRES_URL_NON_POOLING: (v) => /^postgres(ql)?:\/\/[^:]+:[^@]+@/.test(v) || "must be a postgres:// URL with the password in it",
+  MIGRATE_DATABASE_URL: (v) => /^postgres(ql)?:\/\/[^:]+:[^@]+@/.test(v) || "must be a postgres:// URL with the password in it",
   NEXT_PUBLIC_APP_URL: (v) => /^https:\/\//.test(v) || "must be the https:// production URL",
   SESSION_SECRET: (v) => v.length >= 32 || "must be at least 32 characters",
   SAFETY_DATA_KEY: (v) => Buffer.from(v, "base64").length === 32 || "must be 32 bytes, base64 (openssl rand -base64 32)",
