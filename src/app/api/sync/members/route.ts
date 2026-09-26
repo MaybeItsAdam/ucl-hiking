@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { isGovernanceRole, isMembershipTier } from "@/lib/access";
+import { isGovernanceRole, isMembershipTier, type GovernanceRole } from "@/lib/access";
+import { lockedGovernanceRole, lockedWalkLeader, type LockedRoles } from "@/lib/roleLocks";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 
 interface SyncMember {
@@ -70,6 +71,24 @@ export async function POST(request: Request) {
 
   const supabase = getSupabaseAdmin();
   const startedAt = new Date().toISOString();
+
+  // Roles set by hand on the Members page are locked; keep them.
+  const { data: lockedRows, error: lockError } = await supabase
+    .from("members")
+    .select("email,governance_role,is_walk_leader,governance_role_locked,walk_leader_locked")
+    .or("governance_role_locked.eq.true,walk_leader_locked.eq.true");
+  if (lockError) {
+    return NextResponse.json({ error: "Member sync failed" }, { status: 500 });
+  }
+  const locked = new Map(
+    ((lockedRows ?? []) as (LockedRoles & { email: string })[]).map((row) => [row.email.toLowerCase(), row]),
+  );
+  for (const row of rows) {
+    const existing = locked.get(row.email);
+    row.governance_role = lockedGovernanceRole(row.governance_role as GovernanceRole | null, existing);
+    row.is_walk_leader = lockedWalkLeader(row.is_walk_leader, existing);
+  }
+
   const { error } = await supabase.from("members").upsert(rows, { onConflict: "email" });
   if (error) {
     return NextResponse.json({ error: "Member sync failed" }, { status: 500 });

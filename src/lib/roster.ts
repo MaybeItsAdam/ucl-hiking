@@ -77,6 +77,9 @@ export interface RosterAccount {
   governance_role: GovernanceRole | null;
   is_walk_leader: boolean;
   membership_expires_at: string | null;
+  last_signed_in_at?: string | null;
+  governance_role_locked?: boolean;
+  walk_leader_locked?: boolean;
 }
 
 /** One row of the committee membership list. */
@@ -87,10 +90,27 @@ export interface MembershipListEntry {
   membership_tier: MembershipTier;
   membership_expires_at: string | null;
   /** The site account matched to this person, if they have signed in. */
+  member_id: string | null;
   email: string | null;
+  last_signed_in_at: string | null;
   governance_role: GovernanceRole | null;
   is_walk_leader: boolean;
+  /** Set by hand on the Members page; the sync leaves it alone. */
+  governance_role_locked: boolean;
+  walk_leader_locked: boolean;
   on_roster: boolean;
+}
+
+function accountFields(account: RosterAccount | undefined) {
+  return {
+    member_id: account?.id ?? null,
+    email: account?.email ?? null,
+    last_signed_in_at: account?.last_signed_in_at ?? null,
+    governance_role: account?.governance_role ?? null,
+    is_walk_leader: account?.is_walk_leader ?? false,
+    governance_role_locked: account?.governance_role_locked ?? false,
+    walk_leader_locked: account?.walk_leader_locked ?? false,
+  };
 }
 
 /**
@@ -117,9 +137,7 @@ export function buildMembershipList<T extends RosterEntry & { id: string; member
       member_type: entry.member_type,
       membership_tier: entry.membership_tier,
       membership_expires_at: entry.membership_expires_at,
-      email: account?.email ?? null,
-      governance_role: account?.governance_role ?? null,
-      is_walk_leader: account?.is_walk_leader ?? false,
+      ...accountFields(account),
       on_roster: true,
     };
   });
@@ -131,9 +149,7 @@ export function buildMembershipList<T extends RosterEntry & { id: string; member
       member_type: null,
       membership_tier: account.membership_tier,
       membership_expires_at: account.membership_expires_at,
-      email: account.email,
-      governance_role: account.governance_role,
-      is_walk_leader: account.is_walk_leader,
+      ...accountFields(account),
       on_roster: false,
     }),
   );

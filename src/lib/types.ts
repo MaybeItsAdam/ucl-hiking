@@ -14,42 +14,6 @@ export interface Member {
   real_governance_role?: GovernanceRole | null;
 }
 
-export type WalkRegistrationStatus = "confirmed" | "waitlist" | "cancelled";
-
-export interface Walk {
-  id: string;
-  title: string;
-  location: string;
-  starts_at: string;
-  distance_km: number;
-  ascent_m: number;
-  difficulty: "easy" | "moderate" | "challenging";
-  capacity: number;
-  spaces_remaining: number;
-  visibility: "public" | "members" | "explorers";
-  summary: string | null;
-  leader_member_id?: string | null;
-  published?: boolean;
-  created_at?: string;
-  updated_at?: string;
-  leader?: {
-    id: string;
-    full_name: string | null;
-    email: string;
-  } | null;
-  my_registration?: WalkRegistrationStatus | null;
-}
-
-export interface WalkRegistration {
-  walk_id: string;
-  member_id: string;
-  status: WalkRegistrationStatus;
-  created_at: string;
-  updated_at: string;
-  walk?: Walk;
-  member?: Member;
-}
-
 export interface SUEvent {
   id: string;
   suu_event_id: string | null;

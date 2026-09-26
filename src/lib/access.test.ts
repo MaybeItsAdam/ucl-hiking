@@ -1,26 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { accessSummary, can, isGovernanceRole, isMembershipTier } from "./access";
+import { accessSummary, can, canChangeRole, isGovernanceRole, isMembershipTier } from "./access";
+
+const profile = (
+  membershipTier: "taster" | "standard" | "explorer",
+  governanceRole: "committee" | "principal" | "admin" | null = null,
+  isWalkLeader = false,
+) => ({ membershipTier, governanceRole, isWalkLeader });
 
 describe("access model", () => {
   it("keeps walk leadership independent from membership tier", () => {
-    const standardLeader = {
-      membershipTier: "standard" as const,
-      governanceRole: null,
-      isWalkLeader: true,
-    };
-    expect(can(standardLeader, "manage_own_walks")).toBe(true);
-    expect(can(standardLeader, "view_explorer_walks")).toBe(false);
+    const standardLeader = profile("standard", null, true);
+    expect(can(standardLeader, "lead_walks")).toBe(true);
+    expect(can(standardLeader, "manage_walks")).toBe(false);
     expect(accessSummary(standardLeader)).toBe("Standard · Walk leader");
-  });
-
-  it("lets an explorer view explorer walks without granting leader tools", () => {
-    const explorer = {
-      membershipTier: "explorer" as const,
-      governanceRole: null,
-      isWalkLeader: false,
-    };
-    expect(can(explorer, "view_explorer_walks")).toBe(true);
-    expect(can(explorer, "manage_own_walks")).toBe(false);
+    expect(can(profile("explorer"), "lead_walks")).toBe(false);
   });
 
   it("keeps governance separate and validates sync values", () => {
@@ -30,20 +23,19 @@ describe("access model", () => {
     expect(isGovernanceRole("standard")).toBe(false);
   });
 
-  it("permits standard and explorer members to request equipment loan but denies taster members", () => {
-    const taster = { membershipTier: "taster" as const, governanceRole: null, isWalkLeader: false };
-    const standard = { membershipTier: "standard" as const, governanceRole: null, isWalkLeader: false };
-    const explorer = { membershipTier: "explorer" as const, governanceRole: null, isWalkLeader: false };
-
-    expect(can(taster, "request_equipment")).toBe(false);
-    expect(can(standard, "request_equipment")).toBe(true);
-    expect(can(explorer, "request_equipment")).toBe(true);
+  it("lets only explorers and committee borrow kit; principals lend it", () => {
+    expect(can(profile("taster"), "request_equipment")).toBe(false);
+    expect(can(profile("standard"), "request_equipment")).toBe(false);
+    expect(can(profile("standard", null, true), "request_equipment")).toBe(false);
+    expect(can(profile("explorer"), "request_equipment")).toBe(true);
+    expect(can(profile("standard", "committee"), "request_equipment")).toBe(true);
+    expect(can(profile("standard", "principal"), "request_equipment")).toBe(false);
   });
 
-  it("restricts SU session management to principal and admin roles only", () => {
-    const committee = { membershipTier: "standard" as const, governanceRole: "committee" as const, isWalkLeader: false };
-    const principal = { membershipTier: "standard" as const, governanceRole: "principal" as const, isWalkLeader: false };
-    const admin = { membershipTier: "explorer" as const, governanceRole: "admin" as const, isWalkLeader: false };
+  it("restricts SU session management and kit to principal and admin roles only", () => {
+    const committee = profile("standard", "committee");
+    const principal = profile("standard", "principal");
+    const admin = profile("explorer", "admin");
 
     expect(can(committee, "manage_suu_session")).toBe(false);
     expect(can(principal, "manage_suu_session")).toBe(true);
@@ -54,5 +46,35 @@ describe("access model", () => {
     expect(can(committee, "manage_equipment")).toBe(false);
     expect(can(principal, "review_equipment_requests")).toBe(true);
     expect(can(principal, "manage_equipment")).toBe(true);
+  });
+});
+
+describe("canChangeRole", () => {
+  const member = { id: "m", governanceRole: null };
+  const committee = { id: "c", governanceRole: "committee" as const };
+  const principal = { id: "p", governanceRole: "principal" as const };
+  const admin = { id: "a", governanceRole: "admin" as const };
+  const leaderOn = { field: "is_walk_leader" as const, value: true };
+  const makeCommittee = { field: "governance_role" as const, value: "committee" as const };
+  const removeRole = { field: "governance_role" as const, value: null };
+
+  it("lets any governance role toggle walk leader, but not ordinary members", () => {
+    expect(canChangeRole(committee, member, leaderOn)).toBe(true);
+    expect(canChangeRole(principal, member, leaderOn)).toBe(true);
+    expect(canChangeRole(member, { id: "x", governanceRole: null }, leaderOn)).toBe(false);
+  });
+
+  it("lets only a principal (or admin) grant or remove committee", () => {
+    expect(canChangeRole(committee, member, makeCommittee)).toBe(false);
+    expect(canChangeRole(principal, member, makeCommittee)).toBe(true);
+    expect(canChangeRole(admin, member, makeCommittee)).toBe(true);
+    expect(canChangeRole(principal, { id: "c2", governanceRole: "committee" }, removeRole)).toBe(true);
+    expect(canChangeRole(committee, { id: "c2", governanceRole: "committee" }, removeRole)).toBe(false);
+  });
+
+  it("never touches principals or admins, and nobody edits themselves", () => {
+    expect(canChangeRole(principal, { id: "p2", governanceRole: "principal" }, removeRole)).toBe(false);
+    expect(canChangeRole(admin, { id: "a2", governanceRole: "admin" }, makeCommittee)).toBe(false);
+    expect(canChangeRole(principal, principal, leaderOn)).toBe(false);
   });
 });

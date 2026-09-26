@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { can } from "@/lib/access";
+import { can, profileOf } from "@/lib/access";
 import { buildMembershipList, type RosterAccount } from "@/lib/roster";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
@@ -30,12 +30,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const profile = {
-    membershipTier: member.membership_tier,
-    governanceRole: member.governance_role,
-    isWalkLeader: member.is_walk_leader,
-  };
-  if (!can(profile, "manage_members")) {
+  if (!can(profileOf(member), "manage_members")) {
     return NextResponse.json({ error: "Forbidden: Committee access required" }, { status: 403 });
   }
 
@@ -59,7 +54,9 @@ export async function GET() {
     fetchAll((from, to) =>
       supabase
         .from("members")
-        .select("id, email, full_name, membership_tier, governance_role, is_walk_leader, membership_expires_at")
+        .select(
+          "id, email, full_name, membership_tier, governance_role, is_walk_leader, membership_expires_at, last_signed_in_at, governance_role_locked, walk_leader_locked",
+        )
         .is("revoked_at", null)
         .order("id")
         .range(from, to),

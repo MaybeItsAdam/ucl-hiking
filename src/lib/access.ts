@@ -17,14 +17,9 @@ export const GOVERNANCE_LABELS: Record<GovernanceRole, string> = {
 };
 
 export type Capability =
-  | "view_member_walks"
-  | "book_walks"
-  | "view_explorer_walks"
-  | "manage_own_walks"
+  | "lead_walks"
   | "manage_walks"
   | "manage_members"
-  | "manage_committee"
-  | "manage_system"
   | "manage_suu_session"
   | "view_sync_monitor"
   | "trigger_sync"
@@ -50,12 +45,7 @@ export function isGovernanceRole(value: unknown): value is GovernanceRole {
 export function can(profile: AccessProfile, capability: Capability): boolean {
   const { membershipTier, governanceRole, isWalkLeader } = profile;
   switch (capability) {
-    case "view_member_walks":
-    case "book_walks":
-      return membershipTier !== "taster";
-    case "view_explorer_walks":
-      return membershipTier === "explorer";
-    case "manage_own_walks":
+    case "lead_walks":
       return isWalkLeader || governanceRole !== null;
     case "manage_walks":
     case "manage_members":
@@ -63,17 +53,59 @@ export function can(profile: AccessProfile, capability: Capability): boolean {
     case "trigger_sync":
       return governanceRole !== null;
     // Principals hold the kit: they lend it and never ask to borrow it.
-    // Committee members borrow from a principal.
+    // Explorers and committee borrow from a principal.
     case "review_equipment_requests":
     case "manage_equipment":
-    case "manage_committee":
     case "manage_suu_session":
       return governanceRole === "principal" || governanceRole === "admin";
-    case "manage_system":
-      return governanceRole === "admin";
     case "request_equipment":
-      return membershipTier !== "taster" || governanceRole !== null;
+      return membershipTier === "explorer" || governanceRole === "committee";
   }
+}
+
+export type RoleChange =
+  | { field: "is_walk_leader"; value: boolean }
+  | { field: "governance_role"; value: "committee" | null };
+
+export interface RoleActor {
+  id: string;
+  governanceRole: GovernanceRole | null;
+}
+
+export interface RoleTarget {
+  id: string;
+  governanceRole: GovernanceRole | null;
+}
+
+/**
+ * Who may change whom from the Members page. Walk leadership is any
+ * governance role's call; committee seats are a principal's. Principal and
+ * admin come from the Toolbox and are never granted or removed in the app.
+ */
+export function canChangeRole(actor: RoleActor, target: RoleTarget, change: RoleChange): boolean {
+  if (actor.governanceRole === null || actor.id === target.id) return false;
+  if (change.field === "is_walk_leader") return true;
+  if (actor.governanceRole !== "principal" && actor.governanceRole !== "admin") return false;
+  // Only ever between "no role" and "committee".
+  return target.governanceRole === null || target.governanceRole === "committee";
+}
+
+/** The kit desk is for borrowers and for the principals who lend to them. */
+export function canUseKit(profile: AccessProfile): boolean {
+  return can(profile, "request_equipment") || can(profile, "manage_equipment");
+}
+
+/** The access profile of a member row, for `can()`. */
+export function profileOf(member: {
+  membership_tier: MembershipTier;
+  governance_role: GovernanceRole | null;
+  is_walk_leader: boolean;
+}): AccessProfile {
+  return {
+    membershipTier: member.membership_tier,
+    governanceRole: member.governance_role,
+    isWalkLeader: member.is_walk_leader,
+  };
 }
 
 export function accessSummary(profile: AccessProfile): string {

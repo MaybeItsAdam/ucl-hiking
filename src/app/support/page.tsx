@@ -27,8 +27,8 @@ export default function SupportPage() {
         <h2>Sign-in and membership</h2>
         <p>
           Sign in with your UCL account through Adam&apos;s Campus Toolbox.
-          Equipment requests are available to eligible Standard and Explorer
-          members. If your membership is missing or you cannot sign in, tell us
+          Equipment requests are available to Explorer members and the
+          committee. If your membership is missing or you cannot sign in, tell us
           what happened and include any error message you saw.
         </p>
         <h2>Equipment requests</h2>

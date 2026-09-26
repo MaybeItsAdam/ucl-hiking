@@ -95,8 +95,19 @@ Keep `TOOLBOX_MEMBERS_AUTHORITATIVE=false` initially. The daily job then reports
 members present on only one side and tier mismatches without changing access.
 After the identities and comparison have been checked, setting it to `true`
 makes ACT authoritative: confirmed members are upserted and previously ACT-owned
-rows absent from a successful, recent, non-empty snapshot are revoked. Committee
-roles and walk-leader flags remain local Hiking policy.
+rows absent from a successful, recent, non-empty snapshot are revoked. The ACT
+sync never touches committee roles or walk-leader flags.
+
+### Roles set on the Members page
+
+Two other writers do set roles: the `hiking-member-sync` cloud job
+(`/api/sync/members`, from `cloud-jobs/src/hiking_sync/policy.py`) and Toolbox
+sign-in (`/api/auth/exchange`). A role changed on the Members page is *locked*
+(`members.governance_role_locked`, `walk_leader_locked`) and both writers keep
+the locked value; "Return to sync" clears the lock. Any governance role can make
+someone a walk leader. Only a principal (or admin) can add or remove a committee
+seat. Principal and admin are never granted in the app, and a Toolbox promotion
+to either overrides a lock.
 
 The [`cloud-jobs`](./cloud-jobs) SU scraper and `/api/sync/roster` name matcher
 remain temporarily available for rollback. Retire them only after the ACT shadow

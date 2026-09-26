@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isGovernanceRole, isMembershipTier } from "@/lib/access";
+import { lockedGovernanceRole, lockedWalkLeader } from "@/lib/roleLocks";
 import { matchRosterByName, ROSTER_SYNC_SOURCE, type RosterEntry } from "@/lib/roster";
 import { setSessionCookie } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
@@ -28,9 +29,10 @@ export async function POST(request: Request) {
   }
 
   // Resolve governance role from Toolbox (global admin, store reviewer, or society committee/principal)
-  const autoGovernanceRole = getSocietyGovernanceRole(identity);
+  const toolboxGovernanceRole = getSocietyGovernanceRole(identity);
 
   if (!isSupabaseConfigured()) {
+    const autoGovernanceRole = toolboxGovernanceRole;
     if (process.env.NODE_ENV !== "production" || autoGovernanceRole !== null) {
       await setSessionCookie({
         toolboxUserId: identity.id,
@@ -49,9 +51,14 @@ export async function POST(request: Request) {
   const supabase = getSupabaseAdmin();
   let { data: member, error } = await supabase
     .from("members")
-    .select("id,email,full_name,membership_tier,governance_role,is_walk_leader,membership_expires_at,revoked_at,sync_source")
+    .select("id,email,full_name,membership_tier,governance_role,is_walk_leader,membership_expires_at,revoked_at,sync_source,governance_role_locked,walk_leader_locked")
     .eq("email", identity.email)
     .maybeSingle();
+
+  // A committee seat granted or removed by a principal on the Members page
+  // stands until they hand it back to the sync; the Toolbox can still make
+  // someone principal or admin.
+  const autoGovernanceRole = lockedGovernanceRole(toolboxGovernanceRole, member ?? undefined);
 
   if (autoGovernanceRole !== null) {
     const defaultTier = autoGovernanceRole === "admin" ? "explorer" : (member?.membership_tier || "standard");
@@ -73,7 +80,7 @@ export async function POST(request: Request) {
             toolbox_user_id: identity.id,
             membership_tier: defaultTier,
             governance_role: autoGovernanceRole,
-            is_walk_leader: autoGovernanceRole === "admin" || (member?.is_walk_leader ?? false),
+            is_walk_leader: lockedWalkLeader(autoGovernanceRole === "admin" || (member?.is_walk_leader ?? false), member ?? undefined),
             sync_source: member?.sync_source ?? "toolbox-auth",
             synced_at: now,
             revoked_at: null,
@@ -82,7 +89,7 @@ export async function POST(request: Request) {
           { onConflict: "email" },
         )
         .select(
-          "id,email,full_name,membership_tier,governance_role,is_walk_leader,membership_expires_at,revoked_at,sync_source",
+          "id,email,full_name,membership_tier,governance_role,is_walk_leader,membership_expires_at,revoked_at,sync_source,governance_role_locked,walk_leader_locked",
         )
         .single();
 
@@ -126,7 +133,7 @@ export async function POST(request: Request) {
           { onConflict: "email" },
         )
         .select(
-          "id,email,full_name,membership_tier,governance_role,is_walk_leader,membership_expires_at,revoked_at,sync_source",
+          "id,email,full_name,membership_tier,governance_role,is_walk_leader,membership_expires_at,revoked_at,sync_source,governance_role_locked,walk_leader_locked",
         )
         .single();
       if (!linkError && linked) {

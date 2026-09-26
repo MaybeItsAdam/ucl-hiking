@@ -520,7 +520,7 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
               {items.length === 0
                 ? isPrincipal
                   ? "Nothing in the inventory yet. Add the first item, or pull it in from Google Sheets."
-                  : "The committee hasn't listed any kit yet."
+                  : "The principals haven't listed any kit yet."
                 : "No kit matches. Try another search or filter."}
             </Empty>
           ) : (

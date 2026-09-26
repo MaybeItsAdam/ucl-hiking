@@ -3,123 +3,13 @@ import type {
   EquipmentRequest,
   Member,
   SUEvent,
-  Walk,
-  WalkRegistration,
-  WalkRegistrationStatus,
 } from "./types";
 
 // In-memory singletons for local dev
-const devWalks: Walk[] = [];
-const devRegistrations: WalkRegistration[] = [];
 const devEquipment: Equipment[] = [];
 const devRequests: EquipmentRequest[] = [];
 const devEvents: SUEvent[] = [];
 const devMembers: Member[] = [];
-
-export function getDevWalks(): Walk[] {
-  return devWalks;
-}
-
-export function addDevWalk(walk: Omit<Walk, "id"> & { id?: string }): Walk {
-  const newWalk: Walk = {
-    ...walk,
-    id: walk.id || `dev-walk-${Date.now()}`,
-    spaces_remaining: walk.capacity,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-  devWalks.push(newWalk);
-  return newWalk;
-}
-
-export function getDevBookings(memberId: string): WalkRegistration[] {
-  return devRegistrations
-    .filter((r) => r.member_id === memberId && (r.status === "confirmed" || r.status === "waitlist"))
-    .map((r) => ({
-      ...r,
-      walk: devWalks.find((w) => w.id === r.walk_id),
-    }));
-}
-
-export function registerDevWalk(
-  member: Member,
-  walkId: string,
-): { ok: boolean; status?: WalkRegistrationStatus; error?: string } {
-  const walk = devWalks.find((w) => w.id === walkId);
-  if (!walk) return { ok: false, error: "Walk not found" };
-
-  const existing = devRegistrations.find(
-    (r) => r.walk_id === walkId && r.member_id === member.id && ["confirmed", "waitlist"].includes(r.status),
-  );
-  if (existing) {
-    return { ok: false, error: `You are already ${existing.status} for this walk.` };
-  }
-
-  const status: WalkRegistrationStatus = walk.spaces_remaining > 0 ? "confirmed" : "waitlist";
-  if (status === "confirmed") {
-    walk.spaces_remaining = Math.max(0, walk.spaces_remaining - 1);
-  }
-
-  const now = new Date().toISOString();
-  devRegistrations.push({
-    walk_id: walkId,
-    member_id: member.id,
-    status,
-    created_at: now,
-    updated_at: now,
-    walk,
-    member,
-  });
-
-  return { ok: true, status };
-}
-
-export function cancelDevWalkRegistration(
-  member: Member,
-  walkId: string,
-): { ok: boolean; error?: string; waitlistPromoted?: string | null } {
-  const regIndex = devRegistrations.findIndex(
-    (r) => r.walk_id === walkId && r.member_id === member.id && ["confirmed", "waitlist"].includes(r.status),
-  );
-  if (regIndex === -1) return { ok: false, error: "No active booking found to cancel." };
-
-  const reg = devRegistrations[regIndex];
-  const wasConfirmed = reg.status === "confirmed";
-  reg.status = "cancelled";
-  reg.updated_at = new Date().toISOString();
-
-  let waitlistPromoted: string | null = null;
-  const walk = devWalks.find((w) => w.id === walkId);
-
-  if (wasConfirmed && walk) {
-    const nextWaitlist = devRegistrations.find((r) => r.walk_id === walkId && r.status === "waitlist");
-    if (nextWaitlist) {
-      nextWaitlist.status = "confirmed";
-      nextWaitlist.updated_at = new Date().toISOString();
-      waitlistPromoted = nextWaitlist.member_id;
-    } else {
-      walk.spaces_remaining = Math.min(walk.capacity, walk.spaces_remaining + 1);
-    }
-  }
-
-  return { ok: true, waitlistPromoted };
-}
-
-export function getDevWalkAttendees(walkId: string) {
-  return devRegistrations
-    .filter((r) => r.walk_id === walkId && (r.status === "confirmed" || r.status === "waitlist"))
-    .map((r) => ({
-      member_id: r.member_id,
-      status: r.status,
-      created_at: r.created_at,
-      member: devMembers.find((m) => m.id === r.member_id) || {
-        id: r.member_id,
-        full_name: "Club Member",
-        email: "member@ucl.ac.uk",
-        membership_tier: "standard",
-      },
-    }));
-}
 
 export function getDevEquipment(): Equipment[] {
   return devEquipment;
@@ -268,34 +158,8 @@ export function getDevEvents(): SUEvent[] {
   return devEvents;
 }
 
-export function getDevMembers(search?: string, tier?: string, role?: string): Member[] {
-  let list = [...devMembers];
-  if (search) {
-    const q = search.toLowerCase();
-    list = list.filter(
-      (m) => m.full_name?.toLowerCase().includes(q) || m.email.toLowerCase().includes(q),
-    );
-  }
-  if (tier) {
-    list = list.filter((m) => m.membership_tier === tier);
-  }
-  if (role === "leader") {
-    list = list.filter((m) => m.is_walk_leader);
-  } else if (role) {
-    list = list.filter((m) => m.governance_role === role);
-  }
-  return list;
-}
-
-export function getDevMemberCounts() {
-  const counts = { taster: 0, standard: 0, explorer: 0, leaders: 0 };
-  for (const m of devMembers) {
-    if (m.membership_tier === "taster") counts.taster++;
-    else if (m.membership_tier === "standard") counts.standard++;
-    else if (m.membership_tier === "explorer") counts.explorer++;
-    if (m.is_walk_leader) counts.leaders++;
-  }
-  return counts;
+export function getDevMembers(): Member[] {
+  return devMembers;
 }
 
 interface DevSessionSettings {
