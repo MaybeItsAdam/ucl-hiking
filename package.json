@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --webpack",
+    "dev": "doppler run -- next dev --webpack",
+    "dev:no-doppler": "next dev --webpack",
     "build": "node scripts/deploy-migrate.mjs && next build --webpack",
     "db:migrate": "node scripts/deploy-migrate.mjs",
     "start": "next start",
@@ -12,7 +13,8 @@
     "cap:android": "cap open android",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "env:check": "node scripts/check-env.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^7.1.0",

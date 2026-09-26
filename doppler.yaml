@@ -1,0 +1,4 @@
+# `doppler setup` in this directory picks these without asking.
+setup:
+  - project: ucl-hiking
+    config: dev

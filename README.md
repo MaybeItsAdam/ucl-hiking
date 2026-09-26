@@ -19,11 +19,32 @@ unavailable. None of those is required for member cross-checking.
 
 ## Local setup
 
+Secrets live in Doppler (project `ucl-hiking`), not in files:
+
 ```bash
-cp .env.example .env.local
+doppler login && doppler setup   # once; doppler.yaml picks ucl-hiking/dev
 npm install
-npm run dev
+npm run dev                      # doppler run -- next dev
 ```
+
+`npm run dev:no-doppler` still reads `.env.local` if you need to work offline.
+
+### Where each secret lives
+
+| Doppler config | Synced to | Holds |
+| --- | --- | --- |
+| `dev` | your machine, via `doppler run` | local development |
+| `prd` | Vercel Production | the app's secrets, e.g. `SESSION_SECRET`, `SAFETY_DATA_KEY`, `FIREBASE_SERVICE_ACCOUNT` |
+| `ci` | GitHub Actions | Android signing, the Play service account, `GOOGLE_SERVICES_JSON_BASE64` |
+
+The Supabase integration in Vercel writes its own `SUPABASE_*` and `POSTGRES_*` variables; they are
+not kept in Doppler. `SAFETY_DATA_KEY` is in `prd` only: local dev reads the production
+database, and a different key there would write details production can't decrypt.
+
+Change a secret in Doppler, never in Vercel or GitHub directly (the next sync overwrites it).
+Before a deploy that needs a new secret, run `npm run env:check -- prd` (or `ci`). It fails on
+missing secrets and on the usual paste mistakes (a short session secret, a safety key that isn't
+32 bytes, a service account that isn't JSON), and never prints a value.
 
 Set the Supabase URL and service-role key, then apply the migrations with
 `MIGRATE_DATABASE_URL=<postgres connection string> npm run db:migrate`.
