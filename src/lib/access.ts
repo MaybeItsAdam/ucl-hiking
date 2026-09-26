@@ -25,7 +25,9 @@ export type Capability =
   | "trigger_sync"
   | "request_equipment"
   | "review_equipment_requests"
-  | "manage_equipment";
+  | "manage_equipment"
+  | "review_incidents"
+  | "manage_club";
 
 export interface AccessProfile {
   membershipTier: MembershipTier;
@@ -57,7 +59,12 @@ export function can(profile: AccessProfile, capability: Capability): boolean {
     case "review_equipment_requests":
     case "manage_equipment":
     case "manage_suu_session":
+    // Incident reports can hold health details, so they stay with the principals.
+    case "review_incidents":
       return governanceRole === "principal" || governanceRole === "admin";
+    // The Club tab: broadcasts, stats, money and the handbook.
+    case "manage_club":
+      return governanceRole !== null;
     case "request_equipment":
       return membershipTier === "explorer" || governanceRole === "committee";
   }

@@ -77,4 +77,14 @@ describe("canChangeRole", () => {
     expect(canChangeRole(admin, { id: "a2", governanceRole: "admin" }, makeCommittee)).toBe(false);
     expect(canChangeRole(principal, principal, leaderOn)).toBe(false);
   });
+
+  it("keeps incident reports with the principals but opens the Club tab to all committee", () => {
+    const committee = { membershipTier: "explorer", governanceRole: "committee", isWalkLeader: false } as const;
+    const principal = { membershipTier: "explorer", governanceRole: "principal", isWalkLeader: false } as const;
+    const leader = { membershipTier: "standard", governanceRole: null, isWalkLeader: true } as const;
+    expect(can(committee, "review_incidents")).toBe(false);
+    expect(can(principal, "review_incidents")).toBe(true);
+    expect(can(committee, "manage_club")).toBe(true);
+    expect(can(leader, "manage_club")).toBe(false);
+  });
 });

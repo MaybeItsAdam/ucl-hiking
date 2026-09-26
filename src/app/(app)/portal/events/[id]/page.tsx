@@ -13,6 +13,7 @@ import {
   Navigation,
   Route,
   Ticket,
+  ClipboardCheck,
   TrainFront,
   UserRound,
   Users,
@@ -22,6 +23,7 @@ import { EventPlanEditor } from "@/components/EventPlanEditor";
 import { KitChecklist } from "@/components/KitChecklist";
 import { OpenExternal } from "@/components/OpenExternal";
 import { profileOf } from "@/lib/access";
+import { walkRole } from "@/lib/attendees";
 import { HikeMap } from "@/components/HikeMap";
 import { DIFFICULTY_LABELS, eventDetails, formatAscent, formatKm, isHeading, KIND_LABELS } from "@/lib/eventDetails";
 import { countdown, eventWhen, longDate } from "@/lib/eventList";
@@ -71,6 +73,7 @@ export default async function EventPage({ params }: Params) {
   const forecastAt = pinned?.start ?? pinned?.finish ?? null;
   const forecast = walking && forecastAt && event.status !== "cancelled" ? await getWalkForecast(forecastAt, event.starts_at) : null;
   const editable = Boolean(event.suu_event_id) && canEditPlan(profileOf(member));
+  const running = Boolean(event.suu_event_id) && walkRole({ id: member.id, ...profileOf(member) }, plan) !== null;
   const planMeet = plan?.meet_at || plan?.meet_point
     ? [plan.meet_at ? clock.format(new Date(plan.meet_at)) : null, plan.meet_point].filter(Boolean).join(" · ")
     : null;
@@ -161,6 +164,12 @@ export default async function EventPage({ params }: Params) {
             <CalendarPlus size={15} aria-hidden="true" />
             Add to calendar
           </a>
+        ) : null}
+        {running && walking ? (
+          <Link className="kit-btn" href={`/portal/events/${event.id}/day`}>
+            <ClipboardCheck size={15} aria-hidden="true" />
+            On the day
+          </Link>
         ) : null}
         {editable ? <EventPlanEditor eventId={event.id} startsAt={event.starts_at} /> : null}
       </div>

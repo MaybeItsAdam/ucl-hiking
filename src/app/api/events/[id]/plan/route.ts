@@ -62,3 +62,40 @@ export async function PUT(request: Request, { params }: Params) {
   });
   return NextResponse.json({ ok: true, plan: data });
 }
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Committee assign the leader or backmarker from the rota, leaving the rest of the plan alone. */
+export async function PATCH(request: Request, { params }: Params) {
+  const member = await getCurrentMember();
+  if (!member) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
+  if (!can(profileOf(member), "manage_walks")) return NextResponse.json({ error: "Only committee assign leaders." }, { status: 403 });
+  if (!isSupabaseConfigured()) return NextResponse.json({ error: "Plans need the database." }, { status: 503 });
+
+  const event = await getEvent((await params).id);
+  if (!event?.suu_event_id) return NextResponse.json({ error: "No such event." }, { status: 404 });
+
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Send it as JSON." }, { status: 400 });
+  }
+  const update: Record<string, string | null> = {};
+  for (const field of ["leader_member_id", "backmarker_member_id"] as const) {
+    if (!(field in body)) continue;
+    const value = body[field];
+    if (value !== null && !(typeof value === "string" && UUID.test(value))) {
+      return NextResponse.json({ error: "Pick someone from the list." }, { status: 400 });
+    }
+    update[field] = value as string | null;
+  }
+  if (!Object.keys(update).length) return NextResponse.json({ error: "Nothing to change." }, { status: 400 });
+
+  const { error } = await getSupabaseAdmin()
+    .from("event_plans")
+    .upsert({ event_suu_id: event.suu_event_id, ...update, updated_by: member.id }, { onConflict: "event_suu_id" });
+  if (error) return NextResponse.json({ error: "That wasn't saved. Try again." }, { status: 500 });
+  await audit(member.id, "event.leaders_assigned", "event", event.suu_event_id, update);
+  return NextResponse.json({ ok: true });
+}

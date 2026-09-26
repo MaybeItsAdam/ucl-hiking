@@ -12,7 +12,9 @@ import {
   Search,
   X,
 } from "lucide-react";
-import type { Equipment, EquipmentCondition, EquipmentRequest, EquipmentRequestStatus } from "@/lib/types";
+import type { Equipment, EquipmentCondition, EquipmentRequest, EquipmentRequestStatus, SUEvent } from "@/lib/types";
+import { eventDetails } from "@/lib/eventDetails";
+import { londonDay } from "@/lib/weather";
 import { Sheet } from "./Sheet";
 import { readCache, writeCache } from "@/lib/client-cache";
 import { useAppRefresh } from "@/lib/refresh";
@@ -107,6 +109,15 @@ interface BorrowDraft {
   start: string;
   end: string;
   purpose: string;
+  eventSuuId: string;
+}
+
+/** An upcoming walk kit can be booked against. */
+interface WalkOption {
+  suuId: string;
+  name: string;
+  start: string;
+  end: string;
 }
 
 interface EquipmentPortalProps {
@@ -150,6 +161,7 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
   const [requestFilter, setRequestFilter] = useState<RequestFilter>("pending");
 
   const [borrow, setBorrow] = useState<BorrowDraft | null>(null);
+  const [walks, setWalks] = useState<WalkOption[] | null>(null);
   const [itemDraft, setItemDraft] = useState<ItemDraft | null>(null);
   const [deleting, setDeleting] = useState<Equipment | null>(null);
   const [declining, setDeclining] = useState<EquipmentRequest | null>(null);
@@ -252,6 +264,7 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
         startDate: borrow.start,
         endDate: borrow.end,
         purpose: borrow.purpose,
+        eventSuuId: borrow.eventSuuId || undefined,
       },
       "Couldn't send the request",
     );
@@ -360,7 +373,39 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
 
   function openBorrow(item: Equipment) {
     const start = localToday();
-    setBorrow({ item, quantity: 1, start, end: start, purpose: "" });
+    setBorrow({ item, quantity: 1, start, end: start, purpose: "", eventSuuId: "" });
+    if (walks === null) {
+      setWalks([]);
+      fetch("/api/events")
+        .then((res) => res.json())
+        .then((body: { events?: SUEvent[] }) =>
+          setWalks(
+            (body.events ?? [])
+              .filter((e) => e.suu_event_id && e.starts_at && e.status !== "cancelled")
+              .filter((e) => ["hike", "walk", "trip"].includes(eventDetails(e).kind))
+              .map((e) => ({
+                suuId: e.suu_event_id!,
+                name: eventDetails(e).name,
+                start: londonDay(e.starts_at!),
+                end: londonDay(e.ends_at ?? e.starts_at!),
+              })),
+          ),
+        )
+        .catch(() => undefined);
+    }
+  }
+
+  function pickWalk(suuId: string) {
+    if (!borrow) return;
+    const walk = walks?.find((w) => w.suuId === suuId);
+    if (!walk) return setBorrow({ ...borrow, eventSuuId: "" });
+    setBorrow({
+      ...borrow,
+      eventSuuId: suuId,
+      start: walk.start < today ? today : walk.start,
+      end: walk.end < today ? today : walk.end,
+      purpose: borrow.purpose || walk.name,
+    });
   }
 
   const pending = useMemo(() => requests.filter((r) => r.status === "pending"), [requests]);
@@ -695,6 +740,18 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
                 />
               </Field>
             )}
+            {walks?.length ? (
+              <Field label="For a walk (optional)">
+                <select value={borrow.eventSuuId} onChange={(e) => pickWalk(e.target.value)}>
+                  <option value="">Not for a club walk</option>
+                  {walks.map((w) => (
+                    <option key={w.suuId} value={w.suuId}>
+                      {w.name} · {formatRange(w.start, w.end)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ) : null}
             <div className="kit-form-row">
               <Field label="From">
                 <input

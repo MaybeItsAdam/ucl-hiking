@@ -3,6 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowRight, CalendarX2, ChevronRight, Map as MapIcon, MapPin } from "lucide-react";
 import { EventFacts, routeLabel } from "@/components/EventFacts";
+import { EventsSubnav } from "@/components/EventsSubnav";
+import { can, profileOf } from "@/lib/access";
 import { eventDetails, formatKm, KIND_LABELS } from "@/lib/eventDetails";
 import { countdown, eventWhen, groupEventsByMonth, longDate } from "@/lib/eventList";
 import { getEventsInClubYear, getUpcomingEvents } from "@/lib/events";
@@ -79,6 +81,7 @@ export default async function EventsPage() {
 
   return (
     <article className="events-page">
+      <EventsSubnav active="upcoming" showRota={can(profileOf(member), "lead_walks")} />
       {next ? <NextUp event={next} /> : null}
 
       <Link href="/portal/events/map" className="events-map-link">

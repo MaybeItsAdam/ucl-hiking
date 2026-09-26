@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { AccountButton } from "@/components/AccountButton";
 import { CalendarFeed } from "@/components/CalendarFeed";
 import { DeleteAccountForm } from "@/components/DeleteAccountForm";
+import { SafetyDetailsForm } from "@/components/SafetyDetailsForm";
 import { ThemeSetting } from "@/components/ThemeSetting";
 import { GOVERNANCE_LABELS, MEMBERSHIP_LABELS } from "@/lib/access";
 import { getCurrentMember, getRealMember, getRolePreviewState, getSession } from "@/lib/session";
@@ -58,6 +59,18 @@ export default async function AccountPage() {
       )}
 
       {member ? (
+        <section aria-labelledby="safety">
+          <h2 id="safety">Emergency details</h2>
+          <p className="account-note">
+            Optional. If you add them, only the leader and backmarker of a walk you&apos;re on can see them, from
+            the day before the walk until the day after, and every look is logged. They&apos;re stored encrypted.
+            Delete them here at any time. See the <Link href="/privacy#safety">privacy policy</Link>.
+          </p>
+          <SafetyDetailsForm />
+        </section>
+      ) : null}
+
+      {member ? (
         <section aria-labelledby="calendar">
           <h2 id="calendar">Calendar</h2>
           <CalendarFeed />
@@ -91,6 +104,7 @@ export default async function AccountPage() {
         <ul>
           <li>your name, email and membership details held by the hiking app</li>
           <li>your equipment requests</li>
+          <li>your emergency details and walk attendance</li>
         </ul>
         <p>
           It does not delete your UCL account, your Adam&apos;s Campus Toolbox sign-in or

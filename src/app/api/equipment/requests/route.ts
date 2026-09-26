@@ -90,6 +90,7 @@ export async function POST(request: Request) {
     startDate?: unknown;
     endDate?: unknown;
     purpose?: unknown;
+    eventSuuId?: unknown;
   };
 
   try {
@@ -103,6 +104,7 @@ export async function POST(request: Request) {
   const startDate = typeof body.startDate === "string" ? body.startDate.trim() : "";
   const endDate = typeof body.endDate === "string" ? body.endDate.trim() : "";
   const purpose = typeof body.purpose === "string" ? body.purpose.trim() : "";
+  const eventSuuId = typeof body.eventSuuId === "string" && body.eventSuuId.trim() ? body.eventSuuId.trim() : null;
 
   if (!equipmentId || !startDate || !endDate || !purpose) {
     return NextResponse.json(
@@ -135,6 +137,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Equipment item not found" }, { status: 404 });
   }
 
+  if (eventSuuId) {
+    const { data: walk } = await supabase.from("events").select("id").eq("suu_event_id", eventSuuId).maybeSingle();
+    if (!walk) return NextResponse.json({ error: "That walk wasn't found" }, { status: 404 });
+  }
+
   if (item.available_quantity < quantity) {
     return NextResponse.json(
       { error: `Requested quantity (${quantity}) exceeds currently available stock (${item.available_quantity})` },
@@ -152,6 +159,8 @@ export async function POST(request: Request) {
       end_date: endDate,
       purpose,
       status: "pending",
+      // Only when set, so a borrow still works before the column's migration has run.
+      ...(eventSuuId ? { event_suu_id: eventSuuId } : {}),
     })
     .select(`*, equipment:equipment_id(*)`)
     .single();
@@ -165,7 +174,7 @@ export async function POST(request: Request) {
     action: "create_equipment_request",
     target_type: "equipment_requests",
     target_id: data.id,
-    metadata: { equipment_id: equipmentId, quantity, start_date: startDate, end_date: endDate },
+    metadata: { equipment_id: equipmentId, quantity, start_date: startDate, end_date: endDate, event: eventSuuId },
   });
 
   return NextResponse.json({ ok: true, request: data });

@@ -114,6 +114,27 @@ remain temporarily available for rollback. Retire them only after the ACT shadow
 comparison has stayed clean through a membership change and at least seven daily
 runs.
 
+## Walks: plans, attendees and the day itself
+
+Everything about a walk is keyed by `events.suu_event_id`, because Toolbox's
+reconcile recreates event rows with new uuids.
+
+- **Plans** (`event_plans`): the trip brief leaders write on the event page.
+  Committee assign the leader and backmarker, from the plan or the Rota.
+- **Attendees** (`event_attendees`): SU ticket holders arrive from Toolbox via
+  `/api/sync/toolbox-attendees` (daily cron, and on demand from the day page).
+  It calls `GET /api/v1/organisers/:id/events/:eventId/attendees`, expecting
+  `{ attendees: [{ name, email }] }` under an `ATTENDEES_READ` scope. **Toolbox
+  doesn't serve that yet**; until it does, the sync logs `unavailable` in
+  `event_sync_runs` and leaders add people on the day.
+- **Emergency details** (`member_safety`) are opt-in and encrypted in the app
+  with `SAFETY_DATA_KEY`. Only a walk's leader and backmarker can read them,
+  for members on that walk, from 24 h before to 24 h after, and every read is
+  audited (`safety.view`). Without the key the feature says it's switched off.
+- **The day page** (`/portal/events/:id/day`) keeps its register in
+  `localStorage` for offline use and replays check-ins when back online. The
+  copy is deleted 24 h after the walk.
+
 ## Toolbox webhooks
 
 `/api/webhooks/toolbox` upserts events straight into Supabase, so it is only

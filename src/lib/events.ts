@@ -55,3 +55,17 @@ export async function getEventsInClubYear(year: number): Promise<SUEvent[]> {
     .limit(1000);
   return (data ?? []) as SUEvent[];
 }
+
+/** Events by their SU ids, oldest first; for a member's walk history. */
+export async function getEventsBySuuIds(ids: string[]): Promise<SUEvent[]> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (!unique.length) return [];
+  if (!isSupabaseConfigured()) return (await devEvents()).filter((e) => e.suu_event_id && unique.includes(e.suu_event_id));
+  const { data } = await getSupabaseAdmin()
+    .from("events")
+    .select("*")
+    .in("suu_event_id", unique)
+    .neq("status", "draft")
+    .order("starts_at", { ascending: true });
+  return (data ?? []) as SUEvent[];
+}

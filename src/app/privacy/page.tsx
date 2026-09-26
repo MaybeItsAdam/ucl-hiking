@@ -23,7 +23,7 @@ export default function PrivacyPage() {
       <article className="privacy-content">
         <p className="privacy-eyebrow">UCL Hiking Club website and mobile app</p>
         <h1>Privacy policy</h1>
-        <p className="privacy-date">Last updated 19 September 2026</p>
+        <p className="privacy-date">Last updated 26 September 2026</p>
         <p>
           MaybeItsSoftware owns and operates this UCL Hiking Club app and hiking website.
           This policy explains the personal information we handle when you visit the site,
@@ -35,7 +35,9 @@ export default function PrivacyPage() {
         <h2>Information we use</h2>
         <ul>
           <li><strong>Identity and membership:</strong> your UCL account identifier, name and email from the Toolbox sign-in handoff; your club membership tier, expiry and role from the club and Students&apos; Union records; and your sign-in time.</li>
-          <li><strong>Club activity:</strong> walks you book or waitlist, equipment requests and their dates, purpose and status, and information you submit to leaders or committee tools.</li>
+          <li><strong>Club activity:</strong> the walks you are on (from your Students&apos; Union ticket, or added by a leader), your check-in and return on the day, equipment requests and their dates, purpose and status, walk plans leaders write, and information you submit to leaders or committee tools.</li>
+          <li><strong>Emergency details, only if you add them:</strong> your mobile number, an emergency contact&apos;s name, relationship and number, and any medical notes you choose to give. See <a href="#safety">Emergency details</a>.</li>
+          <li><strong>Incident reports:</strong> if something happens on a walk, the leader&apos;s account of it, which may name you and describe an injury or illness.</li>
           <li><strong>Technical information:</strong> an essential sign-in cookie, request and error logs, and basic device/browser information needed to serve and protect the website and app.</li>
         </ul>
         <p>
@@ -44,12 +46,28 @@ export default function PrivacyPage() {
           personal information.
         </p>
 
+        <h2 id="safety">Emergency details</h2>
+        <p>
+          Adding emergency details is optional, and you can change or delete them at any time
+          in <Link href="/account">Account settings</Link>. Medical notes are health
+          information, a special category of personal data; we use them only with your
+          explicit consent, which you give by entering them and withdraw by deleting them.
+        </p>
+        <ul>
+          <li><strong>Who sees them:</strong> only the leader and the backmarker of a walk you are on, and only from 24 hours before the walk until 24 hours after it ends. Committee rank alone does not give access.</li>
+          <li><strong>How they are protected:</strong> they are encrypted before they are stored, so the database and its backups hold only unreadable text. Every time a leader&apos;s register shows them, the view is recorded in the audit log.</li>
+          <li><strong>On the leader&apos;s phone:</strong> so the register works without signal, the leader&apos;s phone keeps a copy of the day&apos;s register, including the details they may see, and deletes it 24 hours after the walk.</li>
+          <li><strong>How long:</strong> until you delete them or your app account.</li>
+        </ul>
+
         <h2>Why we use it</h2>
         <p>
           We use identity and membership information to authenticate you, check your
           current club access and show the appropriate member or committee tools. We use
           booking and kit information to run walks, waitlists and equipment lending.
-          We use technical logs and audit records to keep the service working, resolve
+          We use attendance and incident records to keep walks safe, to meet the
+          Students&apos; Union&apos;s insurance and reporting expectations, and to see how the
+          club programme is used. We use technical logs and audit records to keep the service working, resolve
           problems and prevent misuse. These activities are needed to provide the club
           service you request and for our legitimate interests in running it securely.
           Where a legal obligation applies, we may also need to keep or disclose records
@@ -75,7 +93,9 @@ export default function PrivacyPage() {
           password is entered with UCL&apos;s sign-in service and is not stored by the
           hiking app. Access to app records is checked on the server against the current
           membership record; club data is not exposed directly through a browser
-          database key.
+          database key. The app also keeps a few things on your device only: your theme,
+          which kit you have ticked off for a walk, and, for leaders, the day&apos;s register
+          for offline use.
         </p>
 
         <h2>How long information is kept</h2>
