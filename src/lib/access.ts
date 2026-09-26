@@ -27,6 +27,7 @@ export type Capability =
   | "review_equipment_requests"
   | "manage_equipment"
   | "review_incidents"
+  | "manage_money"
   | "manage_club";
 
 export interface AccessProfile {
@@ -61,6 +62,8 @@ export function can(profile: AccessProfile, capability: Capability): boolean {
     case "manage_suu_session":
     // Incident reports can hold health details, so they stay with the principals.
     case "review_incidents":
+    // Trip money is the treasurer's and president's, who are principals.
+    case "manage_money":
       return governanceRole === "principal" || governanceRole === "admin";
     // The Club tab: broadcasts, stats, money and the handbook.
     case "manage_club":

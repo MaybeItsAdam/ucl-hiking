@@ -84,7 +84,9 @@ function matchesSearch(member: Member, query: string): boolean {
 }
 
 function csvCell(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+  // A leading = + - @ would run as a formula in Excel or Sheets; names come from outside.
+  const safe = /^[=+\-@]/.test(value) ? `'${value}` : value;
+  return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
 function toCsv(members: Member[]): string {

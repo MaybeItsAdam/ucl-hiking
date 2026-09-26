@@ -158,6 +158,23 @@ build (CI writes it from the `GOOGLE_SERVICES_JSON_BASE64` secret), the
 `NEXT_PUBLIC_PUSH_ENABLED=true`. iOS additionally needs an APNs key uploaded to
 the Firebase project and `cap sync ios`.
 
+## Club tab (committee)
+
+Any governance role sees **Club**; principals and admins also see Money and Incidents.
+
+- **Stats**: the club year so far, covering walks run, different walkers, the repeat rate, how full walks were
+  (SU tickets ÷ capacity), no-shows (only on walks whose register was used), walkers per month,
+  top leaders and taster conversion. Conversion is read from `member_tier_history`, which a trigger
+  fills whenever a member's tier changes, so it only counts changes after this migration.
+- **Broadcast**: sends to an audience (everyone, a tier, leaders and committee, or the people on a walk)
+  through `notify()`. It is limited to 5 an hour per sender and is audited.
+- **Money**: ticket income per trip is `price × tickets sold` from the SU numbers. The treasurer adds
+  costs and other income lines. `/api/club/finance/csv` exports the year.
+- **Handbook**: Markdown pages in `club_docs`, rendered by `lib/markdown.ts` as React elements
+  and never as HTML. Three empty pages are seeded. Only principals can delete a page.
+- **Incidents**: the reports leaders file from the day-of page. Principals only, because they can
+  describe injuries.
+
 ## Toolbox webhooks
 
 `/api/webhooks/toolbox` upserts events straight into Supabase, so it is only
