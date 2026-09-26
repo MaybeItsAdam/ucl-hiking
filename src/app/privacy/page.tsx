@@ -90,7 +90,7 @@ export default function PrivacyPage() {
         <h2>Cookies, storage and security</h2>
         <p>
           After sign-in, the hiking service sets an essential, secure, HttpOnly session
-          cookie that normally lasts up to seven days. Signing out clears it. Your UCL
+          cookie that lasts up to 90 days, so you stay signed in between walks. Signing out clears it. Your UCL
           password is entered with UCL&apos;s sign-in service and is not stored by the
           hiking app. Access to app records is checked on the server against the current
           membership record; club data is not exposed directly through a browser
