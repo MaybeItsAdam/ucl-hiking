@@ -1,12 +1,28 @@
 import { NextResponse } from "next/server";
 import { can, profileOf } from "@/lib/access";
 import { audit } from "@/lib/audit";
-import { canEditPlan, getEventPlan, mergePlanForEditor, parsePlanInput, saveEventPlan } from "@/lib/eventPlans";
+import { eventDetails } from "@/lib/eventDetails";
+import { canEditPlan, getEventPlan, mergePlanForEditor, newlyAssigned, parsePlanInput, saveEventPlan } from "@/lib/eventPlans";
+import { longDate } from "@/lib/eventList";
+import { notify } from "@/lib/notify";
 import { getEvent } from "@/lib/events";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import type { SUEvent } from "@/lib/types";
 
 type Params = { params: Promise<{ id: string }> };
+
+async function tellAssigned(event: SUEvent, jobs: ReturnType<typeof newlyAssigned>) {
+  const name = eventDetails(event).name;
+  for (const job of jobs) {
+    await notify([job.memberId], {
+      kind: "leader",
+      title: `You're ${job.role === "leader" ? "leading" : "backmarking"} ${name}`,
+      body: event.starts_at ? `${longDate(event.starts_at)}. The plan and the register are on the event page.` : "The plan and the register are on the event page.",
+      url: `/portal/events/${event.id}`,
+    });
+  }
+}
 
 /** The plan plus, for committee, who can be picked to lead or backmark. */
 export async function GET(_request: Request, { params }: Params) {
@@ -60,6 +76,7 @@ export async function PUT(request: Request, { params }: Params) {
     leader: plan.leader_member_id,
     backmarker: plan.backmarker_member_id,
   });
+  await tellAssigned(event, newlyAssigned(existing, plan, member.id));
   return NextResponse.json({ ok: true, plan: data });
 }
 
@@ -92,10 +109,22 @@ export async function PATCH(request: Request, { params }: Params) {
   }
   if (!Object.keys(update).length) return NextResponse.json({ error: "Nothing to change." }, { status: 400 });
 
+  const existing = await getEventPlan(event.suu_event_id);
   const { error } = await getSupabaseAdmin()
     .from("event_plans")
     .upsert({ event_suu_id: event.suu_event_id, ...update, updated_by: member.id }, { onConflict: "event_suu_id" });
   if (error) return NextResponse.json({ error: "That wasn't saved. Try again." }, { status: 500 });
   await audit(member.id, "event.leaders_assigned", "event", event.suu_event_id, update);
+  await tellAssigned(
+    event,
+    newlyAssigned(
+      existing,
+      {
+        leader_member_id: "leader_member_id" in update ? update.leader_member_id : (existing?.leader_member_id ?? null),
+        backmarker_member_id: "backmarker_member_id" in update ? update.backmarker_member_id : (existing?.backmarker_member_id ?? null),
+      },
+      member.id,
+    ),
+  );
   return NextResponse.json({ ok: true });
 }

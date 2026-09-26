@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { AccountButton } from "@/components/AccountButton";
 import { CalendarFeed } from "@/components/CalendarFeed";
 import { DeleteAccountForm } from "@/components/DeleteAccountForm";
+import { NotificationPrefs } from "@/components/NotificationPrefs";
 import { SafetyDetailsForm } from "@/components/SafetyDetailsForm";
 import { ThemeSetting } from "@/components/ThemeSetting";
 import { GOVERNANCE_LABELS, MEMBERSHIP_LABELS } from "@/lib/access";
@@ -57,6 +58,17 @@ export default async function AccountPage() {
           <p className="account-note">See the app as another kind of member.</p>
         </section>
       )}
+
+      {member ? (
+        <section aria-labelledby="notifications-title" id="notifications">
+          <h2 id="notifications-title">Notifications</h2>
+          <NotificationPrefs />
+          <p className="account-note">
+            Everything arrives in your inbox (the bell). In the phone app it&apos;s also sent as a notification, if
+            you allow them.
+          </p>
+        </section>
+      ) : null}
 
       {member ? (
         <section aria-labelledby="safety">

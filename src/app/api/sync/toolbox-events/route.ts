@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/access";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { eventsBefore, notifyEventChanges } from "@/lib/eventChanges";
 import { eventPlaces } from "@/lib/hikeMap";
 import { fillPlaceGeocodes } from "@/lib/places";
 import { TOOLBOX_EVENT_SOURCE, toolboxEventRow, type ToolboxEventData } from "@/lib/toolboxEvents";
@@ -92,8 +93,10 @@ export async function GET(request: Request) {
 
   const supabase = getSupabaseAdmin();
   if (rows.length) {
+    const before = await eventsBefore([...listed]);
     const { error } = await supabase.from("events").upsert(rows, { onConflict: "suu_event_id" });
     if (error) return NextResponse.json({ error: `Database error: ${error.message}` }, { status: 500 });
+    await notifyEventChanges(before, rows);
   }
 
   // Never prune from an empty list: that is far likelier to be a Toolbox fault

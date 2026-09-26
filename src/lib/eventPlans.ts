@@ -168,3 +168,19 @@ export async function saveEventPlan(eventSuuId: string, plan: PlanInput, editorI
     .select(PLAN_SELECT)
     .single();
 }
+
+/** Who has just been given a job on this walk, to tell them. */
+export function newlyAssigned(
+  before: Pick<EventPlan, "leader_member_id" | "backmarker_member_id"> | null,
+  after: Pick<EventPlan, "leader_member_id" | "backmarker_member_id">,
+  editorId: string,
+): { memberId: string; role: "leader" | "backmarker" }[] {
+  const out: { memberId: string; role: "leader" | "backmarker" }[] = [];
+  if (after.leader_member_id && after.leader_member_id !== before?.leader_member_id && after.leader_member_id !== editorId) {
+    out.push({ memberId: after.leader_member_id, role: "leader" });
+  }
+  if (after.backmarker_member_id && after.backmarker_member_id !== before?.backmarker_member_id && after.backmarker_member_id !== editorId) {
+    out.push({ memberId: after.backmarker_member_id, role: "backmarker" });
+  }
+  return out;
+}

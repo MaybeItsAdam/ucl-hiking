@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { eventsBefore, notifyEventChanges } from "@/lib/eventChanges";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { toolboxEventRow, type ToolboxEventData } from "@/lib/toolboxEvents";
 
@@ -104,11 +105,13 @@ export async function POST(request: Request) {
   }
   const row = mapped.row;
 
+  const before = await eventsBefore([eventId]);
   const { error } = await supabase.from("events").upsert(row, { onConflict: "suu_event_id" });
 
   if (error) {
     return NextResponse.json({ error: "Database error: " + error.message }, { status: 500 });
   }
 
+  await notifyEventChanges(before, [row]);
   return NextResponse.json({ received: true, action: "upserted", id: eventId });
 }

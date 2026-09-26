@@ -4,6 +4,7 @@ import { ClubMark } from "@/components/ClubMark";
 import { AccountButton } from "@/components/AccountButton";
 import { AppNavProvider, AppTabs } from "@/components/AppNav";
 import { AppTitleBar } from "@/components/AppTitleBar";
+import { InboxBell } from "@/components/InboxBell";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { TabSwipe } from "@/components/TabSwipe";
 import { availablePages } from "@/lib/app-pages";
@@ -39,6 +40,7 @@ export async function AppShell({ children }: { children: ReactNode }) {
             <span>UCL Hiking</span>
           </Link>
           <AppTabs />
+          {member ? <InboxBell className="app-bar-inbox" /> : null}
           {previewState.isRealAdmin && (
             <div className="app-bar-account">
               <AccountButton
@@ -50,7 +52,7 @@ export async function AppShell({ children }: { children: ReactNode }) {
             </div>
           )}
         </header>
-        <AppTitleBar />
+        <AppTitleBar inbox={Boolean(member)} />
         <main className="app-main">
           <PullToRefresh>
             <TabSwipe>{children}</TabSwipe>

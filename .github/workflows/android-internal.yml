@@ -69,6 +69,14 @@ jobs:
       - name: Sync Capacitor Android shell
         run: npx cap sync android
 
+      # Firebase config for push. Without it the app builds and runs, but push
+      # stays off (NEXT_PUBLIC_PUSH_ENABLED must stay unset until it is here).
+      - name: Add Firebase config
+        env:
+          GOOGLE_SERVICES_JSON_BASE64: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        if: env.GOOGLE_SERVICES_JSON_BASE64 != ''
+        run: echo "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > android/app/google-services.json
+
       - name: Write signing key
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}

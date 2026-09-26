@@ -1786,7 +1786,12 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 }
 .app-tabs a:hover { opacity: 1; }
 .app-tabs a.active { opacity: 1; color: var(--forest); border-bottom-color: var(--forest); }
+.app-bar-inbox { margin-left: auto; }
+.app-bar-inbox + .app-bar-account { margin-left: 8px; }
 .app-bar-account { margin-left: auto; }
+.inbox-bell { position: relative; display: inline-grid; place-items: center; flex: none; width: 44px; height: 44px; border-radius: 999px; color: var(--ink); }
+.inbox-bell:hover { background: var(--surface-2); }
+.inbox-dot { position: absolute; top: 10px; right: 11px; width: 9px; height: 9px; border: 2px solid var(--surface); border-radius: 999px; background: var(--bad-fg); }
 .settings-admin { display: none; }
 
 /* Swiping between tabs (TabSwipe). The pane follows the finger; the next tab
@@ -1834,7 +1839,7 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
     position: static; height: 0; min-height: 0; padding: 0; gap: 0;
     border-bottom: 0; background: none;
   }
-  .app-brand, .app-bar-account { display: none; }
+  .app-brand, .app-bar-account, .app-bar-inbox { display: none; }
   .settings-admin { display: block; }
 
   /* Compact bar. It is always present and always at the top of the screen —
@@ -2114,6 +2119,26 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 .my-walk-in { gap: 3px; margin-left: 8px; border: 1px solid var(--ok-line); background: var(--ok-bg); color: var(--ok-fg); vertical-align: middle; }
 .events-page > .hike-map { margin: 0 0 20px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .events-page > .event-stats { margin-bottom: 16px; }
+
+/* ===== Inbox ===== */
+.inbox { display: grid; gap: 12px; }
+.inbox-all { justify-self: end; display: inline-flex; align-items: center; gap: 6px; }
+.inbox-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.inbox-list > li + li { border-top: 1px solid var(--line); }
+.inbox-list a, .inbox-list button { display: flex; flex-direction: column; gap: 3px; width: 100%; padding: 12px 14px 12px 22px; border: 0; background: none; color: var(--ink); font: inherit; text-align: left; text-decoration: none; cursor: pointer; position: relative; }
+.inbox-list li.is-unread a::before, .inbox-list li.is-unread button::before { content: ""; position: absolute; left: 9px; top: 18px; width: 7px; height: 7px; border-radius: 999px; background: var(--forest); }
+.inbox-list li:not(.is-unread) strong { font-weight: 600; }
+.inbox-body { font-size: 14px; color: var(--muted); }
+
+.notify-prefs { margin-bottom: 8px; }
+.notify-switch { position: relative; display: inline-flex; flex: none; width: 44px; height: 26px; cursor: pointer; }
+.notify-switch input { position: absolute; inset: 0; margin: 0; opacity: 0; cursor: inherit; }
+.notify-switch::before { content: ""; position: absolute; inset: 0; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface-2); transition: background-color .15s ease; }
+.notify-switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 999px; background: var(--ink); transition: transform .15s ease; }
+.notify-switch:has(input:checked)::before { border-color: var(--forest); background: var(--forest); }
+.notify-switch:has(input:checked)::after { transform: translateX(18px); background: var(--on-accent); }
+.notify-switch:has(input:disabled) { opacity: .55; cursor: default; }
+.notify-switch:has(input:focus-visible)::before { outline: 2px solid var(--forest); outline-offset: 2px; }
 
 /* ===== Rota ===== */
 .rota-list { display: grid; gap: 10px; margin: 12px 0 0; padding: 0; list-style: none; }

@@ -38,6 +38,7 @@ export default function PrivacyPage() {
           <li><strong>Club activity:</strong> the walks you are on (from your Students&apos; Union ticket, or added by a leader), your check-in and return on the day, equipment requests and their dates, purpose and status, walk plans leaders write, and information you submit to leaders or committee tools.</li>
           <li><strong>Emergency details, only if you add them:</strong> your mobile number, an emergency contact&apos;s name, relationship and number, and any medical notes you choose to give. See <a href="#safety">Emergency details</a>.</li>
           <li><strong>Incident reports:</strong> if something happens on a walk, the leader&apos;s account of it, which may name you and describe an injury or illness.</li>
+          <li><strong>Notifications:</strong> the messages the app sends you (kept in your inbox), which kinds you have turned off, and, if you allow notifications in the phone app, a push token that lets Google&apos;s Firebase Cloud Messaging and Apple&apos;s push service deliver them. The token identifies the app install, not you, and is deleted if the app is removed.</li>
           <li><strong>Technical information:</strong> an essential sign-in cookie, request and error logs, and basic device/browser information needed to serve and protect the website and app.</li>
         </ul>
         <p>

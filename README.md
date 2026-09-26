@@ -135,6 +135,29 @@ reconcile recreates event rows with new uuids.
   `localStorage` for offline use and replays check-ins when back online. The
   copy is deleted 24 h after the walk.
 
+## Notifications
+
+`src/lib/notify.ts` writes every notification to the member's inbox (the bell)
+and, when `FIREBASE_SERVICE_ACCOUNT` is set, pushes it to their phone through
+FCM HTTP v1. What sends one:
+
+| Trigger | Where |
+| --- | --- |
+| A walk someone is on is cancelled, moved or relocated | Toolbox webhook and daily reconcile (`src/lib/eventChanges.ts`) |
+| Day-before reminder: meet, kit, forecast | `/api/cron/daily`, 17:00 UTC |
+| Kit approved or declined; loan overdue (then weekly) | equipment request PATCH; `/api/cron/daily` |
+| Made leader or backmarker | walk plan PUT/PATCH |
+| Committee broadcast | Club tab |
+
+Vercel Hobby only runs crons daily, so reminders go once, the evening before.
+`sent_reminders` stops a retried or hand-run cron sending anything twice.
+
+Push on the phone needs three things: `google-services.json` in the Android
+build (CI writes it from the `GOOGLE_SERVICES_JSON_BASE64` secret), the
+`FIREBASE_SERVICE_ACCOUNT` env var on Vercel, and then
+`NEXT_PUBLIC_PUSH_ENABLED=true`. iOS additionally needs an APNs key uploaded to
+the Firebase project and `cap sync ios`.
+
 ## Toolbox webhooks
 
 `/api/webhooks/toolbox` upserts events straight into Supabase, so it is only

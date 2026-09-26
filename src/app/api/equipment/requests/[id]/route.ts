@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { notify } from "@/lib/notify";
 import { can } from "@/lib/access";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
@@ -120,6 +121,17 @@ export async function PATCH(
     target_id: id,
     metadata: { new_status: statusStr, notes },
   });
+
+  // The borrower hears the decision; a principal's own actions need no telling.
+  if ((statusStr === "approved" || statusStr === "rejected") && !isOwner) {
+    const what = `${req.quantity > 1 ? `${req.quantity} × ` : ""}${eqItem.name}`;
+    await notify([req.member_id], {
+      kind: "kit",
+      title: statusStr === "approved" ? `Approved: ${what}` : `Declined: ${what}`,
+      body: statusStr === "approved" ? "A principal will be in touch about the handover." : notes || "Ask a principal if you'd like to know why.",
+      url: "/portal/equipment",
+    });
+  }
 
   return NextResponse.json({ ok: true, request: updated });
 }

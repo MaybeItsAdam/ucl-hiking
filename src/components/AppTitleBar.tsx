@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { PAGE_META, useAppNav } from "@/components/AppNav";
+import { InboxBell } from "@/components/InboxBell";
 
 /**
  * The phone header: a large page title that scrolls away, and a compact bar
@@ -10,8 +12,10 @@ import { PAGE_META, useAppNav } from "@/components/AppNav";
  *
  * On wide screens the top bar carries the tabs and this is hidden by CSS.
  */
-export function AppTitleBar() {
-  const title = PAGE_META[useAppNav().active].label;
+export function AppTitleBar({ inbox = false }: { inbox?: boolean }) {
+  const pageTitle = PAGE_META[useAppNav().active].label;
+  // The inbox isn't a tab, so it names itself.
+  const title = usePathname() === "/portal/inbox" ? "Inbox" : pageTitle;
   const bar = useRef<HTMLDivElement>(null);
   const sentinel = useRef<HTMLDivElement>(null);
   const [condensed, setCondensed] = useState(false);
@@ -37,6 +41,7 @@ export function AppTitleBar() {
       </div>
       <div className="app-page-head">
         <h1>{title}</h1>
+        {inbox ? <InboxBell /> : null}
       </div>
       <div ref={sentinel} className="app-title-sentinel" aria-hidden="true" />
     </>

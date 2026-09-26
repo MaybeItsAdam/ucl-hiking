@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/AppShell";
+import { NativePush } from "@/components/NativePush";
 
 /**
  * The signed-in tabs share one frame. Living in a layout, it is rendered once
@@ -7,5 +8,10 @@ import { AppShell } from "@/components/AppShell";
  * that changed — and the tab bar, title and gestures never blink out between.
  */
 export default function AppLayout({ children }: { children: ReactNode }) {
-  return <AppShell>{children}</AppShell>;
+  return (
+    <AppShell>
+      <NativePush />
+      {children}
+    </AppShell>
+  );
 }
