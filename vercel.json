@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
   "crons": [
     { "path": "/api/sync/toolbox-events", "schedule": "30 6 * * *" },
     { "path": "/api/sync/toolbox-members", "schedule": "45 6 * * *" },

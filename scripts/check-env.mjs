@@ -12,13 +12,15 @@ import { execFileSync } from "node:child_process";
 
 const config = process.argv[2] ?? "dev";
 
-/**
- * What each config must hold. Production's Supabase and Postgres variables are
- * written into Vercel by the Supabase integration, so they are not Doppler's to hold.
- */
+/** What each config must hold. */
 const REQUIRED = {
   dev: ["SESSION_SECRET", "TOOLBOX_URL", "CRON_SECRET", "MEMBER_SYNC_SECRET"],
   prd: [
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    // Production builds apply migrations with it; without it the build fails.
+    "POSTGRES_URL_NON_POOLING",
+    "NEXT_PUBLIC_APP_URL",
     "SESSION_SECRET",
     "SAFETY_DATA_KEY",
     "CRON_SECRET",
@@ -33,6 +35,8 @@ const REQUIRED = {
 
 /** Shape checks for the ones that break quietly when pasted wrong. */
 const SHAPE = {
+  POSTGRES_URL_NON_POOLING: (v) => /^postgres(ql)?:\/\/[^:]+:[^@]+@/.test(v) || "must be a postgres:// URL with the password in it",
+  NEXT_PUBLIC_APP_URL: (v) => /^https:\/\//.test(v) || "must be the https:// production URL",
   SESSION_SECRET: (v) => v.length >= 32 || "must be at least 32 characters",
   SAFETY_DATA_KEY: (v) => Buffer.from(v, "base64").length === 32 || "must be 32 bytes, base64 (openssl rand -base64 32)",
   FIREBASE_SERVICE_ACCOUNT: (v) => {
