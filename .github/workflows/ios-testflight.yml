@@ -1,0 +1,90 @@
+name: iOS TestFlight
+
+# Every push to main builds the iOS shell and uploads it to TestFlight for
+# internal testers, after lint, typecheck and tests pass. External testers only
+# get a build when this is dispatched by hand with lane=external, which sends it
+# through Beta App Review to the "External testers" group.
+#
+# Push runs stay off until the repo variable IOS_TESTFLIGHT_ENABLED is "true",
+# so main doesn't go red before the Apple secrets exist. Dispatch always runs.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: "beta = internal testers, external = external testers (Beta App Review), release = App Store draft"
+        type: choice
+        options: [beta, external, release]
+        default: beta
+      changelog:
+        description: "What to Test (external only; defaults to the last commit subject)"
+        type: string
+        required: false
+
+# One store upload at a time, and never cancel one halfway.
+concurrency:
+  group: ios-testflight
+  cancel-in-progress: false
+
+jobs:
+  # Gate: nothing reaches testers unless main is green.
+  test:
+    name: Pre-deploy checks
+    if: github.event_name == 'workflow_dispatch' || vars.IOS_TESTFLIGHT_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+  deploy:
+    name: iOS -> TestFlight ${{ inputs.lane || 'beta' }}
+    needs: test
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Load match-certs SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.MATCH_GIT_SSH_KEY }}
+
+      - run: npm ci
+
+      # Copies the web shell and plugins in and runs pod install.
+      - name: Sync Capacitor iOS shell
+        run: npx cap sync ios
+
+      - name: Build & upload
+        run: bundle exec fastlane ios ${{ inputs.lane || 'beta' }}
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
+          TESTFLIGHT_CHANGELOG: ${{ inputs.changelog }}

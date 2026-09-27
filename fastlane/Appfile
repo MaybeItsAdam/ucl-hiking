@@ -1,8 +1,6 @@
 for_platform :ios do
-  app_identifier "uk.org.ucl.hiking"
-  apple_id ENV["ASC_APPLE_ID"]
-  itc_team_id ENV["ASC_ITC_TEAM_ID"]
-  team_id ENV["APPLE_TEAM_ID"]
+  app_identifier "org.uclhiking.app"
+  team_id ENV["TEAM_ID"] || "6NQNU5YSC2"
 end
 
 for_platform :android do

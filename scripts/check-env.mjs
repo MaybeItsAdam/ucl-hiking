@@ -31,7 +31,19 @@ const REQUIRED = {
     "TOOLBOX_ORGANISER_ID",
     "TOOLBOX_WEBHOOK_SECRET",
   ],
-  ci: ["ANDROID_KEYSTORE_BASE64", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD", "PLAY_SERVICE_ACCOUNT_JSON"],
+  ci: [
+    "ANDROID_KEYSTORE_BASE64",
+    "ANDROID_KEYSTORE_PASSWORD",
+    "ANDROID_KEY_ALIAS",
+    "ANDROID_KEY_PASSWORD",
+    "PLAY_SERVICE_ACCOUNT_JSON",
+    // iOS: the shared match-certs repo and the App Store Connect API key.
+    "MATCH_GIT_SSH_KEY",
+    "MATCH_PASSWORD",
+    "APP_STORE_CONNECT_API_KEY_ID",
+    "APP_STORE_CONNECT_API_KEY_ISSUER_ID",
+    "APP_STORE_CONNECT_API_KEY_CONTENT",
+  ],
 };
 
 /** Shape checks for the ones that break quietly when pasted wrong. */
@@ -63,6 +75,13 @@ const SHAPE = {
       return "must be google-services.json, base64-encoded";
     }
   },
+  // The whole .p8, armour included, base64-encoded. Only the inner body decodes
+  // to bare DER and Fastlane fails with "Failed to generate JWT token".
+  APP_STORE_CONNECT_API_KEY_CONTENT: (v) =>
+    Buffer.from(v, "base64").toString("utf8").includes("-----BEGIN PRIVATE KEY-----") ||
+    "must be the whole .p8 file, base64-encoded (base64 -i AuthKey_XXXX.p8)",
+  APP_STORE_CONNECT_API_KEY_ISSUER_ID: (v) => /^[0-9a-f-]{36}$/i.test(v) || "must be the issuer UUID",
+  MATCH_GIT_SSH_KEY: (v) => v.includes("PRIVATE KEY-----") || "must be the private deploy key, armour included",
   NEXT_PUBLIC_PUSH_ENABLED: (v, all) => v !== "true" || Boolean(all.FIREBASE_SERVICE_ACCOUNT) || "is true but FIREBASE_SERVICE_ACCOUNT is missing",
 };
 

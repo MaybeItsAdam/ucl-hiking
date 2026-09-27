@@ -14,12 +14,6 @@ def app_version
   JSON.parse(File.read(File.expand_path("../package.json", __dir__))).fetch("version")
 end
 
-def ci_build_number
-  ENV.fetch("BUILD_NUMBER") do
-    UI.user_error!("BUILD_NUMBER is required (CI passes github.run_number). Set it higher than the last store submission.")
-  end
-end
-
 PLAY_TRACKS = %w[internal alpha beta production].freeze
 
 def next_play_version_code(package_name)
@@ -40,74 +34,138 @@ def next_play_version_code(package_name)
   codes.map(&:to_i).max + 1
 end
 
+IOS_APP_ID = "org.uclhiking.app".freeze
+IOS_PROFILE = "match AppStore #{IOS_APP_ID}".freeze
+IOS_PROJECT = "ios/App/App.xcodeproj".freeze
+
 platform :ios do
-  desc "Create/refresh the App Store cert + provisioning profile in the match repo"
-  lane :signing do
-    api_key = app_store_connect_api_key(
-      key_id: ENV["ASC_KEY_ID"],
-      issuer_id: ENV["ASC_ISSUER_ID"],
-      key_content: ENV["ASC_PRIVATE_KEY"],
+  # CI maps the secrets to ASC_*; locally `doppler run -c ci` gives the full names.
+  def asc_api_key
+    app_store_connect_api_key(
+      key_id: ENV["ASC_KEY_ID"] || ENV["APP_STORE_CONNECT_API_KEY_ID"],
+      issuer_id: ENV["ASC_ISSUER_ID"] || ENV["APP_STORE_CONNECT_API_KEY_ISSUER_ID"],
+      key_content: ENV["ASC_KEY_CONTENT"] || ENV["APP_STORE_CONNECT_API_KEY_CONTENT"],
       is_key_content_base64: true,
     )
-
-    match(type: "appstore", readonly: false, api_key: api_key)
   end
 
-  desc "Build and upload a build to TestFlight"
-  lane :beta do
+  # Signs with the match profile and builds an .ipa. The build number is the
+  # highest one on App Store Connect plus one, so laptop uploads can't collide
+  # with CI (same idea as the Android versionCode).
+  def build_ios(api_key)
     setup_ci if ENV["CI"]
 
-    match(type: "appstore", readonly: true)
+    match(type: "appstore", app_identifier: IOS_APP_ID, api_key: api_key, readonly: true)
 
-    api_key = app_store_connect_api_key(
-      key_id: ENV["ASC_KEY_ID"],
-      issuer_id: ENV["ASC_ISSUER_ID"],
-      key_content: ENV["ASC_PRIVATE_KEY"],
-      is_key_content_base64: true,
+    update_code_signing_settings(
+      path: IOS_PROJECT,
+      use_automatic_signing: false,
+      team_id: CredentialsManager::AppfileConfig.try_fetch_value(:team_id),
+      code_sign_identity: "Apple Distribution",
+      profile_name: IOS_PROFILE,
+      bundle_identifier: IOS_APP_ID,
+      targets: ["App"],
     )
 
-    increment_version_number(
-      xcodeproj: "ios/App/App.xcodeproj",
-      version_number: app_version,
-    )
-    increment_build_number(
-      xcodeproj: "ios/App/App.xcodeproj",
-      build_number: ci_build_number,
-    )
+    build_number = latest_testflight_build_number(
+      api_key: api_key,
+      app_identifier: IOS_APP_ID,
+      initial_build_number: 0,
+    ) + 1
+    UI.message("CFBundleVersion #{build_number}, CFBundleShortVersionString #{app_version}")
+
+    increment_version_number(xcodeproj: IOS_PROJECT, version_number: app_version)
+    increment_build_number(xcodeproj: IOS_PROJECT, build_number: build_number)
     build_app(
       workspace: "ios/App/App.xcworkspace",
       scheme: "App",
       export_method: "app-store",
+      export_options: { provisioningProfiles: { IOS_APP_ID => IOS_PROFILE } },
     )
-    upload_to_testflight(api_key: api_key)
+  end
+
+  desc "Create/refresh the App Store cert + provisioning profile in the match repo"
+  lane :signing do
+    match(type: "appstore", app_identifier: IOS_APP_ID, api_key: asc_api_key, readonly: false)
+  end
+
+  # Fills TestFlight's Test Information (beta description, feedback email, URLs)
+  # and Beta App Review details. Needs no build. Public text comes from
+  # assets/store/copy; the reviewer password and contact details come from the
+  # environment (or a prompt) and never touch the repo.
+  desc "Set TestFlight Test Information and Beta App Review details"
+  lane :test_info do
+    asc_api_key
+    app = Spaceship::ConnectAPI::App.find(IOS_APP_ID) ||
+      UI.user_error!("No App Store Connect app for #{IOS_APP_ID}. Create the app record first.")
+
+    copy = ->(name) { File.read(File.expand_path("../assets/store/copy/#{name}", __dir__)).strip }
+    notes = copy.call("reviewer-notes.md")[/^## Notes to paste.*?\n(.*?)(?=^## )/m, 1].to_s.strip
+    UI.user_error!("Couldn't find the reviewer notes section in reviewer-notes.md") if notes.empty?
+
+    localized = {
+      description: copy.call("description.txt"),
+      feedbackEmail: copy.call("support-email.txt"),
+      marketingUrl: copy.call("marketing-url.txt"),
+      privacyPolicyUrl: copy.call("privacy-policy-url.txt"),
+    }
+    localization = app.get_beta_app_localizations.find { |l| l.locale == "en-GB" } ||
+      app.get_beta_app_localizations.first
+    if localization
+      Spaceship::ConnectAPI.patch_beta_app_localizations(localization_id: localization.id, attributes: localized)
+    else
+      Spaceship::ConnectAPI.post_beta_app_localizations(app_id: app.id, attributes: localized.merge(locale: "en-GB"))
+    end
+    UI.success("Test Information set (#{localization&.locale || 'en-GB'})")
+
+    ask = ->(key, prompt, secret: false) do
+      value = ENV[key].to_s.strip
+      next value unless value.empty?
+      UI.user_error!("#{key} is not set") unless UI.interactive?
+      secret ? UI.password(prompt) : UI.input(prompt)
+    end
+    Spaceship::ConnectAPI.patch_beta_app_review_detail(app_id: app.id, attributes: {
+      contactFirstName: ask.call("REVIEW_CONTACT_FIRST_NAME", "Review contact first name:"),
+      contactLastName: ask.call("REVIEW_CONTACT_LAST_NAME", "Review contact last name:"),
+      contactPhone: ask.call("REVIEW_CONTACT_PHONE", "Review contact phone (with country code, e.g. +44…):"),
+      contactEmail: ask.call("REVIEW_CONTACT_EMAIL", "Review contact email:"),
+      demoAccountRequired: true,
+      demoAccountName: ENV["REVIEW_DEMO_EMAIL"] || "apple@adamscampustoolbox.org.uk",
+      demoAccountPassword: ask.call("REVIEW_DEMO_PASSWORD", "Reviewer account password:", secret: true),
+      notes: notes,
+    })
+    UI.success("Beta App Review details set")
+  end
+
+  desc "Build and upload a build to TestFlight (internal testers only)"
+  lane :beta do
+    api_key = asc_api_key
+    build_ios(api_key)
+    upload_to_testflight(api_key: api_key, skip_waiting_for_build_processing: true)
+  end
+
+  desc "Build, upload and send to external TestFlight testers (goes through Beta App Review)"
+  lane :external do
+    api_key = asc_api_key
+    build_ios(api_key)
+    # "What to Test" is required for external builds. CI passes the dispatch
+    # input; otherwise use the last commit's subject.
+    changelog = ENV["TESTFLIGHT_CHANGELOG"].to_s.strip
+    changelog = last_git_commit[:message].lines.first.strip if changelog.empty?
+    upload_to_testflight(
+      api_key: api_key,
+      distribute_external: true,
+      groups: [ENV["TESTFLIGHT_GROUP"] || "External testers"],
+      changelog: changelog,
+      notify_external_testers: true,
+      submit_beta_review: true,
+    )
   end
 
   desc "Build and upload a build to the App Store (draft)"
   lane :release do
-    setup_ci if ENV["CI"]
-
-    match(type: "appstore", readonly: true)
-
-    api_key = app_store_connect_api_key(
-      key_id: ENV["ASC_KEY_ID"],
-      issuer_id: ENV["ASC_ISSUER_ID"],
-      key_content: ENV["ASC_PRIVATE_KEY"],
-      is_key_content_base64: true,
-    )
-
-    increment_version_number(
-      xcodeproj: "ios/App/App.xcodeproj",
-      version_number: app_version,
-    )
-    increment_build_number(
-      xcodeproj: "ios/App/App.xcodeproj",
-      build_number: ci_build_number,
-    )
-    build_app(
-      workspace: "ios/App/App.xcworkspace",
-      scheme: "App",
-      export_method: "app-store",
-    )
+    api_key = asc_api_key
+    build_ios(api_key)
     upload_to_app_store(
       api_key: api_key,
       submit_for_review: false,

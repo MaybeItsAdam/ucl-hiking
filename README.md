@@ -35,7 +35,7 @@ npm run dev                      # doppler run -- next dev
 | --- | --- | --- |
 | `dev` | your machine, via `doppler run` | local development |
 | `prd` | Vercel Production (`ucl-hiking.vercel.app`) | everything production needs, including Supabase and `POSTGRES_URL_NON_POOLING` |
-| `ci` | GitHub Actions | Android signing, the Play service account, `GOOGLE_SERVICES_JSON_BASE64` |
+| `ci` | GitHub Actions | Android signing, the Play service account, `GOOGLE_SERVICES_JSON_BASE64`, the match deploy key and password, the App Store Connect API key |
 
 Vercel's Supabase integration owns the `SUPABASE_*`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`/`_PUBLISHABLE_KEY`
 and `POSTGRES_*` names, so Doppler must not hold them: a sync that tries to write one fails and
@@ -99,6 +99,16 @@ Browser sign-in returns to the domain where it started, so `uclhiking.org` can
 serve the same app later once that domain is attached to Vercel and allowed in
 the Toolbox Hiking organiser. Native builds continue to load the configured
 `CAPACITOR_APP_URL` until rebuilt with a different URL.
+
+### Releases
+
+Pushes to `main` upload an Android build to the Play internal track
+(`android-internal.yml`) and an iOS build to TestFlight for internal testers
+(`ios-testflight.yml`, once the repo variable `IOS_TESTFLIGHT_ENABLED` is
+`true`). To send a build to external TestFlight testers, run **iOS TestFlight**
+by hand with `lane=external`. That build goes through Beta App Review and then
+to the `External testers` group. iOS signing comes from the shared
+`MaybeItsSoftware/match-certs` repo via `fastlane match`.
 
 ## Store materials
 
