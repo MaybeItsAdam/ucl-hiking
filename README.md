@@ -188,8 +188,24 @@ Vercel Hobby only runs crons daily, so reminders go once, the evening before.
 Push on the phone needs three things: `google-services.json` in the Android
 build (CI writes it from the `GOOGLE_SERVICES_JSON_BASE64` secret), the
 `FIREBASE_SERVICE_ACCOUNT` env var on Vercel, and then
-`NEXT_PUBLIC_PUSH_ENABLED=true`. iOS additionally needs an APNs key uploaded to
-the Firebase project and `cap sync ios`.
+`NEXT_PUBLIC_PUSH_ENABLED=true`.
+
+iOS push is not built yet (deferred). An APNs key alone is not enough: on iOS
+`@capacitor/push-notifications` returns a raw APNs token, which FCM rejects, so
+iPhones would register but never receive anything. It needs, in order:
+
+1. Push Notifications ticked on the `org.uclhiking.app` App ID, and an APNs key
+   (`.p8`) uploaded to the Firebase project's Cloud Messaging settings.
+2. An iOS app `org.uclhiking.app` in Firebase; its `GoogleService-Info.plist`
+   in Doppler `ci` as `GOOGLE_SERVICE_INFO_PLIST_BASE64`, written into
+   `ios/App/App/` by the iOS workflow.
+3. The Firebase Messaging pod, and `AppDelegate` handing Capacitor the FCM token
+   instead of the APNs token (the pattern in Capacitor's push guide).
+4. The Push capability and `aps-environment` entitlement on the App target, then
+   `fastlane ios signing` to regenerate the match profile with push in it.
+
+Keep `NEXT_PUBLIC_PUSH_ENABLED` off until a build with all four is on TestFlight;
+the server side (`src/lib/notify.ts`) needs no change.
 
 ## Club tab (committee)
 
