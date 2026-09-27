@@ -3,7 +3,7 @@ name: iOS TestFlight
 # Every push to main builds the iOS shell and uploads it to TestFlight for
 # internal testers, after lint, typecheck and tests pass. External testers only
 # get a build when this is dispatched by hand with lane=external, which sends it
-# through Beta App Review to the "External testers" group.
+# through Beta App Review to the "UCL Hiking Early Access" group (public link).
 #
 # Push runs stay off until the repo variable IOS_TESTFLIGHT_ENABLED is "true",
 # so main doesn't go red before the Apple secrets exist. Dispatch always runs.

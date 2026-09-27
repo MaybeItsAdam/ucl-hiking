@@ -107,7 +107,7 @@ Pushes to `main` upload an Android build to the Play internal track
 (`ios-testflight.yml`, once the repo variable `IOS_TESTFLIGHT_ENABLED` is
 `true`). To send a build to external TestFlight testers, run **iOS TestFlight**
 by hand with `lane=external`. That build goes through Beta App Review and then
-to the `External testers` group. iOS signing comes from the shared
+to the `UCL Hiking Early Access` group. iOS signing comes from the shared
 `MaybeItsSoftware/match-certs` repo via `fastlane match`.
 
 ## Store materials

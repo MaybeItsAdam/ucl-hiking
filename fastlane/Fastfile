@@ -147,7 +147,7 @@ platform :ios do
   desc "Build, upload and send to external TestFlight testers (goes through Beta App Review)"
   lane :external do
     api_key = asc_api_key
-    group = ENV["TESTFLIGHT_GROUP"] || "External testers"
+    group = ENV["TESTFLIGHT_GROUP"] || "UCL Hiking Early Access"
     app = Spaceship::ConnectAPI::App.find(IOS_APP_ID)
     unless app.get_beta_groups.any? { |g| g.name == group }
       app.create_beta_group(group_name: group, is_internal_group: false)
