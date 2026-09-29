@@ -76,7 +76,8 @@ export function routeRow(details: OsmapsDetails, route: StoredRoute): Omit<Osmap
     finish_lat: last?.[0] ?? null,
     finish_lng: last?.[1] ?? null,
     segments: route.segments,
-    waypoints: route.waypoints,
+    // OS Maps exports every plotted click as an unnamed waypoint; only named ones are worth a dot.
+    waypoints: route.waypoints.filter((w) => w.name?.trim()),
   };
 }
 

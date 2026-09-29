@@ -135,6 +135,8 @@ export function HikeMap({
         doubleClickZoom: interactive,
         boxZoom: false,
         keyboard: interactive,
+        // Quarter steps let a route fill its frame rather than jump a whole level smaller.
+        zoomSnap: route ? 0.25 : 1,
       });
       zoomRef.current = L.control.zoom({ position: "topleft" });
       if (interactive || route) zoomRef.current.addTo(map);
@@ -157,15 +159,21 @@ export function HikeMap({
           L.polyline(seg, { className: "hike-track", weight: 4, lineCap: "round", lineJoin: "round", interactive: false }).addTo(map);
           points.push(...seg);
         }
+        // Unnamed waypoints are a route planner's clicks, not places: skip them.
         for (const w of route.waypoints) {
-          const dot = L.marker(w.at, {
+          if (!w.name?.trim()) continue;
+          L.marker(w.at, {
             icon: L.divIcon({ className: "", html: '<span class="hike-waypoint"></span>', iconSize: [10, 10], iconAnchor: [5, 5] }),
             keyboard: false,
-            interactive: Boolean(w.name),
-          }).addTo(map);
-          if (w.name) dot.bindTooltip(escape(w.name), { direction: "top", offset: [0, -6], className: "hike-tip" });
+          })
+            .addTo(map)
+            .bindTooltip(escape(w.name), { direction: "top", offset: [0, -6], className: "hike-tip" });
         }
         const loop = near(route.start, route.finish);
+        // End labels sit above or below their marker, on the side away from the
+        // rest of the walk, so they neither cross the line nor run off the edge.
+        const finishNorth = route.finish[0] >= route.start[0];
+        const below = (up: boolean) => (up ? { direction: "top" as const, offset: [0, -10] as [number, number] } : { direction: "bottom" as const, offset: [0, 10] as [number, number] });
         if (!loop) {
           L.marker(route.finish, {
             icon: L.divIcon({ className: "", html: '<span class="hike-track-end"></span>', iconSize: [16, 16], iconAnchor: [8, 8] }),
@@ -173,7 +181,7 @@ export function HikeMap({
             interactive: false,
           })
             .addTo(map)
-            .bindTooltip("Finish", { permanent: true, direction: "right", offset: [9, 0], className: "hike-tip" });
+            .bindTooltip("Finish", { permanent: true, ...below(finishNorth), className: "hike-tip" });
         }
         startMarker = L.marker(route.start, {
           icon: L.divIcon({ className: "", html: '<span class="hike-track-start"></span>', iconSize: [16, 16], iconAnchor: [8, 8] }),
@@ -182,7 +190,7 @@ export function HikeMap({
           zIndexOffset: 500,
         })
           .addTo(map)
-          .bindTooltip(loop ? "Start and finish" : "Start", { permanent: true, direction: "left", offset: [-9, 0], className: "hike-tip" });
+          .bindTooltip(loop ? "Start and finish" : "Start", { permanent: true, ...below(loop || !finishNorth), className: "hike-tip" });
       }
       let meetPin: { marker: Marker; name: string } | null = null;
 
@@ -228,17 +236,21 @@ export function HikeMap({
         else if (hike.startName) {
           if (route && !meetPin) meetPin = { marker: pin, name: hike.startName };
           const left = finish && finish[1] > start[1];
+          // With a route, the station's label sits on the same side as Start's, so the two merge (below) rather than collide.
+          const up = route ? !(route.finish[0] >= route.start[0]) || near(route.start, route.finish) : false;
           pin.bindTooltip(escape(route ? `Meet: ${hike.startName}` : hike.startName), {
             permanent: true,
-            direction: left ? "left" : "right",
-            offset: left ? [-10, 0] : [10, 0],
             className: "hike-tip",
+            ...(route
+              ? { direction: up ? "top" : "bottom", offset: [0, up ? -10 : 10] as [number, number] }
+              : { direction: left ? "left" : "right", offset: (left ? [-10, 0] : [10, 0]) as [number, number] }),
           });
         }
       }
 
       if (points.length === 1) map.setView(points[0], 12);
-      else if (points.length) map.fitBounds(L.latLngBounds(points), { padding: [28, 28], maxZoom: route ? 15 : 12 });
+      // A route's labels hang off its ends: leave them room inside the frame.
+      else if (points.length) map.fitBounds(L.latLngBounds(points), { padding: route ? [48, 40] : [28, 28], maxZoom: route ? 15 : 12 });
       else map.setView([51.3, -0.3], 8);
 
       // A station drawn right by the route's start shares its label rather than printing over it.
