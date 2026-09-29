@@ -6,6 +6,8 @@ import { canEditPlan, getEventPlan, mergePlanForEditor, newlyAssigned, parsePlan
 import { longDate } from "@/lib/eventList";
 import { notify } from "@/lib/notify";
 import { getEventRouteSummary } from "@/lib/eventRoutes";
+import { osmapsRouteId, OsmapsError } from "@/lib/osmaps";
+import { attachOsmapsLink } from "@/lib/osmapsSync";
 import { getEvent } from "@/lib/events";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
@@ -78,7 +80,18 @@ export async function PUT(request: Request, { params }: Params) {
     backmarker: plan.backmarker_member_id,
   });
   await tellAssigned(event, newlyAssigned(existing, plan, member.id));
-  return NextResponse.json({ ok: true, plan: data });
+
+  // A new OS Maps link: fetch that route now and put it on the map.
+  let route = null;
+  let routeError: string | null = null;
+  if (plan.route_url && plan.route_url !== existing?.route_url && osmapsRouteId(plan.route_url)) {
+    try {
+      route = await attachOsmapsLink(event.suu_event_id, plan.route_url, member.id);
+    } catch (e) {
+      routeError = e instanceof OsmapsError ? e.message : "The OS Maps route couldn't be fetched. It will be tried again tomorrow morning.";
+    }
+  }
+  return NextResponse.json({ ok: true, plan: data, route, routeError });
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

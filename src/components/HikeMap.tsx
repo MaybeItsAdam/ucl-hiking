@@ -3,8 +3,8 @@
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Maximize2, Minimize2 } from "lucide-react";
-import type { Control, Map as LeafletMap, Marker, TileLayer } from "leaflet";
+import { LocateFixed, Maximize2, Minimize2 } from "lucide-react";
+import type { CircleMarker, Circle, Control, Map as LeafletMap, Marker, TileLayer } from "leaflet";
 import { DIFFICULTY_LABELS, formatKm } from "@/lib/eventDetails";
 import type { MapRoute } from "@/lib/eventRoutes";
 import type { MapHike } from "@/lib/hikeMap";
@@ -81,9 +81,12 @@ function savedBase(): Base | null {
 /**
  * Walks on a map. `interactive` is the year map: numbered pins that open a
  * card, and a map you can pan and zoom. Without it, it is one walk for its
- * event page: its GPX route if it has one, the stations labelled, and still
- * enough that a scrolling thumb isn't caught; "Expand" opens it full screen
- * to pan and pinch.
+ * event page: its GPX route if it has one, and the stations labelled.
+ *
+ * A walk with a route is a real map: zoom buttons, pinch, and your own
+ * position on it. On a phone one finger still scrolls the page (two move the
+ * map, as in Google Maps), so a thumb heading down the page isn't caught.
+ * Without a route it stays a still picture until opened full screen.
  */
 export function HikeMap({
   hikes,
@@ -107,6 +110,10 @@ export function HikeMap({
   const base = chosen ?? defaultBase;
   const [expanded, setExpanded] = useState(false);
   const [ready, setReady] = useState(false);
+  const [hint, setHint] = useState(false);
+  const [locating, setLocating] = useState<"off" | "finding" | "on" | "denied">("off");
+  const meRef = useRef<{ dot: CircleMarker; ring: Circle } | null>(null);
+  const walkMap = !interactive && Boolean(route);
 
   useEffect(() => {
     const el = container.current;
@@ -118,19 +125,19 @@ export function HikeMap({
       if (cancelled) return;
       const saved = savedBase();
       if (saved) setChosen(saved);
-      // Still on the page (see the full-screen effect below for when it wakes up), free on the year map.
+      // Handlers are set per mode by the effect below; start still.
       map = L.map(el, {
         attributionControl: true,
         zoomControl: false,
         dragging: interactive,
-        touchZoom: interactive,
+        touchZoom: interactive || Boolean(route),
         scrollWheelZoom: false,
         doubleClickZoom: interactive,
         boxZoom: false,
         keyboard: interactive,
       });
       zoomRef.current = L.control.zoom({ position: "topleft" });
-      if (interactive) zoomRef.current.addTo(map);
+      if (interactive || route) zoomRef.current.addTo(map);
       map.attributionControl.setPrefix(false);
       mapRef.current = map;
 
@@ -278,24 +285,24 @@ export function HikeMap({
     if (map.getZoom() > max) map.setZoom(max);
   }, [base, ready]);
 
-  // On the page a mouse may pan and zoom a route (it traps nobody); a thumb
-  // gets that only full screen, where pinch and wheel zoom join in too.
+  // Full screen, everything moves the map. On the page a route map pans with a
+  // mouse and pinches with two fingers; one finger is left to scroll the page.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready || interactive) return;
     const fine = window.matchMedia("(pointer: fine)").matches;
-    const live = expanded || (Boolean(route) && fine);
+    const drag = expanded || (walkMap && fine);
     for (const handler of [map.dragging, map.doubleClickZoom, map.keyboard]) {
-      if (live) handler.enable();
+      if (drag || (walkMap && handler !== map.dragging)) handler.enable();
       else handler.disable();
     }
-    for (const handler of [map.touchZoom, map.scrollWheelZoom]) {
-      if (expanded) handler.enable();
-      else handler.disable();
-    }
+    if (expanded || walkMap) map.touchZoom.enable();
+    else map.touchZoom.disable();
+    if (expanded) map.scrollWheelZoom.enable();
+    else map.scrollWheelZoom.disable();
     const zoom = zoomRef.current;
     if (zoom) {
-      if (live) zoom.addTo(map);
+      if (drag || walkMap) zoom.addTo(map);
       else zoom.remove();
     }
     map.invalidateSize();
@@ -303,7 +310,73 @@ export function HikeMap({
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setExpanded(false);
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [expanded, ready, interactive, route]);
+  }, [expanded, ready, interactive, route, walkMap]);
+
+  // One finger dragging a route map on the page: say how to move it.
+  useEffect(() => {
+    const el = container.current;
+    if (!el || !walkMap || expanded) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onMove = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return setHint(false);
+      setHint(true);
+      clearTimeout(timer);
+      timer = setTimeout(() => setHint(false), 1400);
+    };
+    el.addEventListener("touchmove", onMove, { passive: true });
+    return () => {
+      clearTimeout(timer);
+      el.removeEventListener("touchmove", onMove);
+    };
+  }, [walkMap, expanded]);
+
+  // Your own position, while the button is on. Nothing is sent anywhere.
+  const watching = locating === "finding" || locating === "on";
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready || !watching) return;
+    let first = true;
+    let cancelled = false;
+    const watch = navigator.geolocation.watchPosition(
+      async (pos) => {
+        if (cancelled) return;
+        const L = await import("leaflet");
+        const at: [number, number] = [pos.coords.latitude, pos.coords.longitude];
+        if (!meRef.current) {
+          meRef.current = {
+            ring: L.circle(at, { radius: pos.coords.accuracy, className: "hike-me-ring", interactive: false }).addTo(map),
+            dot: L.circleMarker(at, { radius: 7, className: "hike-me", interactive: false }).addTo(map),
+          };
+        } else {
+          meRef.current.dot.setLatLng(at);
+          meRef.current.ring.setLatLng(at).setRadius(pos.coords.accuracy);
+        }
+        if (first) {
+          first = false;
+          setLocating("on");
+          // Near the walk: keep the walk in view with you on it. Far away: just show where you are.
+          const bounds = map.getBounds();
+          if (bounds.pad(1).contains(at)) map.fitBounds(bounds.extend(at), { padding: [24, 24], maxZoom: map.getZoom() });
+          else map.setView(at, 14);
+        }
+      },
+      () => !cancelled && setLocating("denied"),
+      { enableHighAccuracy: true, maximumAge: 10_000, timeout: 20_000 },
+    );
+    return () => {
+      cancelled = true;
+      navigator.geolocation.clearWatch(watch);
+    };
+  }, [ready, watching]);
+
+  function toggleLocate() {
+    if (watching) {
+      setLocating("off");
+      meRef.current?.dot.remove();
+      meRef.current?.ring.remove();
+      meRef.current = null;
+    } else setLocating("geolocation" in navigator ? "finding" : "denied");
+  }
 
   function pick(next: Base) {
     setChosen(next);
@@ -313,7 +386,7 @@ export function HikeMap({
   }
 
   return (
-    <div className={`hike-map-wrap${interactive ? " is-interactive" : ""}${expanded ? " is-expanded" : ""}`}>
+    <div className={`hike-map-wrap${interactive ? " is-interactive" : ""}${walkMap ? " has-route" : ""}${expanded ? " is-expanded" : ""}`}>
       <div
         ref={container}
         className={`hike-map is-${base}${interactive ? " is-interactive" : ""}`}
@@ -322,6 +395,16 @@ export function HikeMap({
         // Panning the map is not a swipe to the next tab or a pull to refresh.
         data-no-swipe={interactive || expanded || route ? "" : undefined}
       />
+      {hint ? (
+        <p className="hike-map-hint" aria-hidden="true">
+          Use two fingers to move the map
+        </p>
+      ) : null}
+      {locating === "denied" ? (
+        <p className="hike-map-note" role="status">
+          Location is off for this app. Turn it on in Settings to see yourself on the map.
+        </p>
+      ) : null}
       <div className="hike-map-controls">
         <div className="hike-map-bases" role="group" aria-label="Map style">
           {(Object.keys(BASES) as Base[]).map((key) => (
@@ -330,6 +413,17 @@ export function HikeMap({
             </button>
           ))}
         </div>
+        {walkMap ? (
+          <button
+            type="button"
+            className={`hike-map-expand${locating === "finding" ? " is-finding" : ""}`}
+            aria-pressed={watching}
+            aria-label={watching ? "Stop showing my location" : "Show my location"}
+            onClick={toggleLocate}
+          >
+            <LocateFixed size={16} aria-hidden="true" />
+          </button>
+        ) : null}
         {!interactive ? (
           <button
             type="button"

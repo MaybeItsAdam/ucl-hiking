@@ -7,8 +7,10 @@ import { deleteEventRoute, getEventRoute, routeFileName, saveEventRoute } from "
 import { getEvent } from "@/lib/events";
 import { GPX_MAX_BYTES, prepareRoute, toGpx } from "@/lib/gpx";
 import { fetchGpx, GpxFetchError } from "@/lib/gpxFetch";
+import { osmapsRouteId, OsmapsError } from "@/lib/osmaps";
+import { attachOsmapsLink, eventRouteFrom, type OsmapsRouteRow } from "@/lib/osmapsSync";
 import { getCurrentMember } from "@/lib/session";
-import { isSupabaseConfigured } from "@/lib/supabase";
+import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -44,8 +46,10 @@ async function editableEvent(params: Params["params"]) {
 }
 
 /**
- * Attach a route: either a multipart upload with a `file`, or JSON `{ url }`
- * for a direct GPX link the server fetches. Replaces any route already there.
+ * Attach a route: JSON `{ osmapsRouteId }` to pick one of the club's OS Maps
+ * routes, a multipart upload with a `file`, or JSON `{ url }` for a direct GPX
+ * link the server fetches. Replaces any route already there, and the daily
+ * OS Maps match leaves a route chosen this way alone.
  */
 export async function POST(request: Request, { params }: Params) {
   const ctx = await editableEvent(params);
@@ -65,8 +69,10 @@ export async function POST(request: Request, { params }: Params) {
       text = await file.text();
       source = { file: file.name.slice(0, 200) || "route.gpx" };
     } else {
-      const body = (await request.json().catch(() => null)) as { url?: unknown } | null;
+      const body = (await request.json().catch(() => null)) as { url?: unknown; osmapsRouteId?: unknown } | null;
+      if (typeof body?.osmapsRouteId === "string") return pickOsmapsRoute(ctx, body.osmapsRouteId);
       if (typeof body?.url !== "string" || !body.url.trim()) return NextResponse.json({ error: "Paste a GPX link." }, { status: 400 });
+      if (osmapsRouteId(body.url)) return linkOsmapsRoute(ctx, body.url.trim());
       text = await fetchGpx(body.url);
       source = { url: body.url.trim().slice(0, 1000) };
     }
@@ -92,9 +98,40 @@ export async function POST(request: Request, { params }: Params) {
   return NextResponse.json({ ok: true, route: data });
 }
 
+async function linkOsmapsRoute(ctx: { member: { id: string }; suuId: string }, link: string) {
+  try {
+    const route = await attachOsmapsLink(ctx.suuId, link, ctx.member.id);
+    await audit(ctx.member.id, "event.route_attached", "event", ctx.suuId, { osmaps_link: link });
+    return NextResponse.json({ ok: true, route });
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof OsmapsError ? e.message : "The OS Maps route couldn't be fetched." }, { status: 422 });
+  }
+}
+
+async function pickOsmapsRoute(ctx: { member: { id: string }; suuId: string }, routeId: string) {
+  const supabase = getSupabaseAdmin();
+  const { data: row } = await supabase.from("osmaps_routes").select("*").eq("id", routeId).maybeSingle<OsmapsRouteRow>();
+  if (!row) return NextResponse.json({ error: "That route isn't in the club's OS Maps any more." }, { status: 404 });
+  const { data, error } = await supabase
+    .from("event_routes")
+    .upsert(eventRouteFrom(ctx.suuId, row, "osmaps_pick", ctx.member.id, null), { onConflict: "event_suu_id" })
+    .select("event_suu_id, name, source_file, source_url, distance_m, ascent_m, descent_m, source, osmaps_route_id")
+    .single();
+  if (error) return NextResponse.json({ error: "The route wasn't saved. Try again." }, { status: 500 });
+  await audit(ctx.member.id, "event.route_attached", "event", ctx.suuId, { osmaps_route_id: row.id, distance_m: row.distance_m });
+  return NextResponse.json({ ok: true, route: data });
+}
+
 export async function DELETE(_request: Request, { params }: Params) {
   const ctx = await editableEvent(params);
   if ("error" in ctx) return ctx.error;
+  // Removing the daily match's pick means "not this one": remember that, or tomorrow's sync puts it back.
+  const current = await getEventRoute(ctx.suuId);
+  if (current?.source === "osmaps_auto" && current.osmaps_route_id) {
+    await getSupabaseAdmin()
+      .from("event_route_dismissals")
+      .upsert({ event_suu_id: ctx.suuId, osmaps_route_id: current.osmaps_route_id, dismissed_by: ctx.member.id });
+  }
   const { error } = await deleteEventRoute(ctx.suuId);
   if (error) return NextResponse.json({ error: "The route wasn't removed. Try again." }, { status: 500 });
   await audit(ctx.member.id, "event.route_removed", "event", ctx.suuId);

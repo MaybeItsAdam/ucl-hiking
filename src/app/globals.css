@@ -2100,9 +2100,20 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 .event-day-value { font-weight: 700; overflow-wrap: anywhere; }
 .event-day .hike-map-wrap { border-top: 1px solid var(--line); }
 .event-day .hike-map { height: 280px; }
+/* A walk with a route is the map you'll use on the day: give it room. */
+.event-day .hike-map-wrap.has-route .hike-map { height: min(60vh, 480px); }
 .event-day-rows:empty + .hike-map-wrap { border-top: 0; }
 .event-route-facts { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
 .event-route-facts svg { flex-shrink: 0; color: var(--info-fg); }
+.elevation { margin: 0; padding: 10px 14px 12px; border-top: 1px solid var(--line); }
+.elevation-labels, .elevation-axis { display: flex; justify-content: space-between; gap: 12px; font-variant-numeric: tabular-nums; }
+.elevation-labels { margin-bottom: 6px; font-size: 12px; color: var(--muted); }
+.elevation-labels > span:first-child { font-size: 10px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }
+.elevation svg { display: block; width: 100%; height: 72px; border-bottom: 1px solid var(--line-strong); }
+.elevation-grid { stroke: var(--line); stroke-width: 1; }
+.elevation-fill { fill: var(--info-fg); fill-opacity: .12; }
+.elevation-line { fill: none; stroke: var(--info-fg); stroke-width: 1.5; stroke-linejoin: round; }
+.elevation-axis { margin-top: 4px; font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; color: var(--muted); }
 .event-day-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--line); }
 .event-day-actions:empty { display: none; }
 
@@ -2377,11 +2388,37 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
   /* 44px to a thumb, 32px to the eye. */
   .hike-map-bases button::after, .hike-map-expand::after { content: ""; position: absolute; inset: -6px -2px; }
 }
+.hike-map-expand[aria-pressed="true"] { color: var(--info-fg); border-color: var(--info-fg); }
+.hike-map-expand.is-finding svg { animation: hike-locating 1.2s ease-in-out infinite; }
+@keyframes hike-locating { 50% { opacity: .35; } }
+.hike-map .hike-me { fill: var(--info-fg); fill-opacity: 1; stroke: var(--surface); stroke-width: 3; }
+.hike-map .hike-me-ring { fill: var(--info-fg); fill-opacity: .12; stroke: var(--info-fg); stroke-opacity: .4; stroke-width: 1; }
+.hike-map-hint {
+  position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; margin: 0; pointer-events: none;
+  background: rgb(0 0 0 / .45); color: #fff; font: 700 15px var(--font-body); text-align: center;
+}
+.hike-map-note {
+  position: absolute; left: 8px; right: 8px; bottom: 26px; z-index: 2; margin: 0; padding: 8px 10px;
+  border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink); font-size: 13px;
+}
 .hike-map-wrap.is-expanded {
   position: fixed; inset: 0; z-index: 60; background: var(--paper);
   padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
 }
-.event-day .hike-map-wrap.is-expanded { border-top: 0; }
+.event-day .hike-map-expand[aria-pressed="true"] { color: var(--info-fg); border-color: var(--info-fg); }
+.hike-map-expand.is-finding svg { animation: hike-locating 1.2s ease-in-out infinite; }
+@keyframes hike-locating { 50% { opacity: .35; } }
+.hike-map .hike-me { fill: var(--info-fg); fill-opacity: 1; stroke: var(--surface); stroke-width: 3; }
+.hike-map .hike-me-ring { fill: var(--info-fg); fill-opacity: .12; stroke: var(--info-fg); stroke-opacity: .4; stroke-width: 1; }
+.hike-map-hint {
+  position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; margin: 0; pointer-events: none;
+  background: rgb(0 0 0 / .45); color: #fff; font: 700 15px var(--font-body); text-align: center;
+}
+.hike-map-note {
+  position: absolute; left: 8px; right: 8px; bottom: 26px; z-index: 2; margin: 0; padding: 8px 10px;
+  border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink); font-size: 13px;
+}
+.hike-map-wrap.is-expanded { border-top: 0; }
 .hike-map-wrap.is-expanded .hike-map { height: 100%; border: 0; border-radius: 0; }
 .hike-map-wrap.is-expanded .hike-map-controls { top: calc(var(--safe-top) + 10px); right: calc(var(--safe-right) + 10px); }
 
@@ -2393,11 +2430,14 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 .plan-gpx-current > span { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
 .plan-gpx-current small { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
 .plan-gpx-hint { margin: 0; font-size: 13px; color: var(--muted); }
+.plan-gpx-more { align-self: flex-start; min-height: 44px; padding: 0; border: 0; background: none; color: var(--ink); font: inherit; font-size: 13px; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .plan-gpx-controls { display: flex; flex-wrap: wrap; gap: 8px; }
 .plan-gpx-controls .kit-btn { min-height: 44px; }
 .plan-gpx-controls label.kit-btn:focus-within { outline: 2px solid var(--forest); outline-offset: 2px; }
 .plan-gpx-controls label.kit-btn.is-disabled { opacity: .45; cursor: default; }
 .plan-gpx-url { flex: 1 1 220px; display: flex; gap: 6px; min-width: 0; }
+.plan-gpx-url > input, .plan-gpx-url > select { flex: 1; min-width: 0; }
+.plan-gpx-url .kit-btn { min-height: 44px; }
 
 .hike-map .leaflet-tooltip.hike-tip {
   padding: 2px 7px; border: 1px solid var(--line-strong); border-radius: 6px; box-shadow: none;
@@ -2561,6 +2601,7 @@ button.kit-item-main { cursor: pointer; }
 .kit-form-row.is-wide-first { grid-template-columns: 3fr 2fr; }
 .kit-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .kit-field > span { font-size: 13px; font-weight: 700; }
+.kit-field-hint { font-size: 12px; line-height: 1.4; color: var(--muted); }
 .kit-field input, .kit-field textarea, .kit-field select {
   width: 100%; min-height: 44px; padding: 10px 12px;
   border: 1px solid var(--line-strong); border-radius: 6px;
@@ -2636,4 +2677,9 @@ button.kit-item-main { cursor: pointer; }
   .account-settings form .delete-account-cancel { width: 100%; }
   .delete-account-actions { flex-direction: column; }
   .delete-account-actions > * { width: 100%; }
+}
+
+/* Phones and the app get the route on the map, not as a file. */
+@media (pointer: coarse), (max-width: 768px) {
+  .event-gpx-download { display: none; }
 }

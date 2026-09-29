@@ -25,6 +25,7 @@ import { KitChecklist } from "@/components/KitChecklist";
 import { OpenExternal } from "@/components/OpenExternal";
 import { profileOf } from "@/lib/access";
 import { walkRole } from "@/lib/attendees";
+import { ElevationProfile } from "@/components/ElevationProfile";
 import { HikeMap } from "@/components/HikeMap";
 import { DIFFICULTY_LABELS, eventDetails, formatAscent, formatKm, isHeading, KIND_LABELS } from "@/lib/eventDetails";
 import { countdown, eventWhen, longDate } from "@/lib/eventList";
@@ -259,14 +260,16 @@ export default async function EventPage({ params }: Params) {
               <p className="event-route-facts">
                 <Route size={15} aria-hidden="true" />
                 <span>
-                  GPX route · {formatKm(route.distance_m / 1000)}
+                  {route.osmaps_route_id ? "Route from the club's OS Maps" : "GPX route"} · {formatKm(route.distance_m / 1000)}
                   {route.ascent_m !== null ? ` · ${formatAscent(route.ascent_m)} up` : ""}
                 </span>
               </p>
             ) : null}
+            {mapRoute?.profile.length ? <ElevationProfile profile={mapRoute.profile} /> : null}
             <div className="event-day-actions">
               {route ? (
-                <a className="kit-btn" href={`/api/events/${event.id}/gpx`} download>
+                // Desktop only: on a phone the route lives on the map above, not in a file.
+                <a className="kit-btn event-gpx-download" href={`/api/events/${event.id}/gpx`} download>
                   <Download size={15} aria-hidden="true" />
                   Download GPX
                 </a>

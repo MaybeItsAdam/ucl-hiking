@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Route, Upload } from "lucide-react";
 import { Sheet } from "@/components/Sheet";
@@ -104,8 +104,14 @@ export function EventPlanEditor({ eventId, startsAt }: { eventId: string; starts
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "The plan wasn't saved.");
-      setOpen(false);
+      if (body.route) setRoute(body.route);
       router.refresh();
+      // The plan saved but its route didn't come through: keep the sheet open to say why.
+      if (body.routeError) {
+        setError(`Plan saved. ${body.routeError}`);
+        return;
+      }
+      setOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "The plan wasn't saved.");
     } finally {
@@ -168,8 +174,18 @@ export function EventPlanEditor({ eventId, startsAt }: { eventId: string; starts
               <Field label="Kit list, one per line">
                 <textarea rows={5} value={draft.kit_list} onChange={set("kit_list")} placeholder={"Waterproof jacket\nWalking boots\nLunch and 1.5 L water"} />
               </Field>
-              <Field label="Route link (OS Maps, Komoot)">
-                <input type="url" inputMode="url" value={draft.route_url} onChange={set("route_url")} placeholder="https://" />
+              <Field label="OS Maps route link">
+                <input
+                  type="url"
+                  inputMode="url"
+                  value={draft.route_url}
+                  onChange={set("route_url")}
+                  placeholder="https://explore.osmaps.com/route/…"
+                />
+                <small className="kit-field-hint">
+                  In the club&apos;s OS Maps, share the route as &ldquo;Anyone with link&rdquo; and paste it here. Saving draws it on the
+                  map, and edits in OS Maps come through each morning.
+                </small>
               </Field>
               <RouteAttach
                 eventId={eventId}
@@ -219,11 +235,25 @@ function RouteAttach({
   onChange: (route: RouteSummaryRow | null) => void;
 }) {
   const [url, setUrl] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"upload" | "fetch" | "remove" | null>(null);
+  const [busy, setBusy] = useState<"upload" | "fetch" | "remove" | "pick" | null>(null);
+  const [library, setLibrary] = useState<LibraryRoute[] | null>(null);
+  const [picked, setPicked] = useState("");
+  const [showFile, setShowFile] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    fetch("/api/osmaps/routes")
+      .then((res) => (res.ok ? res.json() : { routes: [] }))
+      .then((body: { routes?: LibraryRoute[] }) => live && setLibrary(body.routes ?? []))
+      .catch(() => live && setLibrary([]));
+    return () => {
+      live = false;
+    };
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const shownUrl = url ?? suggestedUrl;
 
-  async function send(kind: "upload" | "fetch" | "remove", init: RequestInit) {
+  async function send(kind: "upload" | "fetch" | "remove" | "pick", init: RequestInit) {
     setBusy(kind);
     setError(null);
     try {
@@ -232,6 +262,7 @@ function RouteAttach({
       if (!res.ok) throw new Error(body.error ?? "That didn't work.");
       onChange(kind === "remove" ? null : body.route);
       if (kind === "fetch") setUrl("");
+      if (kind === "pick") setPicked("");
     } catch (e) {
       setError(e instanceof Error ? e.message : "That didn't work.");
     } finally {
@@ -253,9 +284,21 @@ function RouteAttach({
     void send("fetch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: shownUrl.trim() }) });
   }
 
+  function pick() {
+    if (!picked) return;
+    void send("pick", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ osmapsRouteId: picked }) });
+  }
+
   const facts = route
-    ? [formatKm(route.distance_m / 1000), route.ascent_m !== null ? `${formatAscent(route.ascent_m)} up` : null].filter(Boolean).join(" · ")
+    ? [
+        route.source === "osmaps_auto" ? "matched from OS Maps" : route.osmaps_route_id ? "from OS Maps" : null,
+        formatKm(route.distance_m / 1000),
+        route.ascent_m !== null ? `${formatAscent(route.ascent_m)} up` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
     : null;
+  const hasLibrary = Boolean(library?.length);
 
   return (
     <fieldset className="kit-field plan-gpx">
@@ -277,8 +320,32 @@ function RouteAttach({
           </button>
         </div>
       ) : (
-        <p className="plan-gpx-hint">OS Maps: open the route, then Export › GPX. Upload that file, or paste a link that ends in .gpx.</p>
+        <p className="plan-gpx-hint">
+          {hasLibrary
+            ? "No route yet. Paste its OS Maps link above, or pick one the club has used before."
+            : "No route yet. Paste its OS Maps link above, or upload a .gpx file."}
+        </p>
       )}
+      {hasLibrary ? (
+        <div className="plan-gpx-url">
+          <select value={picked} onChange={(e) => setPicked(e.target.value)} aria-label="Route from the club's OS Maps">
+            <option value="">{route ? "Swap for a route used before…" : "Pick a route used before…"}</option>
+            {library!.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name} · {formatKm(r.distance_m / 1000)}
+              </option>
+            ))}
+          </select>
+          <button type="button" className="kit-btn" disabled={busy !== null || !picked} onClick={pick}>
+            {busy === "pick" ? "Adding…" : "Use"}
+          </button>
+        </div>
+      ) : null}
+      {hasLibrary && !showFile ? (
+        <button type="button" className="plan-gpx-more" onClick={() => setShowFile(true)}>
+          Not in OS Maps? Upload a .gpx file
+        </button>
+      ) : (
       <div className="plan-gpx-controls">
         {/* No `accept`: iOS greys out every file for extensions it doesn't know, .gpx included. The server checks. */}
         <label className={`kit-btn${busy ? " is-disabled" : ""}`}>
@@ -305,9 +372,17 @@ function RouteAttach({
           </button>
         </div>
       </div>
+      )}
       {error ? <p className="kit-form-error">{error}</p> : null}
     </fieldset>
   );
+}
+
+interface LibraryRoute {
+  id: string;
+  name: string;
+  distance_m: number;
+  ascent_m: number | null;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {

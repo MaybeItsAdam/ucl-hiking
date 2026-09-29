@@ -1,6 +1,7 @@
 import {
   DISPLAY_MAX_POINTS,
   DISPLAY_TOLERANCE_M,
+  haversineM,
   simplifySegments,
   type StoredRoute,
   type TrackPoint,
@@ -23,6 +24,10 @@ export interface EventRoute {
   descent_m: number | null;
   segments: TrackPoint[][];
   waypoints: Waypoint[];
+  /** upload / url / osmaps_pick were chosen by a person; osmaps_auto by the daily match. */
+  source?: "upload" | "url" | "osmaps_auto" | "osmaps_pick";
+  osmaps_route_id?: string | null;
+  match_reasons?: string[] | null;
   updated_at?: string;
 }
 
@@ -32,9 +37,40 @@ export interface MapRoute {
   start: [number, number];
   finish: [number, number];
   waypoints: { at: [number, number]; name: string | null }[];
+  /** [km along, metres up] for the elevation strip; empty when the GPX has no heights. */
+  profile: [number, number][];
 }
 
 const MAP_WAYPOINTS = 50;
+const PROFILE_POINTS = 160;
+
+/** Height against distance along the whole walk, thinned to an even spacing. */
+export function elevationProfile(segments: TrackPoint[][]): [number, number][] {
+  const raw: [number, number][] = [];
+  let along = 0;
+  let prev: TrackPoint | null = null;
+  for (const seg of segments) {
+    for (const p of seg) {
+      if (prev) along += haversineM(prev, p);
+      prev = p;
+      if (p.length === 3) raw.push([along / 1000, p[2]]);
+    }
+  }
+  if (raw.length < 2 || raw.length < segments.reduce((n, s) => n + s.length, 0) / 2) return [];
+  const total = raw[raw.length - 1][0];
+  if (total <= 0) return [];
+  const out: [number, number][] = [];
+  let j = 0;
+  for (let i = 0; i < PROFILE_POINTS; i++) {
+    const km = (total * i) / (PROFILE_POINTS - 1);
+    while (j < raw.length - 2 && raw[j + 1][0] < km) j++;
+    const [k0, e0] = raw[j];
+    const [k1, e1] = raw[j + 1];
+    const t = k1 > k0 ? Math.min(1, Math.max(0, (km - k0) / (k1 - k0))) : 0;
+    out.push([Math.round(km * 100) / 100, Math.round(e0 + (e1 - e0) * t)]);
+  }
+  return out;
+}
 
 export function mapRouteOf(route: Pick<EventRoute, "segments" | "waypoints">): MapRoute | null {
   const segments = simplifySegments(route.segments, DISPLAY_TOLERANCE_M, DISPLAY_MAX_POINTS)
@@ -47,6 +83,7 @@ export function mapRouteOf(route: Pick<EventRoute, "segments" | "waypoints">): M
     start: segments[0][0],
     finish: last[last.length - 1],
     waypoints: (route.waypoints ?? []).slice(0, MAP_WAYPOINTS).map((w) => ({ at: [w.lat, w.lng], name: w.name })),
+    profile: elevationProfile(route.segments),
   };
 }
 
@@ -60,10 +97,10 @@ export async function getEventRoute(eventSuuId: string | null): Promise<EventRou
 
 export type RouteSummaryRow = Pick<
   EventRoute,
-  "event_suu_id" | "name" | "source_file" | "source_url" | "distance_m" | "ascent_m" | "descent_m"
+  "event_suu_id" | "name" | "source_file" | "source_url" | "distance_m" | "ascent_m" | "descent_m" | "source" | "osmaps_route_id"
 >;
 
-const SUMMARY_SELECT = "event_suu_id, name, source_file, source_url, distance_m, ascent_m, descent_m";
+const SUMMARY_SELECT = "event_suu_id, name, source_file, source_url, distance_m, ascent_m, descent_m, source, osmaps_route_id";
 
 /** Just the facts of a route, without its points, for the plan editor. */
 export async function getEventRouteSummary(eventSuuId: string | null): Promise<RouteSummaryRow | null> {
@@ -87,6 +124,9 @@ export async function saveEventRoute(
         name: route.name,
         source_file: source.file ?? null,
         source_url: source.url ?? null,
+        source: source.url ? "url" : "upload",
+        osmaps_route_id: null,
+        match_reasons: null,
         distance_m: route.summary.distanceM,
         ascent_m: route.summary.ascentM,
         descent_m: route.summary.descentM,

@@ -58,5 +58,7 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Shows where you are on a walk's route map. Your location stays on your phone.</string>
 </dict>
 </plist>
