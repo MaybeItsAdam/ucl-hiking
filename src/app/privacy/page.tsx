@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ClubMark } from "@/components/ClubMark";
+import { KIT_COOL_OFF_DAYS } from "@/lib/kitLoans";
 
 export const metadata: Metadata = {
   title: "Privacy policy | UCL Hiking Club",
@@ -114,8 +115,11 @@ export default function PrivacyPage() {
           In the app or on the website, sign in and open{" "}
           <Link href="/account">Account settings</Link> (from the member portal), then
           choose &ldquo;Delete my account&rdquo;. This immediately deletes
-          your hiking app account, your equipment requests and your walk bookings. If you
-          have club kit out on loan, return it first.
+          your hiking app account and your walk bookings, and cancels any kit requests
+          still waiting for a decision. If you have club kit out on loan, return it first;
+          you can delete your account {KIT_COOL_OFF_DAYS} days after your last return, once the kit has
+          been checked. The club&apos;s kit ledger keeps its record of kit you borrowed,
+          with your name and email, so it can account for its equipment.
         </p>
         <p>
           If you can&apos;t sign in, email{" "}

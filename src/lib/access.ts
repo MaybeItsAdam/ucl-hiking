@@ -124,3 +124,31 @@ export function accessSummary(profile: AccessProfile): string {
   if (profile.governanceRole) labels.push(GOVERNANCE_LABELS[profile.governanceRole]);
   return labels.join(" · ");
 }
+
+/**
+ * Role preview ("see the app as another kind of member") is for the people who
+ * run the club: admins, and the principals who look after it day to day.
+ */
+export function canPreviewRoles(realRole: GovernanceRole | null | undefined): boolean {
+  return realRole === "admin" || realRole === "principal";
+}
+
+/**
+ * The governance roles a member may preview as. A preview never reaches above
+ * the member's own role: admins can preview anything, principals everything
+ * except admin, and everyone else nothing.
+ */
+export function previewableGovernanceRoles(
+  realRole: GovernanceRole | null | undefined,
+): (GovernanceRole | null)[] {
+  if (realRole === "admin") return [null, "committee", "principal", "admin"];
+  if (realRole === "principal") return [null, "committee", "principal"];
+  return [];
+}
+
+export function canPreviewAs(
+  realRole: GovernanceRole | null | undefined,
+  previewRole: GovernanceRole | null,
+): boolean {
+  return previewableGovernanceRoles(realRole).includes(previewRole);
+}

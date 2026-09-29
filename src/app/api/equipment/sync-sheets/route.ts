@@ -24,12 +24,14 @@ interface EquipmentRequestRow {
   status: string;
   notes: string | null;
   reviewed_by: string | null;
+  borrower_name?: string | null;
+  borrower_email?: string | null;
   member?: {
     id: string;
     email: string;
     full_name: string | null;
     membership_tier: string;
-  };
+  } | null;
   equipment?: {
     id: string;
     name: string;
@@ -96,8 +98,8 @@ function buildEquipmentLedgerRows(requests: EquipmentRequestRow[]): string[][] {
     rows.push([
       req.id || "",
       req.created_at || "",
-      req.member?.full_name || "",
-      req.member?.email || "",
+      req.member?.full_name || req.borrower_name || "",
+      req.member?.email || req.borrower_email || "",
       req.member?.membership_tier || "",
       req.equipment?.name || "",
       String(req.quantity || 1),

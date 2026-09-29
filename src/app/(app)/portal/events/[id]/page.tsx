@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   Clock,
   CloudSun,
+  Download,
   ExternalLink,
   Flag,
   Map as MapIcon,
@@ -28,6 +29,7 @@ import { HikeMap } from "@/components/HikeMap";
 import { DIFFICULTY_LABELS, eventDetails, formatAscent, formatKm, isHeading, KIND_LABELS } from "@/lib/eventDetails";
 import { countdown, eventWhen, longDate } from "@/lib/eventList";
 import { canEditPlan, getEventPlan } from "@/lib/eventPlans";
+import { getEventRoute, mapRouteOf } from "@/lib/eventRoutes";
 import { getEvent } from "@/lib/events";
 import { mapHikes } from "@/lib/hikeMap";
 import { loadPlaces, type LatLng } from "@/lib/places";
@@ -41,17 +43,31 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   return { title: `${event ? eventDetails(event).name : "Event"} | UCL Hiking Club` };
 }
 
-/** Google Maps: a walking route between the pins if there are two, the place if there is one. */
 const clock = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit" });
 
-function mapsUrl(start: LatLng | null, finish: LatLng | null, fallback: string | null): string | null {
-  const at = (p: LatLng) => `${p[0].toFixed(5)},${p[1].toFixed(5)}`;
-  if (start && finish && at(start) !== at(finish)) {
-    return `https://www.google.com/maps/dir/?api=1&origin=${at(start)}&destination=${at(finish)}&travelmode=walking`;
-  }
-  const point = start ?? finish;
-  if (point) return `https://www.google.com/maps/search/?api=1&query=${at(point)}`;
-  return fallback ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fallback)}` : null;
+/**
+ * Directions to the start, in the phone's own maps app: the walk itself is on
+ * the map above, so this is only for getting there.
+ */
+function directionsUrl(to: LatLng | null, fallback: string | null): string | null {
+  if (to) return `https://www.google.com/maps/dir/?api=1&destination=${to[0].toFixed(5)},${to[1].toFixed(5)}`;
+  return fallback ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(fallback)}` : null;
+}
+
+/** Name the app a route link opens in, so the button says where it goes. */
+function routeLinkLabel(href: string): string {
+  const host = (() => {
+    try {
+      return new URL(href).hostname;
+    } catch {
+      return "";
+    }
+  })();
+  if (/(^|\.)osmaps\.com$|(^|\.)ordnancesurvey\.co\.uk$/.test(host)) return "Open in OS Maps";
+  if (/(^|\.)komoot\.(com|de)$/.test(host)) return "Open in Komoot";
+  if (/(^|\.)strava\.com$/.test(host)) return "Open in Strava";
+  if (/(^|\.)alltrails\.com$/.test(host)) return "Open in AllTrails";
+  return "Route";
 }
 
 export default async function EventPage({ params }: Params) {
@@ -62,15 +78,19 @@ export default async function EventPage({ params }: Params) {
   if (!event) notFound();
 
   const details = eventDetails(event);
-  const [places, plan] = await Promise.all([
+  const [places, plan, route] = await Promise.all([
     loadPlaces([details.start, details.finish].filter((p): p is string => Boolean(p))),
     getEventPlan(event.suu_event_id),
+    getEventRoute(event.suu_event_id),
   ]);
   const [hike] = mapHikes([event], places);
   const pinned = hike && (hike.start || hike.finish) ? hike : null;
+  const mapRoute = route ? mapRouteOf(route) : null;
+  const distanceKm = details.distanceKm ?? (route && route.distance_m > 0 ? route.distance_m / 1000 : null);
+  const ascentM = details.ascentM ?? route?.ascent_m ?? null;
   const soon = countdown(event);
   const walking = details.kind === "hike" || details.kind === "walk" || details.kind === "trip";
-  const forecastAt = pinned?.start ?? pinned?.finish ?? null;
+  const forecastAt = pinned?.start ?? mapRoute?.start ?? pinned?.finish ?? null;
   const forecast = walking && forecastAt && event.status !== "cancelled" ? await getWalkForecast(forecastAt, event.starts_at) : null;
   const editable = Boolean(event.suu_event_id) && canEditPlan(profileOf(member));
   const running = Boolean(event.suu_event_id) && walkRole({ id: member.id, ...profileOf(member) }, plan) !== null;
@@ -78,15 +98,16 @@ export default async function EventPage({ params }: Params) {
     ? [plan.meet_at ? clock.format(new Date(plan.meet_at)) : null, plan.meet_point].filter(Boolean).join(" · ")
     : null;
   const meet = planMeet ?? details.meetingPoint;
-  const openInMaps = mapsUrl(
-    pinned?.start ?? null,
-    pinned?.finish ?? null,
-    details.start ? `${details.start} station` : details.meetingPoint,
-  );
+  // The organiser's own map link wins; otherwise Google directions to the start.
+  const directions =
+    event.location_url ??
+    directionsUrl(pinned?.start ?? mapRoute?.start ?? null, details.start ? `${details.start} station` : details.meetingPoint);
+  // A GPX link already drawn and downloadable here doesn't need its own button too.
+  const routeLink = plan?.route_url && plan.route_url !== route?.source_url ? plan.route_url : null;
 
   const stats = [
-    details.distanceKm !== null ? { label: "Distance", value: formatKm(details.distanceKm) } : null,
-    details.ascentM !== null ? { label: "Ascent", value: formatAscent(details.ascentM) } : null,
+    distanceKm !== null ? { label: "Distance", value: formatKm(distanceKm) } : null,
+    ascentM !== null ? { label: "Ascent", value: formatAscent(ascentM) } : null,
     details.difficulty ? { label: "Grade", value: DIFFICULTY_LABELS[details.difficulty], difficulty: details.difficulty } : null,
     details.trainFare ? { label: "Train", value: details.trainFare } : null,
   ].filter((s) => s !== null);
@@ -214,7 +235,7 @@ export default async function EventPage({ params }: Params) {
         </section>
       ) : null}
 
-      {day.length || pinned || openInMaps || event.location_url || plan?.route_url ? (
+      {day.length || pinned || mapRoute || directions || routeLink ? (
         <section className="event-section" aria-labelledby="event-day">
           <h3 id="event-day" className="event-section-title">
             {walking ? "The day" : "Where"}
@@ -231,25 +252,36 @@ export default async function EventPage({ params }: Params) {
                 ))}
               </ul>
             ) : null}
-            {pinned ? <HikeMap hikes={[pinned]} label={`Map of ${details.name}`} /> : null}
+            {pinned || mapRoute ? (
+              <HikeMap hikes={pinned ? [pinned] : []} route={mapRoute} label={`Map of ${details.name}`} />
+            ) : null}
+            {route ? (
+              <p className="event-route-facts">
+                <Route size={15} aria-hidden="true" />
+                <span>
+                  GPX route · {formatKm(route.distance_m / 1000)}
+                  {route.ascent_m !== null ? ` · ${formatAscent(route.ascent_m)} up` : ""}
+                </span>
+              </p>
+            ) : null}
             <div className="event-day-actions">
-              {openInMaps ? (
-                <a className="kit-btn" href={openInMaps} target="_blank" rel="noopener noreferrer">
-                  <Navigation size={15} aria-hidden="true" />
-                  Open in Maps
+              {route ? (
+                <a className="kit-btn" href={`/api/events/${event.id}/gpx`} download>
+                  <Download size={15} aria-hidden="true" />
+                  Download GPX
                 </a>
               ) : null}
-              {event.location_url ? (
-                <a className="kit-btn" href={event.location_url} target="_blank" rel="noopener noreferrer">
-                  <MapPin size={15} aria-hidden="true" />
+              {directions ? (
+                <OpenExternal className="kit-btn" href={directions}>
+                  {event.location_url ? <MapPin size={15} aria-hidden="true" /> : <Navigation size={15} aria-hidden="true" />}
                   Directions
                   <ExternalLink size={13} aria-hidden="true" />
-                </a>
+                </OpenExternal>
               ) : null}
-              {plan?.route_url ? (
-                <OpenExternal className="kit-btn" href={plan.route_url}>
+              {routeLink ? (
+                <OpenExternal className="kit-btn" href={routeLink}>
                   <Route size={15} aria-hidden="true" />
-                  Route
+                  {routeLinkLabel(routeLink)}
                   <ExternalLink size={13} aria-hidden="true" />
                 </OpenExternal>
               ) : null}

@@ -1068,12 +1068,15 @@ function RequestRow({
 }) {
   const item = request.equipment?.name ?? "Equipment item";
   const overdue = request.status === "approved" && today !== "" && request.end_date < today;
+  // A borrower who deleted their account keeps their name on the loan history.
+  const borrower = request.member?.full_name || (request.member_id ? "Club member" : request.borrower_name ? `${request.borrower_name} (account deleted)` : "Deleted account");
+  const email = request.member?.email ?? request.borrower_email ?? null;
 
   return (
     <li className="kit-request">
       <div className="kit-request-body">
         <div className="kit-request-head">
-          <strong>{view === "committee" ? request.member?.full_name || "Club member" : item}</strong>
+          <strong>{view === "committee" ? borrower : item}</strong>
           <span className={`kit-tag is-${overdue ? "overdue" : request.status}`}>
             {overdue ? "Overdue" : STATUS_LABELS[request.status]}
           </span>
@@ -1092,9 +1095,9 @@ function RequestRow({
         </p>
         {request.purpose && <p className="kit-request-purpose">{request.purpose}</p>}
         {request.notes && <p className="kit-request-note">{request.notes}</p>}
-        {view === "committee" && request.member?.email && (
-          <a className="kit-request-email" href={`mailto:${request.member.email}`}>
-            {request.member.email}
+        {view === "committee" && email && (
+          <a className="kit-request-email" href={`mailto:${email}`}>
+            {email}
           </a>
         )}
       </div>

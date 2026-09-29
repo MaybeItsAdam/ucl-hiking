@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil } from "lucide-react";
+import { Pencil, Route, Upload } from "lucide-react";
 import { Sheet } from "@/components/Sheet";
+import { formatAscent, formatKm } from "@/lib/eventDetails";
 import type { EventPlanView, PlanPerson } from "@/lib/eventPlans";
+import type { RouteSummaryRow } from "@/lib/eventRoutes";
 
 interface Draft {
   leader_member_id: string;
@@ -63,6 +65,7 @@ export function EventPlanEditor({ eventId, startsAt }: { eventId: string; starts
   const [draft, setDraft] = useState<Draft | null>(null);
   const [leaders, setLeaders] = useState<PlanPerson[]>([]);
   const [canAssign, setCanAssign] = useState(false);
+  const [route, setRoute] = useState<RouteSummaryRow | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,6 +79,7 @@ export function EventPlanEditor({ eventId, startsAt }: { eventId: string; starts
       if (!res.ok) throw new Error(body.error ?? "The plan didn't load.");
       setLeaders(body.leaders ?? []);
       setCanAssign(Boolean(body.canAssign));
+      setRoute(body.route ?? null);
       setDraft(draftOf(body.plan, startsAt));
     } catch (e) {
       setError(e instanceof Error ? e.message : "The plan didn't load.");
@@ -164,9 +168,18 @@ export function EventPlanEditor({ eventId, startsAt }: { eventId: string; starts
               <Field label="Kit list, one per line">
                 <textarea rows={5} value={draft.kit_list} onChange={set("kit_list")} placeholder={"Waterproof jacket\nWalking boots\nLunch and 1.5 L water"} />
               </Field>
-              <Field label="Route link (OS Maps, Komoot, GPX)">
+              <Field label="Route link (OS Maps, Komoot)">
                 <input type="url" inputMode="url" value={draft.route_url} onChange={set("route_url")} placeholder="https://" />
               </Field>
+              <RouteAttach
+                eventId={eventId}
+                route={route}
+                suggestedUrl={/\.gpx(?:$|[?#])/i.test(draft.route_url) ? draft.route_url : ""}
+                onChange={(next) => {
+                  setRoute(next);
+                  router.refresh();
+                }}
+              />
               <Field label="Booking link (SU ticket page)">
                 <input type="url" inputMode="url" value={draft.booking_url} onChange={set("booking_url")} placeholder="https://studentsunionucl.org/…" />
               </Field>
@@ -187,6 +200,113 @@ export function EventPlanEditor({ eventId, startsAt }: { eventId: string; starts
         </Sheet>
       ) : null}
     </>
+  );
+}
+
+/**
+ * The GPX track drawn on the event page. Attaching or removing it saves at
+ * once, apart from the plan form, since it is a file rather than a field.
+ */
+function RouteAttach({
+  eventId,
+  route,
+  suggestedUrl,
+  onChange,
+}: {
+  eventId: string;
+  route: RouteSummaryRow | null;
+  suggestedUrl: string;
+  onChange: (route: RouteSummaryRow | null) => void;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [busy, setBusy] = useState<"upload" | "fetch" | "remove" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const shownUrl = url ?? suggestedUrl;
+
+  async function send(kind: "upload" | "fetch" | "remove", init: RequestInit) {
+    setBusy(kind);
+    setError(null);
+    try {
+      const res = await fetch(`/api/events/${eventId}/gpx`, init);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? "That didn't work.");
+      onChange(kind === "remove" ? null : body.route);
+      if (kind === "fetch") setUrl("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "That didn't work.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function upload(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    const form = new FormData();
+    form.append("file", file);
+    void send("upload", { method: "POST", body: form });
+  }
+
+  function fetchUrl() {
+    if (!shownUrl.trim()) return;
+    void send("fetch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: shownUrl.trim() }) });
+  }
+
+  const facts = route
+    ? [formatKm(route.distance_m / 1000), route.ascent_m !== null ? `${formatAscent(route.ascent_m)} up` : null].filter(Boolean).join(" · ")
+    : null;
+
+  return (
+    <fieldset className="kit-field plan-gpx">
+      <legend>GPX track, drawn on the map</legend>
+      {route ? (
+        <div className="plan-gpx-current">
+          <Route size={16} aria-hidden="true" />
+          <span>
+            <strong>{route.name ?? route.source_file ?? "GPX route"}</strong>
+            <small>{facts}</small>
+          </span>
+          <button
+            type="button"
+            className="kit-btn danger-text"
+            disabled={busy !== null}
+            onClick={() => void send("remove", { method: "DELETE" })}
+          >
+            {busy === "remove" ? "Removing…" : "Remove"}
+          </button>
+        </div>
+      ) : (
+        <p className="plan-gpx-hint">OS Maps: open the route, then Export › GPX. Upload that file, or paste a link that ends in .gpx.</p>
+      )}
+      <div className="plan-gpx-controls">
+        {/* No `accept`: iOS greys out every file for extensions it doesn't know, .gpx included. The server checks. */}
+        <label className={`kit-btn${busy ? " is-disabled" : ""}`}>
+          <Upload size={15} aria-hidden="true" />
+          {busy === "upload" ? "Reading…" : route ? "Replace with a file" : "Upload .gpx"}
+          <input type="file" className="sr-only" onChange={upload} disabled={busy !== null} />
+        </label>
+        <div className="plan-gpx-url">
+          <input
+            type="url"
+            inputMode="url"
+            value={shownUrl}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              e.preventDefault();
+              fetchUrl();
+            }}
+            placeholder="https://…/route.gpx"
+            aria-label="GPX link"
+          />
+          <button type="button" className="kit-btn" disabled={busy !== null || !shownUrl.trim()} onClick={fetchUrl}>
+            {busy === "fetch" ? "Fetching…" : "Fetch"}
+          </button>
+        </div>
+      </div>
+      {error ? <p className="kit-form-error">{error}</p> : null}
+    </fieldset>
   );
 }
 

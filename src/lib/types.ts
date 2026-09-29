@@ -63,7 +63,8 @@ export type EquipmentRequestStatus = "pending" | "approved" | "rejected" | "retu
 
 export interface EquipmentRequest {
   id: string;
-  member_id: string;
+  /** Null once the borrower has deleted their account; see borrower_name/borrower_email. */
+  member_id: string | null;
   equipment_id: string;
   quantity: number;
   start_date: string;
@@ -73,8 +74,13 @@ export interface EquipmentRequest {
   notes: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;
+  /** When the loan stopped being out (left 'approved'). */
+  loan_closed_at?: string | null;
+  /** Snapshot taken when the borrower deleted their account. */
+  borrower_name?: string | null;
+  borrower_email?: string | null;
   created_at: string;
   updated_at: string;
-  member?: Member;
+  member?: Member | null;
   equipment?: Equipment;
 }

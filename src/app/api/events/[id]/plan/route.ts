@@ -5,6 +5,7 @@ import { eventDetails } from "@/lib/eventDetails";
 import { canEditPlan, getEventPlan, mergePlanForEditor, newlyAssigned, parsePlanInput, saveEventPlan } from "@/lib/eventPlans";
 import { longDate } from "@/lib/eventList";
 import { notify } from "@/lib/notify";
+import { getEventRouteSummary } from "@/lib/eventRoutes";
 import { getEvent } from "@/lib/events";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
@@ -34,7 +35,7 @@ export async function GET(_request: Request, { params }: Params) {
   const event = await getEvent((await params).id);
   if (!event?.suu_event_id) return NextResponse.json({ error: "No such event." }, { status: 404 });
 
-  const plan = await getEventPlan(event.suu_event_id);
+  const [plan, route] = await Promise.all([getEventPlan(event.suu_event_id), getEventRouteSummary(event.suu_event_id)]);
   let leaders: { id: string; full_name: string | null }[] = [];
   if (can(profile, "manage_walks") && isSupabaseConfigured()) {
     const { data } = await getSupabaseAdmin()
@@ -45,7 +46,7 @@ export async function GET(_request: Request, { params }: Params) {
       .order("full_name");
     leaders = data ?? [];
   }
-  return NextResponse.json({ plan, leaders, canAssign: can(profile, "manage_walks") });
+  return NextResponse.json({ plan, route, leaders, canAssign: can(profile, "manage_walks") });
 }
 
 export async function PUT(request: Request, { params }: Params) {

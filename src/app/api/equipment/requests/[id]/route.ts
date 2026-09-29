@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { notify } from "@/lib/notify";
 import { can } from "@/lib/access";
+import { canTransitionRequest, type RequestTransition } from "@/lib/kitLoans";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 
@@ -66,30 +67,32 @@ export async function PATCH(
   }
 
   const isOwner = req.member_id === member.id;
+  const target = statusStr as RequestTransition;
 
-  if (statusStr === "cancelled") {
-    if (!isOwner && !isCommittee) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (!isOwner && !isCommittee) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  if (!canTransitionRequest(req.status, target, { isOwner, isReviewer: isCommittee })) {
+    if (req.status === "approved" && target === "cancelled" && !isCommittee) {
+      return NextResponse.json(
+        { error: "This kit is already out on loan. Return it to a principal, who will mark it returned." },
+        { status: 403 },
+      );
     }
-  } else if (!isCommittee) {
-    return NextResponse.json({ error: "Forbidden: Committee access required to review requests" }, { status: 403 });
+    if (!isCommittee) {
+      return NextResponse.json({ error: "Forbidden: Committee access required to review requests" }, { status: 403 });
+    }
+    return NextResponse.json({ error: `A ${req.status} request can't be marked ${target}.` }, { status: 409 });
   }
 
   const now = new Date().toISOString();
   const eqItem = req.equipment;
 
-  if (statusStr === "approved" && req.status !== "approved") {
-    if (eqItem.available_quantity < req.quantity) {
-      return NextResponse.json(
-        { error: `Insufficient stock to approve. Available: ${eqItem.available_quantity}, requested: ${req.quantity}` },
-        { status: 400 },
-      );
-    }
-    const newAvail = eqItem.available_quantity - req.quantity;
-    await supabase.from("equipment").update({ available_quantity: newAvail }).eq("id", eqItem.id);
-  } else if ((statusStr === "returned" || statusStr === "cancelled") && req.status === "approved") {
-    const newAvail = Math.min(eqItem.total_quantity, eqItem.available_quantity + req.quantity);
-    await supabase.from("equipment").update({ available_quantity: newAvail }).eq("id", eqItem.id);
+  if (target === "approved" && eqItem.available_quantity < req.quantity) {
+    return NextResponse.json(
+      { error: `Insufficient stock to approve. Available: ${eqItem.available_quantity}, requested: ${req.quantity}` },
+      { status: 400 },
+    );
   }
 
   const updates: Record<string, unknown> = {
@@ -103,15 +106,32 @@ export async function PATCH(
     updates.reviewed_at = now;
   }
 
+  // Only if nobody else changed it since we read it, so two clicks can't count
+  // the same loan out twice. Stock moves in the database with the status change
+  // (trigger equipment_requests_move_stock), so concurrent approvals can't over-lend.
   const { data: updated, error: updateError } = await supabase
     .from("equipment_requests")
     .update(updates)
     .eq("id", id)
+    .eq("status", req.status)
     .select(`*, equipment:equipment_id(*), member:member_id(id, email, full_name)`)
-    .single();
+    .maybeSingle();
 
   if (updateError) {
+    if (updateError.message?.includes("insufficient_stock")) {
+      return NextResponse.json(
+        { error: "Not enough of this kit left to approve. Another loan was approved first; refresh to see current stock." },
+        { status: 409 },
+      );
+    }
+    // equipment_requests_open_has_borrower: the member deleted their account meanwhile.
+    if (updateError.code === "23514") {
+      return NextResponse.json({ error: "That member has deleted their account, so the request is closed." }, { status: 409 });
+    }
     return NextResponse.json({ error: "Failed to update request" }, { status: 500 });
+  }
+  if (!updated) {
+    return NextResponse.json({ error: "This request was changed by someone else. Refresh and try again." }, { status: 409 });
   }
 
   await supabase.from("audit_log").insert({
@@ -123,7 +143,7 @@ export async function PATCH(
   });
 
   // The borrower hears the decision; a principal's own actions need no telling.
-  if ((statusStr === "approved" || statusStr === "rejected") && !isOwner) {
+  if ((statusStr === "approved" || statusStr === "rejected") && !isOwner && req.member_id) {
     const what = `${req.quantity > 1 ? `${req.quantity} × ` : ""}${eqItem.name}`;
     await notify([req.member_id], {
       kind: "kit",

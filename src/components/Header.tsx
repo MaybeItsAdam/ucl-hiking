@@ -15,7 +15,8 @@ export async function Header() {
       </Link>
       <AccountButton
         member={member}
-        isRealAdmin={previewState.isRealAdmin}
+        canPreviewRoles={previewState.canPreviewRoles}
+        previewableRoles={previewState.previewableRoles}
         preview={previewState.preview}
         realMember={previewState.realMember}
       />

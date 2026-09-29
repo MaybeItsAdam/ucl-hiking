@@ -1467,6 +1467,12 @@ select:focus {
   opacity: .7;
 }
 
+.preview-scope-note {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
 .segmented-control {
   display: flex;
   background: var(--paper);
@@ -1760,11 +1766,16 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 .theme-setting button.is-selected { background: var(--ink-fill); color: #fff; }
 .delete-account-warning { font-weight: 700; }
 .delete-account-actions { display: flex; flex-wrap: wrap; gap: 12px; }
-.delete-account-danger, .delete-account-cancel { min-height: 44px; padding: 0 20px; border-radius: 999px; font: 800 15px var(--font-display); cursor: pointer; }
-.delete-account-danger { border: 0; background: #b42318; color: #fff; }
+.delete-account-danger, .delete-account-cancel { min-height: 44px; padding: 0 20px; border-radius: 6px; font: 800 15px var(--font-display); cursor: pointer; }
+.delete-account-danger { border: 1px solid var(--bad-fg); background: var(--bad-fg); color: var(--surface); }
 .delete-account-cancel { border: 1px solid var(--line); background: transparent; color: var(--ink); }
 .delete-account-danger:disabled, .delete-account-cancel:disabled { opacity: .6; cursor: default; }
 .delete-account-error { color: var(--bad-fg); font-weight: 700; }
+.delete-account-block { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--bad-line); border-radius: 8px; background: var(--bad-bg); }
+.delete-account-block p { margin: 0; }
+.delete-account-block-title { font-weight: 700; color: var(--bad-fg); }
+.delete-account-block-items { margin: 0; padding-left: 20px; }
+.delete-account-block-due { color: var(--muted); }
 
 /* Signed-in app frame: full width, a flat top bar holding the section tabs on
    wide screens; on phones (and in the native app) the tabs drop to a bottom
@@ -2087,8 +2098,11 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 .event-day-rows svg { align-self: center; color: var(--forest); }
 .event-day-label { font: 800 10.5px var(--font-body); letter-spacing: .13em; text-transform: uppercase; color: var(--muted); }
 .event-day-value { font-weight: 700; overflow-wrap: anywhere; }
-.event-day .hike-map { border-top: 1px solid var(--line); }
-.event-day-rows:empty + .hike-map { border-top: 0; }
+.event-day .hike-map-wrap { border-top: 1px solid var(--line); }
+.event-day .hike-map { height: 280px; }
+.event-day-rows:empty + .hike-map-wrap { border-top: 0; }
+.event-route-facts { display: flex; align-items: center; gap: 8px; margin: 0; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 13px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.event-route-facts svg { flex-shrink: 0; color: var(--info-fg); }
 .event-day-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--line); }
 .event-day-actions:empty { display: none; }
 
@@ -2327,6 +2341,63 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 .hike-route { stroke: var(--pin); }
 .hike-route.is-upcoming { stroke-opacity: .45; }
 .walkmap-list .hike-pin { border-color: var(--surface); }
+
+/* A walk's GPX route: a strong line on a pale casing, so it reads over
+   contours and woodland alike. Overlays aren't in the tile pane's filter. */
+.hike-track { stroke: var(--info-fg); }
+.hike-track-casing { stroke: var(--surface); stroke-opacity: .85; }
+.hike-track-start, .hike-track-end, .hike-waypoint { display: block; width: 100%; height: 100%; }
+.hike-track-start { border: 3px solid #fff; border-radius: 999px; background: var(--ok-fg); }
+.hike-track-end { border: 3px solid #fff; border-radius: 3px; background: var(--ink-fill); }
+.hike-waypoint { border: 2px solid var(--info-fg); border-radius: 999px; background: var(--surface); }
+
+/* OpenTopoMap's colours carry meaning (woods, water, contours), so it is only
+   softened, not greyed; the dark theme inverts it like the street map. */
+.hike-map.is-topo .leaflet-tile-pane { filter: saturate(.85) contrast(.95); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .hike-map.is-topo .leaflet-tile-pane { filter: grayscale(.3) invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); }
+}
+:root[data-theme="dark"] .hike-map.is-topo .leaflet-tile-pane { filter: grayscale(.3) invert(1) hue-rotate(180deg) brightness(.85) contrast(.9); }
+
+/* Topo / Street and full screen, over the map's top-right corner. */
+.hike-map-wrap { position: relative; }
+.hike-map-controls { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; gap: 6px; }
+.hike-map-bases { display: flex; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); }
+.hike-map-bases button, .hike-map-expand {
+  position: relative; display: grid; place-items: center; min-height: 32px; border: 0; background: var(--surface); color: var(--muted); cursor: pointer;
+}
+.hike-map-bases button { padding: 0 10px; font: 800 10px var(--font-body); letter-spacing: .15em; text-transform: uppercase; }
+.hike-map-bases button:first-child { border-radius: 5px 0 0 5px; }
+.hike-map-bases button:last-child { border-radius: 0 5px 5px 0; }
+.hike-map-bases button + button { border-left: 1px solid var(--line-strong); }
+.hike-map-bases button[aria-pressed="true"] { background: var(--ink-fill); color: #fff; }
+.hike-map-expand { width: 34px; border: 1px solid var(--line-strong); border-radius: 6px; color: var(--ink); }
+.hike-map-bases button:focus-visible, .hike-map-expand:focus-visible { outline: 2px solid var(--forest); outline-offset: 1px; }
+@media (pointer: coarse) {
+  /* 44px to a thumb, 32px to the eye. */
+  .hike-map-bases button::after, .hike-map-expand::after { content: ""; position: absolute; inset: -6px -2px; }
+}
+.hike-map-wrap.is-expanded {
+  position: fixed; inset: 0; z-index: 60; background: var(--paper);
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+}
+.event-day .hike-map-wrap.is-expanded { border-top: 0; }
+.hike-map-wrap.is-expanded .hike-map { height: 100%; border: 0; border-radius: 0; }
+.hike-map-wrap.is-expanded .hike-map-controls { top: calc(var(--safe-top) + 10px); right: calc(var(--safe-right) + 10px); }
+
+/* Attaching a GPX in the plan sheet. */
+.plan-gpx { gap: 8px; margin: 0; padding: 10px 12px 12px; border: 1px solid var(--line); border-radius: 8px; }
+.plan-gpx legend { padding: 0 4px; font-size: 13px; font-weight: 700; }
+.plan-gpx-current { display: flex; align-items: center; gap: 10px; }
+.plan-gpx-current > svg { flex-shrink: 0; color: var(--info-fg); }
+.plan-gpx-current > span { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
+.plan-gpx-current small { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.plan-gpx-hint { margin: 0; font-size: 13px; color: var(--muted); }
+.plan-gpx-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.plan-gpx-controls .kit-btn { min-height: 44px; }
+.plan-gpx-controls label.kit-btn:focus-within { outline: 2px solid var(--forest); outline-offset: 2px; }
+.plan-gpx-controls label.kit-btn.is-disabled { opacity: .45; cursor: default; }
+.plan-gpx-url { flex: 1 1 220px; display: flex; gap: 6px; min-width: 0; }
 
 .hike-map .leaflet-tooltip.hike-tip {
   padding: 2px 7px; border: 1px solid var(--line-strong); border-radius: 6px; box-shadow: none;

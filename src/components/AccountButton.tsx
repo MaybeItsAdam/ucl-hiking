@@ -17,14 +17,22 @@ import {
   Shield,
   Crown,
 } from "lucide-react";
-import { accessSummary, type GovernanceRole, type MembershipTier } from "@/lib/access";
+import {
+  accessSummary,
+  GOVERNANCE_LABELS,
+  type GovernanceRole,
+  type MembershipTier,
+} from "@/lib/access";
 import type { Member } from "@/lib/types";
 import type { RolePreviewConfig } from "@/lib/session";
 import { SignInButton } from "@/components/SignInButton";
 
 interface AccountButtonProps {
   member: Member | null;
-  isRealAdmin: boolean;
+  /** The real member is an admin or principal and gets the preview menu. */
+  canPreviewRoles: boolean;
+  /** Governance roles they may preview as; admins get "admin", principals don't. */
+  previewableRoles?: (GovernanceRole | null)[];
   preview: RolePreviewConfig | null;
   realMember?: Member | null;
 }
@@ -117,9 +125,17 @@ const PRESETS: Preset[] = [
   },
 ];
 
+const GOVERNANCE_OPTIONS: { role: GovernanceRole | null; label: string }[] = [
+  { role: null, label: "None" },
+  { role: "committee", label: "Committee" },
+  { role: "principal", label: "Principal" },
+  { role: "admin", label: "Admin" },
+];
+
 export function AccountButton({
   member,
-  isRealAdmin,
+  canPreviewRoles,
+  previewableRoles = [],
   preview,
   realMember,
 }: AccountButtonProps) {
@@ -221,8 +237,8 @@ export function AccountButton({
     return <SignInButton compact />;
   }
 
-  // If non-admin user is signed in, standard simple link pill
-  if (!isRealAdmin) {
+  // Anyone who can't preview roles gets the plain link to their account.
+  if (!canPreviewRoles) {
     return (
       <Link className="member-pill" href="/portal">
         <span className="avatar">
@@ -242,10 +258,18 @@ export function AccountButton({
     );
   }
 
-  // User is a real admin
+  // A real admin or principal: the preview menu.
+  const realRole = realMember?.governance_role ?? member.real_governance_role ?? null;
+  const realRoleLabel = realRole ? GOVERNANCE_LABELS[realRole] : "Member";
   const displayName =
-    realMember?.full_name?.split(" ")[0] || member?.full_name?.split(" ")[0] || "Admin";
+    realMember?.full_name?.split(" ")[0] || member?.full_name?.split(" ")[0] || realRoleLabel;
   const userEmail = realMember?.email || member?.email || "";
+  const presets = PRESETS.filter((p) => previewableRoles.includes(p.governance));
+  const governanceOptions = GOVERNANCE_OPTIONS.filter(({ role }) =>
+    previewableRoles.includes(role),
+  );
+  const canPreviewAdmin = previewableRoles.includes("admin");
+  const ownAccess = `Your own access (${realRoleLabel})`;
 
   const previewDescription = preview
     ? accessSummary({
@@ -253,7 +277,7 @@ export function AccountButton({
         governanceRole: preview.governanceRole,
         isWalkLeader: preview.isWalkLeader,
       })
-    : "Full Admin";
+    : ownAccess;
 
   return (
     <div className="account-menu-container" ref={containerRef}>
@@ -273,11 +297,11 @@ export function AccountButton({
             {isPreviewActive ? (
               <span className="preview-badge-chip">PREVIEW</span>
             ) : (
-              <span className="admin-badge-chip">ADMIN</span>
+              <span className="admin-badge-chip">{realRoleLabel}</span>
             )}
           </span>
           <small>
-            {isPreviewActive ? previewDescription : "Full Admin Access"}
+            {isPreviewActive ? previewDescription : ownAccess}
           </small>
         </span>
         <ChevronDown
@@ -295,8 +319,8 @@ export function AccountButton({
             </div>
             <div className="popover-user-details">
               <div className="popover-name-row">
-                <strong>{realMember?.full_name || member?.full_name || "Admin"}</strong>
-                <span className="popover-role-badge">Real Admin</span>
+                <strong>{realMember?.full_name || member?.full_name || realRoleLabel}</strong>
+                <span className="popover-role-badge">Real {realRoleLabel}</span>
               </div>
               <span className="popover-email">{userEmail}</span>
             </div>
@@ -362,7 +386,7 @@ export function AccountButton({
 
             {mode === "presets" ? (
               <div className="popover-presets-grid">
-                {PRESETS.map((p) => {
+                {presets.map((p) => {
                   const Icon = p.icon;
                   const isCurrent =
                     preview?.membershipTier === p.tier &&
@@ -418,22 +442,22 @@ export function AccountButton({
                     <div className="custom-control-group">
                       <span className="control-label">Governance Role</span>
                       <div className="segmented-control">
-                        {[
-                          { role: null, label: "None" },
-                          { role: "committee", label: "Committee" },
-                          { role: "principal", label: "Officer" },
-                          { role: "admin", label: "Admin" },
-                        ].map(({ role, label }) => (
+                        {governanceOptions.map(({ role, label }) => (
                           <button
                             key={label}
                             type="button"
                             className={`seg-item ${customGovernance === role ? "active" : ""}`}
-                            onClick={() => setCustomGovernance(role as GovernanceRole | null)}
+                            onClick={() => setCustomGovernance(role)}
                           >
                             {label}
                           </button>
                         ))}
                       </div>
+                      {!canPreviewAdmin && (
+                        <span className="preview-scope-note">
+                          Admin isn&apos;t offered: a preview can&apos;t go above your own role.
+                        </span>
+                      )}
                     </div>
 
                     {/* Switch: Walk Leader */}

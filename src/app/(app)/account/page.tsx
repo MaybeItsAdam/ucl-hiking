@@ -8,7 +8,10 @@ import { NotificationPrefs } from "@/components/NotificationPrefs";
 import { SafetyDetailsForm } from "@/components/SafetyDetailsForm";
 import { ThemeSetting } from "@/components/ThemeSetting";
 import { GOVERNANCE_LABELS, MEMBERSHIP_LABELS } from "@/lib/access";
+import { getDeletionBlock } from "@/lib/accountDeletion";
+import { KIT_COOL_OFF_DAYS } from "@/lib/kitLoans";
 import { getCurrentMember, getRealMember, getRolePreviewState, getSession } from "@/lib/session";
+import { londonDay } from "@/lib/weather";
 
 export const metadata: Metadata = {
   title: "Account settings | UCL Hiking Club",
@@ -21,6 +24,8 @@ export default async function AccountPage() {
   if (!session) redirect("/auth/signin");
   const member = await getRealMember();
   const previewState = await getRolePreviewState();
+  // Always the signed-in person's own loans, whatever role is being previewed.
+  const deletionBlock = await getDeletionBlock(session.memberId);
 
   const name = member?.full_name || session.name;
   const membership = member
@@ -45,17 +50,21 @@ export default async function AccountPage() {
         </p>
       </section>
 
-      {previewState.isRealAdmin && (
+      {previewState.canPreviewRoles && (
         // Phones only: on wider screens the same menu sits in the top bar.
         <section aria-labelledby="admin-preview" className="settings-admin">
-          <h2 id="admin-preview">Admin</h2>
+          <h2 id="admin-preview">Role preview</h2>
           <AccountButton
             member={await getCurrentMember()}
-            isRealAdmin
+            canPreviewRoles
+            previewableRoles={previewState.previewableRoles}
             preview={previewState.preview}
             realMember={previewState.realMember}
           />
-          <p className="account-note">See the app as another kind of member.</p>
+          <p className="account-note">
+            See the app as another kind of member.
+            {previewState.isRealAdmin ? null : " You can preview any role up to your own, but not admin."}
+          </p>
         </section>
       )}
 
@@ -115,17 +124,22 @@ export default async function AccountPage() {
         <p>Deleting your hiking app account removes, straight away:</p>
         <ul>
           <li>your name, email and membership details held by the hiking app</li>
-          <li>your equipment requests</li>
           <li>your emergency details and walk attendance</li>
+          <li>any kit requests still waiting for a decision (they are cancelled)</li>
         </ul>
         <p>
-          It does not delete your UCL account, your Adam&apos;s Campus Toolbox sign-in or
-          your Students&apos; Union membership. A record that an account was deleted is
-          kept, without your name or email. If you are still a club member and sign in
-          again, a new, empty account is created. If you have club kit out on loan,
-          return it to the committee first.
+          The club&apos;s kit ledger keeps a record of kit you borrowed in the past, with
+          your name and email, so it can account for its equipment. It does not delete your
+          UCL account, your Adam&apos;s Campus Toolbox sign-in or your Students&apos; Union
+          membership. A record that an account was deleted is kept, without your name or
+          email. If you are still a club member and sign in again, a new, empty account is
+          created.
         </p>
-        <DeleteAccountForm />
+        <p>
+          If you have club kit out on loan, return it to a principal first. You can delete
+          your account {KIT_COOL_OFF_DAYS} days after your last return, once the kit has been checked.
+        </p>
+        <DeleteAccountForm initialBlock={deletionBlock} today={londonDay(new Date().toISOString())} />
       </section>
     </article>
   );

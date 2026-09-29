@@ -41,11 +41,12 @@ export async function AppShell({ children }: { children: ReactNode }) {
           </Link>
           <AppTabs />
           {member ? <InboxBell className="app-bar-inbox" /> : null}
-          {previewState.isRealAdmin && (
+          {previewState.canPreviewRoles && (
             <div className="app-bar-account">
               <AccountButton
                 member={member}
-                isRealAdmin={previewState.isRealAdmin}
+                canPreviewRoles={previewState.canPreviewRoles}
+                previewableRoles={previewState.previewableRoles}
                 preview={previewState.preview}
                 realMember={previewState.realMember}
               />

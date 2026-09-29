@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { accessSummary, can, canChangeRole, isGovernanceRole, isMembershipTier } from "./access";
+import {
+  accessSummary,
+  can,
+  canChangeRole,
+  canPreviewAs,
+  canPreviewRoles,
+  isGovernanceRole,
+  isMembershipTier,
+  previewableGovernanceRoles,
+} from "./access";
 
 const profile = (
   membershipTier: "taster" | "standard" | "explorer",
@@ -86,5 +95,24 @@ describe("canChangeRole", () => {
     expect(can(principal, "review_incidents")).toBe(true);
     expect(can(committee, "manage_club")).toBe(true);
     expect(can(leader, "manage_club")).toBe(false);
+  });
+});
+
+describe("role preview scope", () => {
+  it("is for admins and principals only", () => {
+    expect(canPreviewRoles("admin")).toBe(true);
+    expect(canPreviewRoles("principal")).toBe(true);
+    expect(canPreviewRoles("committee")).toBe(false);
+    expect(canPreviewRoles(null)).toBe(false);
+  });
+
+  it("never reaches above the member's own role", () => {
+    expect(canPreviewAs("admin", "admin")).toBe(true);
+    expect(canPreviewAs("principal", "admin")).toBe(false);
+    expect(canPreviewAs("principal", "principal")).toBe(true);
+    expect(canPreviewAs("principal", "committee")).toBe(true);
+    expect(canPreviewAs("principal", null)).toBe(true);
+    expect(canPreviewAs("committee", null)).toBe(false);
+    expect(previewableGovernanceRoles("principal")).not.toContain("admin");
   });
 });

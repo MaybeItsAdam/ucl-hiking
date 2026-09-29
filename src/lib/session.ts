@@ -1,7 +1,15 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
 import { cache } from "react";
-import type { GovernanceRole, MembershipTier } from "@/lib/access";
+import {
+  canPreviewAs,
+  canPreviewRoles,
+  isGovernanceRole,
+  isMembershipTier,
+  previewableGovernanceRoles,
+  type GovernanceRole,
+  type MembershipTier,
+} from "@/lib/access";
 import type { Member } from "@/lib/types";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 
@@ -82,6 +90,13 @@ export interface RolePreviewConfig {
 
 const ROLE_PREVIEW_COOKIE = "ucl_hiking_role_preview";
 
+/**
+ * The raw preview cookie, shape-checked but NOT authorised.
+ *
+ * The cookie is plain, unsigned JSON, so anyone can write anything into it.
+ * Never use this to decide access: go through getCurrentMember() or
+ * getRolePreviewState(), which check it against the real member on every read.
+ */
 export async function getRolePreview(): Promise<RolePreviewConfig | null> {
   try {
     const raw = (await cookies()).get(ROLE_PREVIEW_COOKIE)?.value;
@@ -91,10 +106,32 @@ export async function getRolePreview(): Promise<RolePreviewConfig | null> {
     // The old "public visitor" preview hid the admin's own session, and with it
     // the menu to leave the preview. Treat any such cookie as no preview at all.
     if (parsed.simulateSignedOut) return null;
-    return parsed as RolePreviewConfig;
+    if (parsed.active !== true) return null;
+    if (!isMembershipTier(parsed.membershipTier)) return null;
+    if (parsed.governanceRole !== null && !isGovernanceRole(parsed.governanceRole)) return null;
+    return {
+      active: true,
+      membershipTier: parsed.membershipTier,
+      governanceRole: parsed.governanceRole,
+      isWalkLeader: parsed.isWalkLeader === true,
+    };
   } catch {
     return null;
   }
+}
+
+/**
+ * The preview that applies to this member, or null. Re-checked on every read
+ * against the member's real role from the database: a preview above that role
+ * (a principal's cookie claiming "admin", or any cookie on a member who can't
+ * preview at all) is ignored outright.
+ */
+async function authorisedPreview(realMember: Member): Promise<RolePreviewConfig | null> {
+  if (!canPreviewRoles(realMember.governance_role)) return null;
+  const preview = await getRolePreview();
+  if (!preview) return null;
+  if (!canPreviewAs(realMember.governance_role, preview.governanceRole)) return null;
+  return preview;
 }
 
 export async function setRolePreviewCookie(config: RolePreviewConfig): Promise<void> {
@@ -158,20 +195,33 @@ export const getRealMember = cache(async (): Promise<Member | null> => {
   return data as Member;
 });
 
-export async function getRolePreviewState(): Promise<{
+export interface RolePreviewState {
+  /** The real member (not the preview) may use role preview. */
+  canPreviewRoles: boolean;
+  /** The real member is an admin. Kept for callers that need admin specifically. */
   isRealAdmin: boolean;
+  /** Governance roles this member may preview as (null = no role). */
+  previewableRoles: (GovernanceRole | null)[];
   preview: RolePreviewConfig | null;
   realMember: Member | null;
-}> {
+}
+
+export async function getRolePreviewState(): Promise<RolePreviewState> {
   const realMember = await getRealMember();
-  const isRealAdmin = realMember?.governance_role === "admin";
-  if (!isRealAdmin) {
-    return { isRealAdmin: false, preview: null, realMember: null };
+  if (!realMember || !canPreviewRoles(realMember.governance_role)) {
+    return {
+      canPreviewRoles: false,
+      isRealAdmin: false,
+      previewableRoles: [],
+      preview: null,
+      realMember: null,
+    };
   }
-  const preview = await getRolePreview();
   return {
-    isRealAdmin: true,
-    preview: preview?.active ? preview : null,
+    canPreviewRoles: true,
+    isRealAdmin: realMember.governance_role === "admin",
+    previewableRoles: previewableGovernanceRoles(realMember.governance_role),
+    preview: await authorisedPreview(realMember),
     realMember,
   };
 }
@@ -179,29 +229,25 @@ export async function getRolePreviewState(): Promise<{
 /**
  * Resolve access from Supabase on every privileged request. The access fields
  * captured at sign-in are display history only and never authorize a request.
- * If a real admin has activated role preview, permissions are overridden dynamically.
+ * If an admin or principal has activated role preview, permissions are
+ * overridden, but never above their own real role, and the member's id, email
+ * and name stay their own, so anything recorded against them (audit actors,
+ * bookings, deletions) is still the real person.
  */
 export async function getCurrentMember(): Promise<Member | null> {
   const realMember = await getRealMember();
   if (!realMember) return null;
 
-  // Only genuine admins can preview roles
-  if (realMember.governance_role !== "admin") {
-    return realMember;
-  }
-
-  const preview = await getRolePreview();
-  if (!preview || !preview.active) {
-    return realMember;
-  }
+  const preview = await authorisedPreview(realMember);
+  if (!preview) return realMember;
 
   return {
     ...realMember,
     membership_tier: preview.membershipTier,
     governance_role: preview.governanceRole,
-    is_walk_leader: Boolean(preview.isWalkLeader),
+    is_walk_leader: preview.isWalkLeader,
     is_preview: true,
-    real_governance_role: "admin",
+    real_governance_role: realMember.governance_role,
   };
 }
 
