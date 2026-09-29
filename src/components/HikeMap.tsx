@@ -4,7 +4,7 @@ import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Maximize2, Minimize2 } from "lucide-react";
-import type { Control, Map as LeafletMap, TileLayer } from "leaflet";
+import type { Control, Map as LeafletMap, Marker, TileLayer } from "leaflet";
 import { DIFFICULTY_LABELS, formatKm } from "@/lib/eventDetails";
 import type { MapRoute } from "@/lib/eventRoutes";
 import type { MapHike } from "@/lib/hikeMap";
@@ -141,6 +141,7 @@ export function HikeMap({
       }
 
       const points: [number, number][] = [];
+      let startMarker: Marker | null = null;
 
       if (route) {
         for (const seg of route.segments) {
@@ -167,7 +168,7 @@ export function HikeMap({
             .addTo(map)
             .bindTooltip("Finish", { permanent: true, direction: "right", offset: [9, 0], className: "hike-tip" });
         }
-        L.marker(route.start, {
+        startMarker = L.marker(route.start, {
           icon: L.divIcon({ className: "", html: '<span class="hike-track-start"></span>', iconSize: [16, 16], iconAnchor: [8, 8] }),
           keyboard: false,
           interactive: false,
@@ -176,6 +177,7 @@ export function HikeMap({
           .addTo(map)
           .bindTooltip(loop ? "Start and finish" : "Start", { permanent: true, direction: "left", offset: [-9, 0], className: "hike-tip" });
       }
+      let meetPin: { marker: Marker; name: string } | null = null;
 
       // With a route, the stations are where to meet; far-off ones (a London terminus) don't widen the view.
       const routeBounds = points.length ? L.latLngBounds(points).pad(0.6) : null;
@@ -217,6 +219,7 @@ export function HikeMap({
         }).addTo(map);
         if (interactive) pin.bindPopup(popup(hike), { closeButton: false, maxWidth: 260, offset: [0, -8] });
         else if (hike.startName) {
+          if (route && !meetPin) meetPin = { marker: pin, name: hike.startName };
           const left = finish && finish[1] > start[1];
           pin.bindTooltip(escape(route ? `Meet: ${hike.startName}` : hike.startName), {
             permanent: true,
@@ -230,6 +233,17 @@ export function HikeMap({
       if (points.length === 1) map.setView(points[0], 12);
       else if (points.length) map.fitBounds(L.latLngBounds(points), { padding: [28, 28], maxZoom: route ? 15 : 12 });
       else map.setView([51.3, -0.3], 8);
+
+      // A station drawn right by the route's start shares its label rather than printing over it.
+      if (route && startMarker && meetPin) {
+        const a = map.latLngToContainerPoint(startMarker.getLatLng());
+        const b = map.latLngToContainerPoint(meetPin.marker.getLatLng());
+        if (Math.abs(a.x - b.x) < 140 && Math.abs(a.y - b.y) < 28) {
+          meetPin.marker.unbindTooltip();
+          const ends = near(route.start, route.finish) ? "Start and finish" : "Start";
+          startMarker.setTooltipContent(escape(`${ends} · meet at ${meetPin.name}`));
+        }
+      }
       setReady(true);
     });
 
