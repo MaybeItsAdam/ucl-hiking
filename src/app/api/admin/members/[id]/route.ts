@@ -3,6 +3,7 @@ import { can, canChangeRole, isGovernanceRole, profileOf, type RoleChange } from
 import { audit } from "@/lib/audit";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { setRosterLeader } from "@/lib/walkSheetSync";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TARGET_COLUMNS = "id, full_name, email, governance_role, is_walk_leader, governance_role_locked, walk_leader_locked";
@@ -17,14 +18,19 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   }
   if (!UUID.test(id) || !isSupabaseConfigured()) return NextResponse.json({ loans: [] });
 
-  const { data, error } = await getSupabaseAdmin()
-    .from("equipment_requests")
-    .select("id, quantity, start_date, end_date, status, equipment:equipment_id (name)")
-    .eq("member_id", id)
-    .in("status", ["pending", "approved"])
-    .order("start_date", { ascending: false });
+  const supabase = getSupabaseAdmin();
+  const [{ data, error }, leader] = await Promise.all([
+    supabase
+      .from("equipment_requests")
+      .select("id, quantity, start_date, end_date, status, equipment:equipment_id (name)")
+      .eq("member_id", id)
+      .in("status", ["pending", "approved"])
+      .order("start_date", { ascending: false }),
+    // Missing before the walk-sheet migration: read as unknown.
+    supabase.from("members").select("wl_name, first_aid_trained, first_aid_until").eq("id", id).maybeSingle(),
+  ]);
   if (error) return NextResponse.json({ error: "Couldn't load this member's kit" }, { status: 500 });
-  return NextResponse.json({ loans: data ?? [] });
+  return NextResponse.json({ loans: data ?? [], leader: leader.error ? null : leader.data });
 }
 
 function parseBody(body: Record<string, unknown>): { change: RoleChange } | { unlock: RoleChange["field"] } | null {
@@ -116,5 +122,20 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     to: "change" in parsed ? parsed.change.value : "sync",
   });
 
-  return NextResponse.json({ member: updated });
+  // The WL roster in the WL calendar is the list of leaders: keep it in step.
+  let rosterWarning: string | null = null;
+  if ("change" in parsed && parsed.change.field === "is_walk_leader") {
+    const leader = parsed.change.value;
+    try {
+      const { data: row } = await supabase.from("members").select("email, full_name, wl_name").eq("id", id).single();
+      if (row?.email) {
+        const name = await setRosterLeader(row as { email: string; full_name: string | null; wl_name: string | null }, leader);
+        await supabase.from("members").update({ wl_name: leader ? name : null }).eq("id", id);
+      }
+    } catch {
+      rosterWarning = "Saved here, but the WL roster sheet couldn't be updated. Change it there too.";
+    }
+  }
+
+  return NextResponse.json({ member: updated, rosterWarning });
 }

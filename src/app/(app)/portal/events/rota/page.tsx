@@ -54,7 +54,7 @@ export default async function RotaPage() {
 
   return (
     <article className="events-page">
-      <EventsSubnav active="rota" showRota />
+      <EventsSubnav active="rota" showRota showProgramme={canAssign} />
       <p className="day-note">
         Say which walks you can lead. {canAssign ? "Pick a leader and backmarker for each; it goes on the walk's plan." : "The committee picks from those who offer."}
       </p>

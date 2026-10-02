@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
+import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import type { SUEvent } from "@/lib/types";
+import { viewerOf, visibleEvents } from "@/lib/walkVisibility";
 
 export async function GET() {
   if (!isSupabaseConfigured()) {
@@ -21,5 +24,6 @@ export async function GET() {
     return NextResponse.json({ events: [] });
   }
 
-  return NextResponse.json({ events: data });
+  // Same rules as the Events tab: unpublished walks stay with the committee.
+  return NextResponse.json({ events: await visibleEvents(data as SUEvent[], viewerOf(await getCurrentMember())) });
 }

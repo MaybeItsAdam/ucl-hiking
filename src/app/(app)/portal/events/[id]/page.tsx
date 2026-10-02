@@ -35,6 +35,7 @@ import { getEvent } from "@/lib/events";
 import { mapHikes } from "@/lib/hikeMap";
 import { loadPlaces, type LatLng } from "@/lib/places";
 import { getCurrentMember } from "@/lib/session";
+import { canSeeEvent, viewerOf } from "@/lib/walkVisibility";
 import { getWalkForecast } from "@/lib/weather";
 
 type Params = { params: Promise<{ id: string }> };
@@ -76,7 +77,7 @@ export default async function EventPage({ params }: Params) {
   if (!member) redirect("/auth/signin");
 
   const event = await getEvent((await params).id);
-  if (!event) notFound();
+  if (!event || !(await canSeeEvent(event, viewerOf(member)))) notFound();
 
   const details = eventDetails(event);
   const [places, plan, route] = await Promise.all([

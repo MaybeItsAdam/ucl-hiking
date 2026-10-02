@@ -7,7 +7,8 @@ import { DeleteAccountForm } from "@/components/DeleteAccountForm";
 import { NotificationPrefs } from "@/components/NotificationPrefs";
 import { SafetyDetailsForm } from "@/components/SafetyDetailsForm";
 import { ThemeSetting } from "@/components/ThemeSetting";
-import { GOVERNANCE_LABELS, MEMBERSHIP_LABELS } from "@/lib/access";
+import { GOVERNANCE_LABELS, MEMBERSHIP_LABELS, profileOf } from "@/lib/access";
+import { claimKindsFor } from "@/lib/expenseClaims";
 import { getDeletionBlock } from "@/lib/accountDeletion";
 import { KIT_COOL_OFF_DAYS } from "@/lib/kitLoans";
 import { getCurrentMember, getRealMember, getRolePreviewState, getSession } from "@/lib/session";
@@ -88,6 +89,16 @@ export default async function AccountPage() {
             Delete them here at any time. See the <Link href="/privacy#safety">privacy policy</Link>.
           </p>
           <SafetyDetailsForm />
+        </section>
+      ) : null}
+
+      {member && claimKindsFor(profileOf(member)).length ? (
+        <section aria-labelledby="expenses">
+          <h2 id="expenses">Expenses</h2>
+          <p>
+            Paid for something for the club? <Link href="/account/expenses">Claim it back</Link>. It goes straight to
+            the treasurer&apos;s spreadsheet, bank details and all; the app doesn&apos;t keep them.
+          </p>
         </section>
       ) : null}
 

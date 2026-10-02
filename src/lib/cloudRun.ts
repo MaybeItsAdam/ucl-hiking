@@ -38,12 +38,16 @@ export function parseServiceAccountKey(raw: string | undefined): ServiceAccountK
 const b64url = (value: string | Buffer) => Buffer.from(value).toString("base64url");
 
 /** An RS256 JWT assertion for Google's OAuth token endpoint. */
-export function signAssertion(key: ServiceAccountKey, nowSeconds = Math.floor(Date.now() / 1000)): string {
+export function signAssertion(
+  key: ServiceAccountKey,
+  nowSeconds = Math.floor(Date.now() / 1000),
+  scope = "https://www.googleapis.com/auth/cloud-platform",
+): string {
   const header = b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const claims = b64url(
     JSON.stringify({
       iss: key.client_email,
-      scope: "https://www.googleapis.com/auth/cloud-platform",
+      scope,
       aud: key.token_uri,
       iat: nowSeconds,
       exp: nowSeconds + 600,

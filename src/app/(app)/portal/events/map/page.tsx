@@ -9,6 +9,7 @@ import { getEventsInClubYear } from "@/lib/events";
 import { clubYear, clubYearLabel, eventPlaces, mapHikes, onMap, yearStats } from "@/lib/hikeMap";
 import { loadPlaces } from "@/lib/places";
 import { getCurrentMember } from "@/lib/session";
+import { viewerOf, visibleEvents } from "@/lib/walkVisibility";
 
 export const metadata: Metadata = {
   title: "Walk map | UCL Hiking Club",
@@ -25,7 +26,7 @@ export default async function WalkMapPage({ searchParams }: { searchParams: Prom
   const asked = Number((await searchParams).year);
   const year = Number.isInteger(asked) && asked >= FIRST_YEAR && asked <= current ? asked : current;
 
-  const events = await getEventsInClubYear(year);
+  const events = await visibleEvents(await getEventsInClubYear(year), viewerOf(member));
   const places = await loadPlaces(eventPlaces(events));
   const hikes = mapHikes(events, places);
   const stats = yearStats(hikes);

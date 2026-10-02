@@ -42,7 +42,7 @@ export default async function MyWalksPage() {
 
   return (
     <article className="events-page">
-      <EventsSubnav active="mine" showRota={showRota} />
+      <EventsSubnav active="mine" showRota={showRota} showProgramme={can(profileOf(member), "manage_walks")} />
 
       {events.length ? (
         <>

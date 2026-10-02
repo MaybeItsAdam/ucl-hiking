@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { ArrowRight, CalendarX2, ChevronRight, Map as MapIcon, MapPin } from "lucide-react";
 import { EventFacts, routeLabel } from "@/components/EventFacts";
 import { EventsSubnav } from "@/components/EventsSubnav";
@@ -11,6 +12,8 @@ import { getEventsInClubYear, getUpcomingEvents } from "@/lib/events";
 import { clubYear, clubYearLabel, mapHikes, yearStats } from "@/lib/hikeMap";
 import { getCurrentMember } from "@/lib/session";
 import type { SUEvent } from "@/lib/types";
+import { viewerOf, visibleEvents, walkRules } from "@/lib/walkVisibility";
+import { pullIfStale } from "@/lib/walkSheetSync";
 
 export const metadata: Metadata = {
   title: "Events | UCL Hiking Club",
@@ -73,7 +76,18 @@ export default async function EventsPage() {
   if (!member) redirect("/auth/signin");
 
   const year = clubYear();
-  const [upcoming, thisYear] = await Promise.all([getUpcomingEvents(), getEventsInClubYear(year)]);
+  // Keep the programme fresh without making anyone wait for Google: after
+  // this page is sent, pull the sheet if nobody has in the last ten minutes.
+  after(() => pullIfStale(10 * 60_000));
+  const viewer = viewerOf(member);
+  const [allUpcoming, allThisYear] = await Promise.all([getUpcomingEvents(), getEventsInClubYear(year)]);
+  const [upcoming, thisYear] = await Promise.all([visibleEvents(allUpcoming, viewer), visibleEvents(allThisYear, viewer)]);
+  // The committee sees everything; say which ones members can't.
+  const rules = viewer.isCommittee ? await walkRules(upcoming.map((e) => e.suu_event_id)) : new Map();
+  const hidden = (event: SUEvent) => {
+    const rule = event.suu_event_id ? rules.get(event.suu_event_id) : undefined;
+    return rule ? !rule.published || rule.visibility === "committee" : false;
+  };
   const stats = yearStats(mapHikes(thisYear, new Map()));
 
   const next = upcoming.find((event) => event.starts_at && event.status !== "cancelled");
@@ -81,7 +95,7 @@ export default async function EventsPage() {
 
   return (
     <article className="events-page">
-      <EventsSubnav active="upcoming" showRota={can(profileOf(member), "lead_walks")} />
+      <EventsSubnav active="upcoming" showRota={can(profileOf(member), "lead_walks")} showProgramme={can(profileOf(member), "manage_walks")} />
       {next ? <NextUp event={next} /> : null}
 
       <Link href="/portal/events/map" className="events-map-link">
@@ -131,6 +145,7 @@ export default async function EventsPage() {
                         <h3>
                           {details.name}
                           <StatusChip status={event.status} />
+                          {hidden(event) ? <span className="event-status is-hidden">Not published</span> : null}
                         </h3>
                         <p className="event-meta">
                           {when}

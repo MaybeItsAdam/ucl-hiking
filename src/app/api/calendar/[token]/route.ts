@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getEventPlans } from "@/lib/eventPlans";
 import { buildCalendar, calendarSignatureMatches, readCalendarToken, toIcsEvent } from "@/lib/ics";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
-import type { SUEvent } from "@/lib/types";
+import type { Member, SUEvent } from "@/lib/types";
+import { viewerOf, visibleEvents } from "@/lib/walkVisibility";
 
 type Params = { params: Promise<{ token: string }> };
 
@@ -20,7 +21,7 @@ export async function GET(_request: Request, { params }: Params) {
   const supabase = getSupabaseAdmin();
   const { data: member } = await supabase
     .from("members")
-    .select("id, calendar_key_version, revoked_at, membership_expires_at")
+    .select("id, calendar_key_version, revoked_at, membership_expires_at, membership_tier, governance_role, is_walk_leader")
     .eq("id", token.memberId)
     .maybeSingle();
   if (
@@ -40,7 +41,7 @@ export async function GET(_request: Request, { params }: Params) {
     .neq("status", "draft")
     .order("starts_at", { ascending: true })
     .limit(300);
-  const events = (data ?? []) as SUEvent[];
+  const events = await visibleEvents((data ?? []) as SUEvent[], viewerOf(member as Pick<Member, "membership_tier" | "governance_role" | "is_walk_leader">));
   const plans = await getEventPlans(events.map((e) => e.suu_event_id ?? ""));
   const entries = events
     .map((event) => {

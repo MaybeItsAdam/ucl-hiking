@@ -6,6 +6,7 @@
     { "path": "/api/sync/toolbox-members", "schedule": "45 6 * * *" },
     { "path": "/api/sync/toolbox-attendees", "schedule": "0 7 * * *" },
     { "path": "/api/sync/osmaps-routes", "schedule": "15 7 * * *" },
+    { "path": "/api/sync/walk-sheet", "schedule": "20 7 * * *" },
     { "path": "/api/cron/daily", "schedule": "0 17 * * *" }
   ]
 }

@@ -473,6 +473,12 @@ interface Loan {
   equipment: { name: string } | null;
 }
 
+interface LeaderFacts {
+  wl_name: string | null;
+  first_aid_trained: boolean;
+  first_aid_until: string | null;
+}
+
 function MemberSheet({
   member,
   viewer,
@@ -490,6 +496,7 @@ function MemberSheet({
 }) {
   const [busy, setBusy] = useState(false);
   const [loans, setLoans] = useState<Loan[] | null>(null);
+  const [leader, setLeader] = useState<LeaderFacts | null>(null);
   const memberId = member.member_id;
 
   useEffect(() => {
@@ -497,7 +504,10 @@ function MemberSheet({
     const controller = new AbortController();
     fetch(`/api/admin/members/${memberId}`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : { loans: [] }))
-      .then((data: { loans?: Loan[] }) => setLoans(data.loans ?? []))
+      .then((data: { loans?: Loan[]; leader?: LeaderFacts | null }) => {
+        setLoans(data.loans ?? []);
+        setLeader(data.leader ?? null);
+      })
       .catch(() => {
         if (!controller.signal.aborted) setLoans([]);
       });
@@ -530,7 +540,7 @@ function MemberSheet({
         governance_role_locked: data.member.governance_role_locked,
         walk_leader_locked: data.member.walk_leader_locked,
       });
-      onMessage({ tone: "success", text: done });
+      onMessage(data.rosterWarning ? { tone: "error", text: data.rosterWarning } : { tone: "success", text: done });
     } catch (error) {
       onMessage({ tone: "error", text: error instanceof Error ? error.message : "Couldn't save that change." });
     } finally {
@@ -586,6 +596,15 @@ function MemberSheet({
               <span>
                 <strong>Walk leader</strong>
                 <small>{member.is_walk_leader ? "Can run walks and see day-of tools" : "Not a leader"}</small>
+                {leader?.wl_name || leader?.first_aid_trained ? (
+                  <small>
+                    {leader.wl_name ? `“${leader.wl_name}” on the WL roster` : null}
+                    {leader.wl_name && leader.first_aid_trained ? " · " : null}
+                    {leader.first_aid_trained
+                      ? `First aid trained${leader.first_aid_until ? ` until ${shortDate.format(new Date(leader.first_aid_until))}` : ""}`
+                      : null}
+                  </small>
+                ) : null}
                 {member.walk_leader_locked && <LockNote />}
               </span>
               {canLeader ? (
