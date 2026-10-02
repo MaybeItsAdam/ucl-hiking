@@ -98,6 +98,10 @@ interface Snapshot {
 
 const newKey = () => randomBytes(6).toString("base64url");
 
+/** JSON with sorted keys: jsonb hands objects back in its own key order. */
+const stable = (value: unknown) =>
+  JSON.stringify(value && typeof value === "object" ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))) : value);
+
 /** Read all three tabs into walks with every editable value, tagging any untagged rows. */
 async function readSheets(known: StoredWalk[], { tag = true } = {}): Promise<Snapshot> {
   const main = WALK_SHEETS.main;
@@ -274,9 +278,9 @@ export function mergeWalks(
       prev.event_suu_id === next.event_suu_id &&
       prev.visibility === next.visibility &&
       prev.published === next.published &&
-      JSON.stringify(prev.sheet_values) === JSON.stringify(next.sheet_values) &&
-      JSON.stringify(prev.shown) === JSON.stringify(next.shown) &&
-      JSON.stringify(prev.conflicts) === JSON.stringify(next.conflicts);
+      stable(prev.sheet_values) === stable(next.sheet_values) &&
+      stable(prev.shown) === stable(next.shown) &&
+      stable(prev.conflicts) === stable(next.conflicts);
     if (!same) changed += 1;
     upserts.push(next);
   }
@@ -298,6 +302,11 @@ export async function previewWalkSheet() {
 /** Read the sheets and bring `sheet_walks` and the walk leaders up to date. */
 export async function pullWalkSheet(trigger: string): Promise<PullResult> {
   const supabase = getSupabaseAdmin();
+  // One at a time: two syncs reading the same new rows would tag them twice.
+  const busy = await lastSync().catch(() => null);
+  if (busy && !busy.finished_at && Date.now() - Date.parse(busy.started_at) < 2 * 60_000) {
+    throw new SheetsError("A sync is already running. Try again in a minute.");
+  }
   const { data: run } = await supabase.from("sheet_sync_runs").insert({ trigger }).select("id").single();
   const finish = (fields: Record<string, unknown>) =>
     run ? supabase.from("sheet_sync_runs").update({ finished_at: new Date().toISOString(), ...fields }).eq("id", run.id) : null;

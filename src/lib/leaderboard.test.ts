@@ -18,14 +18,14 @@ const roster = readRoster([
 ]);
 
 describe("countsForBoard", () => {
-  it("counts a walk once it has happened, wasn't cancelled and has a distance", () => {
+  it("counts a walk once it has happened and wasn't cancelled, at 0 km when the sheet has no distance", () => {
     expect(countsForBoard(walk("2026-09-06", "20.38", {}), TODAY)).toBe(20.38);
     expect(countsForBoard(walk("2026-10-02", "20", {}), TODAY)).toBeNull();
     expect(countsForBoard(walk("2026-10-10", "20", {}), TODAY)).toBeNull();
     expect(countsForBoard(walk("2026-08-01", "20", {}, { shown: { status: "CANCELLED ❌" } }), TODAY)).toBeNull();
     expect(countsForBoard(walk("2026-08-01", "20", {}, { title: "🥾 Hike Canceled: Peak District" }), TODAY)).toBeNull();
     expect(countsForBoard(walk("2026-08-01", "", {}, { shown: { status: "PUBLISHED ✅", distanceShown: "15.9" } }), TODAY)).toBe(15.9);
-    expect(countsForBoard(walk("2026-08-01", "", {}), TODAY)).toBeNull();
+    expect(countsForBoard(walk("2026-08-01", "", {}), TODAY)).toBe(0);
   });
 });
 

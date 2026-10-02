@@ -23,11 +23,11 @@ export interface BoardRow {
   lastWalk: string | null;
 }
 
-/** A walk that counts: in the past, not cancelled, and with a distance. */
+/** A walk that counts (in the past, not cancelled), and its distance: 0 when the sheet has none, as for a London walk with no route. */
 export function countsForBoard(walk: BoardWalk, today: string): number | null {
   if (!walk.starts_on || walk.starts_on >= today) return null;
   if (/cancel/i.test(walk.shown.status ?? "") || /cancel/i.test(walk.title)) return null;
-  return parseNumber(walk.sheet_values.distanceKm ?? "") ?? parseNumber(walk.shown.distanceShown ?? "");
+  return parseNumber(walk.sheet_values.distanceKm ?? "") ?? parseNumber(walk.shown.distanceShown ?? "") ?? 0;
 }
 
 export function leaderboard(walks: BoardWalk[], roster: RosterEntry[], today: string): BoardRow[] {

@@ -195,16 +195,15 @@ export function ProgrammeBoard({
                         disabled={busy === w.id}
                         onChange={(e) => patch(w.id, { visibility: e.target.value })}
                       >
-                        <option value="sheet">{VISIBILITY_LABELS[w.sheetVisibility]} (from sheet)</option>
+                        <option value="sheet">{VISIBILITY_LABELS[w.sheetVisibility]} · sheet</option>
                         {VISIBILITY.map((v) => (
                           <option key={v} value={v}>
                             {VISIBILITY_LABELS[v]}
                           </option>
                         ))}
                       </select>
-                      <button type="button" className="kit-btn" onClick={() => setEditing(w)}>
-                        <Pencil size={14} aria-hidden="true" />
-                        Edit
+                      <button type="button" className="kit-btn programme-edit" onClick={() => setEditing(w)} aria-label={`Edit ${w.title}`} title="Edit">
+                        <Pencil size={15} aria-hidden="true" />
                       </button>
                     </div>
                   </div>
