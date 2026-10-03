@@ -19,13 +19,18 @@ unavailable. None of those is required for member cross-checking.
 
 ## Local setup
 
-Secrets live in Doppler (project `ucl-hiking`), not in files:
+Secrets live in Doppler, not in files: project `hiking-webapp` in the **UCL Hiking Club** workplace,
+owned by uclhiking@gmail.com. Ask a committee admin to invite you.
 
 ```bash
-doppler login && doppler setup   # once; doppler.yaml picks ucl-hiking/dev
+doppler login                    # signed in to the UCL Hiking Club workplace
 npm install
-npm run dev                      # doppler run -- next dev
+npm run dev                      # runs on hiking-webapp/prd
 ```
+
+If your own Doppler login is for another workplace, keep the club's apart with a wrapper on your
+PATH called `doppler-hiking` (`exec doppler --config-dir "$HOME/.doppler-hiking" "$@"`), then
+`doppler-hiking login` once. `scripts/doppler.sh` uses it when it's there, plain `doppler` otherwise.
 
 `npm run dev:no-doppler` still reads `.env.local` if you need to work offline.
 
@@ -33,15 +38,16 @@ npm run dev                      # doppler run -- next dev
 
 | Doppler config | Synced to | Holds |
 | --- | --- | --- |
-| `dev` | your machine, via `doppler run` | local development |
-| `prd` | Vercel Production (`ucl-hiking.vercel.app`) | everything production needs, including Supabase and `POSTGRES_URL_NON_POOLING` |
+| `prd` | Vercel Production (`ucl-hiking.vercel.app`), and your machine via `npm run dev` | everything production needs, including Supabase and `POSTGRES_URL_NON_POOLING` |
 | `ci` | GitHub Actions | Android signing, the Play service account, `GOOGLE_SERVICES_JSON_BASE64`, the match deploy key and password, the App Store Connect API key |
+
+Local dev runs on `prd`: it reads the production database either way, so there is no separate dev config.
 
 Vercel's Supabase integration owns the `SUPABASE_*`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`/`_PUBLISHABLE_KEY`
 and `POSTGRES_*` names, so Doppler must not hold them: a sync that tries to write one fails and
 Doppler disables it. The migration connection string is therefore `MIGRATE_DATABASE_URL` in
-Doppler (the session pooler on port 5432), which `deploy-migrate` prefers over the integration's. `SAFETY_DATA_KEY` is in `prd` only: local dev reads the production
-database, and a different key there would write details production can't decrypt.
+Doppler (the session pooler on port 5432), which `deploy-migrate` prefers over the integration's. `SAFETY_DATA_KEY` is in `prd`, which local dev uses too, so
+both encrypt with the same key.
 
 Change a secret in Doppler, never in Vercel or GitHub directly (the next sync overwrites it).
 Before a deploy that needs a new secret, run `npm run env:check -- prd` (or `ci`). It fails on

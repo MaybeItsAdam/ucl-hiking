@@ -1,4 +1,6 @@
-# `doppler setup` in this directory picks these without asking.
+# `doppler setup` (or `doppler-hiking setup`) in this directory picks these
+# without asking. The project is in the UCL Hiking Club workplace; local dev
+# runs on prd, since it reads the production database anyway.
 setup:
-  - project: ucl-hiking
-    config: dev
+  - project: hiking-webapp
+    config: prd

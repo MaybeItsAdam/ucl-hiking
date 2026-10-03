@@ -92,13 +92,13 @@ if (!REQUIRED[config]) {
 
 let secrets;
 try {
-  const out = execFileSync("doppler", ["secrets", "download", "--no-file", "--format", "json", "-p", "ucl-hiking", "-c", config], {
+  const out = execFileSync("scripts/doppler.sh", ["secrets", "download", "--no-file", "--format", "json", "-p", "hiking-webapp", "-c", config], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
   secrets = JSON.parse(out);
 } catch (e) {
-  console.error(`Couldn't read Doppler config "${config}". Run \`doppler login\` first.\n${e.stderr ?? e.message}`);
+  console.error(`Couldn't read Doppler config "${config}". Run \`doppler-hiking login\` (or \`doppler login\` to the UCL Hiking Club workplace) first.\n${e.stderr ?? e.message}`);
   process.exit(2);
 }
 
