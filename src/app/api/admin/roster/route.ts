@@ -3,11 +3,11 @@ import { can, profileOf } from "@/lib/access";
 import { buildMembershipList, type RosterAccount } from "@/lib/roster";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import { fetchToolboxMembers, rosterFromToolbox } from "@/lib/toolboxMembers";
 
 /**
- * GET /api/admin/roster — the committee membership list: the SU roster
- * (`su_roster`) with each person's site account attached by name, plus accounts
- * not on the roster. Swap the roster source when the Toolbox members API lands.
+ * GET /api/admin/roster — the committee membership list: Toolbox's SU roster
+ * with each person's site account attached, plus accounts not on the roster.
  */
 const PAGE_SIZE = 1000;
 
@@ -43,19 +43,13 @@ export async function GET() {
   }
 
   const supabase = getSupabaseAdmin();
-  const [roster, accounts] = await Promise.all([
-    fetchAll((from, to) =>
-      supabase
-        .from("su_roster")
-        .select("id, full_name, member_type, membership_tier, membership_expires_at, synced_at")
-        .order("id")
-        .range(from, to),
-    ),
+  const [snapshot, accounts] = await Promise.all([
+    fetchToolboxMembers(),
     fetchAll((from, to) =>
       supabase
         .from("members")
         .select(
-          "id, email, full_name, membership_tier, governance_role, is_walk_leader, membership_expires_at, last_signed_in_at, governance_role_locked, walk_leader_locked",
+          "id, email, full_name, toolbox_user_id, membership_tier, governance_role, is_walk_leader, membership_expires_at, last_signed_in_at, governance_role_locked, walk_leader_locked",
         )
         .is("revoked_at", null)
         .order("id")
@@ -63,19 +57,15 @@ export async function GET() {
     ),
   ]);
 
-  const error = roster.error ?? accounts.error;
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (accounts.error) {
+    return NextResponse.json({ error: accounts.error.message }, { status: 500 });
+  }
+  if (!snapshot.ok) {
+    return NextResponse.json({ error: `Couldn't load the SU roster from Toolbox: ${snapshot.error}` }, { status: 502 });
   }
 
-  const rosterRows = roster.rows;
-  const syncedAt = rosterRows.reduce<string | null>(
-    (latest, row) => (latest && latest > row.synced_at ? latest : row.synced_at),
-    null,
-  );
-
   return NextResponse.json({
-    members: buildMembershipList(rosterRows, accounts.rows as RosterAccount[]),
-    syncedAt,
+    members: buildMembershipList(rosterFromToolbox(snapshot.members), accounts.rows as RosterAccount[]),
+    syncedAt: snapshot.syncedAt,
   });
 }

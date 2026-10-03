@@ -125,10 +125,19 @@ The hiking app's own privacy policy is at `/privacy`; the store privacy URL is
 
 ## Member sync
 
-Adam's Campus Toolbox is the target source for Hiking membership. Its browser
-connector stores a complete SU roster, principals confirm each roster row's
-Toolbox identity, and a scoped `MEMBERS_READ` developer token exposes only those
-confirmed identities to `/api/sync/toolbox-members`.
+Adam's Campus Toolbox is the source for Hiking membership. Its browser
+connector stores a complete SU roster (`GET /api/v1/organisers/:id/members`,
+under a `MEMBERS_READ` developer token), and principals confirm each roster
+row's UCL login in the connector. Sign-in, the Members page and the daily
+`/api/sync/toolbox-members` all read that snapshot, and refuse it unless it is
+complete and under 72 hours old.
+
+**Before logins are confirmed**, sign-in lets in someone whose UCL name matches
+exactly one person on the roster (`src/lib/roster.ts`), at that person's tier
+and expiry (`sync_source = 'toolbox-name-match'`). Their tier is re-read at every
+sign-in, and they lose access once they drop off the roster. The Members page
+lists the whole roster, with site accounts attached by confirmed login, then by
+name.
 
 Keep `TOOLBOX_MEMBERS_AUTHORITATIVE=false` initially. The daily job then reports
 members present on only one side and tier mismatches without changing access.
@@ -140,10 +149,12 @@ select started_at, mode, received_count, comparison, error
 from member_sync_runs where source = 'toolbox-members' order by started_at desc limit 10;
 ```
 
-After the identities and comparison have been checked, setting it to `true`
-makes ACT authoritative: confirmed members are upserted and previously ACT-owned
-rows absent from a successful, recent, non-empty snapshot are revoked. The ACT
-sync never touches committee roles or walk-leader flags.
+Once the members who use the app have confirmed logins and the comparison
+looks right, setting it to `true` makes Toolbox authoritative: confirmed members
+are upserted by login and email, name matching stops, and name-matched or
+previously synced rows Toolbox hasn't confirmed are revoked. Committee accounts
+from Toolbox sign-in are untouched, and the sync never changes committee roles
+or walk-leader flags.
 
 ### Roles set on the Members page
 
@@ -153,13 +164,6 @@ changed on the Members page is *locked* (`members.governance_role_locked`,
 someone a walk leader. Only a principal (or admin) can add or remove a committee
 seat. Principal and admin are never granted in the app, and a Toolbox promotion
 to either overrides a lock.
-
-The SU scraper that used to fill `su_roster` is gone; the table holds its last
-snapshot (14 Sep 2026). Until Toolbox sync is authoritative, sign-in still lets
-in someone whose UCL name matches exactly one roster entry (`src/lib/roster.ts`),
-and the Members page lists that roster. Retire both, and the table, once the
-shadow comparison has stayed clean through a membership change and at least
-seven daily runs.
 
 ## Walks: plans, attendees and the day itself
 

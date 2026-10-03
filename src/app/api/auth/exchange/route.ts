@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { isGovernanceRole, isMembershipTier } from "@/lib/access";
 import { lockedGovernanceRole, lockedWalkLeader } from "@/lib/roleLocks";
-import { matchRosterByName, ROSTER_SYNC_SOURCE, type RosterEntry } from "@/lib/roster";
+import { matchRosterByName } from "@/lib/roster";
 import { setSessionCookie } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { getSocietyGovernanceRole, verifyToolboxToken } from "@/lib/toolbox";
+import { fetchToolboxMembers, NAME_MATCH_SYNC_SOURCE, rosterFromToolbox } from "@/lib/toolboxMembers";
 
 export async function POST(request: Request) {
   let body: { token?: unknown };
@@ -100,33 +101,32 @@ export async function POST(request: Request) {
     }
   }
 
-  // TEMPORARY: until the Toolbox provides members with emails, let someone on the
-  // SU roster in by an unambiguous name match (src/lib/roster.ts). Only for people
-  // with no row, or whose earlier name-matched row was revoked. Fails closed: if
-  // the roster table is missing or unreadable, this simply finds nobody.
+  // Until Toolbox membership is authoritative, someone on Toolbox's SU roster
+  // whose UCL login isn't confirmed in the connector yet gets in by an
+  // unambiguous name match (src/lib/roster.ts). Their tier and expiry are
+  // re-read at every sign-in, and they lose access once they drop off the
+  // roster. Fails closed for newcomers: no snapshot, no match.
   if (
     process.env.TOOLBOX_MEMBERS_AUTHORITATIVE !== "true" &&
     autoGovernanceRole === null &&
     identity.name &&
-    (!member || (member.revoked_at && member.sync_source === ROSTER_SYNC_SOURCE))
+    (!member || member.sync_source === NAME_MATCH_SYNC_SOURCE)
   ) {
-    const { data: roster } = await supabase
-      .from("su_roster")
-      .select("full_name,membership_tier,membership_expires_at");
-    const match = matchRosterByName((roster ?? []) as RosterEntry[], identity.name);
+    const snapshot = await fetchToolboxMembers();
+    const match = snapshot.ok ? matchRosterByName(rosterFromToolbox(snapshot.members), identity.name) : null;
+    const now = new Date().toISOString();
     if (match) {
-      const now = new Date().toISOString();
       const { data: linked, error: linkError } = await supabase
         .from("members")
         .upsert(
           {
             email: identity.email,
-            full_name: identity.name,
+            full_name: member?.full_name || identity.name,
             toolbox_user_id: identity.id,
             membership_tier: match.membership_tier,
             membership_expires_at: match.membership_expires_at,
-            source_reference: "su-roster-name-match",
-            sync_source: ROSTER_SYNC_SOURCE,
+            source_reference: `toolbox-member:${match.id}`,
+            sync_source: NAME_MATCH_SYNC_SOURCE,
             synced_at: now,
             revoked_at: null,
           },
@@ -137,16 +137,22 @@ export async function POST(request: Request) {
         )
         .single();
       if (!linkError && linked) {
+        if (!member || member.revoked_at) {
+          await supabase.from("audit_log").insert({
+            actor_member_id: linked.id,
+            action: "auth.link_by_roster_name",
+            target_type: "member",
+            target_id: linked.id,
+            metadata: { rosterName: match.full_name, tier: match.membership_tier, toolboxMemberId: match.id },
+          });
+        }
         member = linked;
         error = null;
-        await supabase.from("audit_log").insert({
-          actor_member_id: linked.id,
-          action: "auth.link_by_roster_name",
-          target_type: "member",
-          target_id: linked.id,
-          metadata: { rosterName: match.full_name, tier: match.membership_tier },
-        });
       }
+    } else if (snapshot.ok && member && !member.revoked_at) {
+      // Checked against a good snapshot and no longer on it.
+      await supabase.from("members").update({ revoked_at: now, synced_at: now }).eq("id", member.id);
+      member = { ...member, revoked_at: now };
     }
   }
 

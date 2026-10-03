@@ -1,17 +1,15 @@
 import type { GovernanceRole, MembershipTier } from "@/lib/access";
 
 /**
- * TEMPORARY name matching between the SU roster and UCL sign-in identities.
- * `su_roster` is the last snapshot the retired SU scraper took (14 Sep 2026);
- * nothing refreshes it. Retire this, and the table, once Toolbox membership
- * sync is authoritative (TOOLBOX_MEMBERS_AUTHORITATIVE=true).
+ * Name matching between Toolbox's SU roster and UCL sign-in identities, for
+ * members whose login isn't confirmed in the Toolbox connector yet. It stops
+ * letting anyone in once Toolbox membership sync is authoritative
+ * (TOOLBOX_MEMBERS_AUTHORITATIVE=true).
  *
- * The SU members page shows "First Last" with no email; UCL identities from the
+ * The SU roster gives "First Last" with no email; UCL identities from the
  * Toolbox carry a name in the same order. A match must be unambiguous: exactly
  * one roster entry, or nobody gets in on a name alone.
  */
-
-export const ROSTER_SYNC_SOURCE = "suu-roster";
 
 export interface RosterEntry {
   full_name: string;
@@ -43,23 +41,31 @@ function isSubset(small: Set<string>, large: Set<string>): boolean {
  * a first and last name and exactly one entry fits.
  */
 export function matchRosterByName<T extends RosterEntry>(roster: T[], name: string | null | undefined): T | null {
-  const wanted = nameTokens(name);
-  if (wanted.size < 2) return null;
+  return rosterNameMatcher(roster)(name);
+}
 
+/** matchRosterByName with the roster's names tokenised once, for matching many names. */
+export function rosterNameMatcher<T extends RosterEntry>(roster: T[]): (name: string | null | undefined) => T | null {
   const withTokens = roster.map((entry) => ({ entry, tokens: nameTokens(entry.full_name) }));
-  const exact = withTokens.filter(({ tokens }) => tokens.size === wanted.size && isSubset(wanted, tokens));
-  if (exact.length === 1) return exact[0].entry;
-  if (exact.length > 1) return null;
+  return (name) => {
+    const wanted = nameTokens(name);
+    if (wanted.size < 2) return null;
 
-  const partial = withTokens.filter(
-    ({ tokens }) => tokens.size >= 2 && (isSubset(wanted, tokens) || isSubset(tokens, wanted)),
-  );
-  return partial.length === 1 ? partial[0].entry : null;
+    const exact = withTokens.filter(({ tokens }) => tokens.size === wanted.size && isSubset(wanted, tokens));
+    if (exact.length === 1) return exact[0].entry;
+    if (exact.length > 1) return null;
+
+    const partial = withTokens.filter(
+      ({ tokens }) => tokens.size >= 2 && (isSubset(wanted, tokens) || isSubset(tokens, wanted)),
+    );
+    return partial.length === 1 ? partial[0].entry : null;
+  };
 }
 
 /** An account on the site, as far as the membership list needs it. */
 export interface RosterAccount {
   id: string;
+  toolbox_user_id?: string | null;
   email: string;
   full_name: string | null;
   membership_tier: MembershipTier;
@@ -103,17 +109,21 @@ function accountFields(account: RosterAccount | undefined) {
 }
 
 /**
- * The SU roster with each person's site account attached by name, followed by
+ * The SU roster with each person's site account attached (by confirmed Toolbox
+ * login, else by name), followed by
  * accounts matching nobody on the roster (committee added by hand, say).
  */
-export function buildMembershipList<T extends RosterEntry & { id: string; member_type: string | null }>(
+export function buildMembershipList<T extends RosterEntry & { id: string; member_type: string | null; toolbox_user_id?: string | null }>(
   roster: T[],
   accounts: RosterAccount[],
 ): MembershipListEntry[] {
   const accountByEntry = new Map<T, RosterAccount>();
   const unmatched: RosterAccount[] = [];
+  const matchName = rosterNameMatcher(roster);
+  const byToolboxId = new Map(roster.flatMap((entry) => (entry.toolbox_user_id ? [[entry.toolbox_user_id, entry] as const] : [])));
   for (const account of accounts) {
-    const entry = matchRosterByName(roster, account.full_name);
+    // A login confirmed in the Toolbox connector, then a name match.
+    const entry = (account.toolbox_user_id && byToolboxId.get(account.toolbox_user_id)) || matchName(account.full_name);
     if (entry && !accountByEntry.has(entry)) accountByEntry.set(entry, account);
     else unmatched.push(account);
   }

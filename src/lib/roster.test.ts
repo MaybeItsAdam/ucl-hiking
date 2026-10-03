@@ -72,6 +72,15 @@ describe("buildMembershipList", () => {
     expect(list[1]).toMatchObject({ email: null, governance_role: null, on_roster: true });
   });
 
+  it("attaches a confirmed Toolbox login before trying names", () => {
+    const list = buildMembershipList(
+      [{ ...rosterRow("r1", "Sam Lee"), toolbox_user_id: "t1" }, rosterRow("r2", "Sam Lee")],
+      [account("a1", "Samuel Lee-Smith", { toolbox_user_id: "t1" })],
+    );
+    expect(list.find((row) => row.id === "r1")).toMatchObject({ member_id: "a1", on_roster: true });
+    expect(list.filter((row) => !row.on_roster)).toEqual([]);
+  });
+
   it("lists accounts nobody on the roster matches after the roster", () => {
     const list = buildMembershipList(
       [rosterRow("r1", "Zoe Adams")],

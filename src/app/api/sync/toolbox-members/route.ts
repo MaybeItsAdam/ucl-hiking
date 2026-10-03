@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { can } from "@/lib/access";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
-import { compareToolboxMembers, mapToolboxMember, type ExistingMemberForComparison, type ToolboxMembersResponse } from "@/lib/toolboxMembers";
+import { compareToolboxMembers, fetchToolboxMembers, mapToolboxMember, NAME_MATCH_SYNC_SOURCE, type ExistingMemberForComparison } from "@/lib/toolboxMembers";
 
 function bearerMatches(header: string | null): boolean {
   const expected = process.env.CRON_SECRET;
@@ -26,7 +26,6 @@ export async function GET(request: Request) {
   if (!token || !organiserId) return NextResponse.json({ error: "Toolbox membership sync is not configured" }, { status: 503 });
   if (!isSupabaseConfigured()) return NextResponse.json({ error: "Database not configured" }, { status: 503 });
 
-  const base = (process.env.TOOLBOX_URL || "https://www.adamscampustoolbox.org.uk").replace(/\/$/, "");
   const supabase = getSupabaseAdmin();
   const authoritative = process.env.TOOLBOX_MEMBERS_AUTHORITATIVE === "true";
   const mode = authoritative ? "authoritative" : "shadow";
@@ -40,24 +39,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ error }, { status });
   };
 
-  let payload: ToolboxMembersResponse;
-  try {
-    const response = await fetch(`${base}/api/v1/organisers/${encodeURIComponent(organiserId)}/members`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store", signal: AbortSignal.timeout(15_000) });
-    if (!response.ok) return fail(`Toolbox members API returned ${response.status}`, 502);
-    payload = await response.json() as ToolboxMembersResponse;
-  } catch {
-    return fail("Toolbox members API is unavailable", 502);
+  const snapshot = await fetchToolboxMembers();
+  if (!snapshot.ok) {
+    received = snapshot.received;
+    return fail(snapshot.error, snapshot.status);
   }
-  if (!payload.snapshot?.complete || !Array.isArray(payload.members) || payload.members.length === 0) {
-    return fail("Toolbox returned no complete member snapshot; nobody was changed", 502);
-  }
-  received = payload.members.length;
-  const age = Date.now() - Date.parse(payload.snapshot.syncedAt);
-  if (!Number.isFinite(age) || age > 72 * 60 * 60 * 1000) {
-    return fail("Toolbox member snapshot is older than 72 hours; nobody was changed", 409);
-  }
-  const rows = payload.members.map(mapToolboxMember).filter((row) => row !== null);
-  const skipped = payload.members.length - rows.length;
+  received = snapshot.members.length;
+  const rows = snapshot.members.map(mapToolboxMember).filter((row) => row !== null);
+  const skipped = snapshot.members.length - rows.length;
   const { data: activeMembers, error: comparisonError } = await supabase
     .from("members")
     .select("toolbox_user_id,email,membership_tier")
@@ -66,7 +55,7 @@ export async function GET(request: Request) {
   comparison = compareToolboxMembers(rows, (activeMembers ?? []) as ExistingMemberForComparison[]);
   if (!authoritative) {
     await supabase.from("member_sync_runs").insert({ source: "toolbox-members", mode, received_count: received, upserted_count: 0, revoked_count: 0, comparison, started_at: syncedAt });
-    return NextResponse.json({ ok: true, mode, snapshot: payload.snapshot, skipped, comparison });
+    return NextResponse.json({ ok: true, mode, snapshotSyncedAt: snapshot.syncedAt, skipped, comparison });
   }
   if (rows.length === 0) return fail("No linked members; nobody was changed", 422);
 
@@ -95,9 +84,10 @@ export async function GET(request: Request) {
   }
 
   const activeIds = new Set(rows.map((row) => row.toolbox_user_id));
-  const { data: owned, error: ownedError } = await supabase.from("members").select("id,toolbox_user_id").eq("sync_source", "toolbox-members").is("revoked_at", null);
+  // Name-matched sign-ins are Toolbox's too: once it's authoritative, anyone it hasn't confirmed loses access.
+  const { data: owned, error: ownedError } = await supabase.from("members").select("id,toolbox_user_id").in("sync_source", ["toolbox-members", NAME_MATCH_SYNC_SOURCE]).is("revoked_at", null);
   if (ownedError) return fail("Members updated but stale access could not be checked", 500);
-  const missing = (owned ?? []).filter((row) => row.toolbox_user_id && !activeIds.has(row.toolbox_user_id)).map((row) => row.id);
+  const missing = (owned ?? []).filter((row) => !row.toolbox_user_id || !activeIds.has(row.toolbox_user_id)).map((row) => row.id);
   if (missing.length) {
     const { error } = await supabase.from("members").update({ revoked_at: syncedAt, synced_at: syncedAt }).in("id", missing);
     if (error) return fail("Members updated but stale access could not be revoked", 500);

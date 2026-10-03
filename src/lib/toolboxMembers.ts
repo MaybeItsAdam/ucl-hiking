@@ -82,3 +82,56 @@ export function compareToolboxMembers(
     tierMismatches,
   };
 }
+
+/**
+ * Members who signed in by a name match against Toolbox's SU roster, before
+ * their UCL login was confirmed in the Toolbox connector. The authoritative sync
+ * takes them over (or revokes them) once TOOLBOX_MEMBERS_AUTHORITATIVE is on.
+ */
+export const NAME_MATCH_SYNC_SOURCE = "toolbox-name-match";
+
+const SNAPSHOT_MAX_AGE_MS = 72 * 60 * 60 * 1000;
+
+export type ToolboxSnapshot =
+  | { ok: true; syncedAt: string; members: ToolboxMember[] }
+  | { ok: false; error: string; status: number; received: number };
+
+/** Toolbox's latest SU roster for the club, refused unless complete and under 72 hours old. */
+export async function fetchToolboxMembers(): Promise<ToolboxSnapshot> {
+  const token = process.env.TOOLBOX_API_TOKEN;
+  const organiserId = process.env.TOOLBOX_ORGANISER_ID;
+  if (!token || !organiserId) return { ok: false, error: "Toolbox membership sync is not configured", status: 503, received: 0 };
+  const base = (process.env.TOOLBOX_URL || "https://www.adamscampustoolbox.org.uk").replace(/\/$/, "");
+  let payload: ToolboxMembersResponse;
+  try {
+    const response = await fetch(`${base}/api/v1/organisers/${encodeURIComponent(organiserId)}/members`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store", signal: AbortSignal.timeout(15_000) });
+    if (!response.ok) return { ok: false, error: `Toolbox members API returned ${response.status}`, status: 502, received: 0 };
+    payload = await response.json() as ToolboxMembersResponse;
+  } catch {
+    return { ok: false, error: "Toolbox members API is unavailable", status: 502, received: 0 };
+  }
+  if (!payload.snapshot?.complete || !Array.isArray(payload.members) || payload.members.length === 0) {
+    return { ok: false, error: "Toolbox returned no complete member snapshot; nobody was changed", status: 502, received: 0 };
+  }
+  const age = Date.now() - Date.parse(payload.snapshot.syncedAt);
+  if (!Number.isFinite(age) || age > SNAPSHOT_MAX_AGE_MS) {
+    return { ok: false, error: "Toolbox member snapshot is older than 72 hours; nobody was changed", status: 409, received: payload.members.length };
+  }
+  return { ok: true, syncedAt: payload.snapshot.syncedAt, members: payload.members };
+}
+
+/** Everyone on the snapshot with a known tier, linked or not: for name matching and the Members page. */
+export function rosterFromToolbox(members: ToolboxMember[]) {
+  return members.flatMap((member) => {
+    const membershipTier = tierFromToolboxMembership(member.membershipType);
+    if (!membershipTier) return [];
+    return [{
+      id: member.id,
+      full_name: member.fullName,
+      member_type: member.memberType,
+      membership_tier: membershipTier,
+      membership_expires_at: expiryFromDateRange(member.dateRange),
+      toolbox_user_id: member.identityStatus === "confirmed" ? member.toolboxUserId : null,
+    }];
+  });
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compareToolboxMembers, expiryFromDateRange, mapToolboxMember, tierFromToolboxMembership } from "./toolboxMembers";
+import { compareToolboxMembers, expiryFromDateRange, mapToolboxMember, rosterFromToolbox, tierFromToolboxMembership } from "./toolboxMembers";
 
 describe("Toolbox member mapping", () => {
   it("maps supported products and the end of the SU date range", () => {
@@ -26,5 +26,19 @@ describe("Toolbox member mapping", () => {
       ],
     );
     expect(comparison).toEqual({ toolboxEligible: 3, hikingActive: 3, onlyToolbox: 1, onlyHiking: 1, tierMismatches: 1 });
+  });
+
+  it("lists unlinked members for name matching, with a Toolbox id only once confirmed", () => {
+    const base = { toolboxUserId: "t1", email: null, memberType: "Student", dateRange: "01/09/2026 - 31/08/2027" };
+    expect(
+      rosterFromToolbox([
+        { ...base, id: "m1", fullName: "Ada Lovelace", membershipType: "Taster", identityStatus: "unlinked" },
+        { ...base, id: "m2", fullName: "Alan Turing", membershipType: "Explorer", identityStatus: "confirmed" },
+        { ...base, id: "m3", fullName: "Grace Hopper", membershipType: "Life member", identityStatus: "confirmed" },
+      ]),
+    ).toEqual([
+      { id: "m1", full_name: "Ada Lovelace", member_type: "Student", membership_tier: "taster", membership_expires_at: "2027-08-31T23:59:59.999Z", toolbox_user_id: null },
+      { id: "m2", full_name: "Alan Turing", member_type: "Student", membership_tier: "explorer", membership_expires_at: "2027-08-31T23:59:59.999Z", toolbox_user_id: "t1" },
+    ]);
   });
 });
