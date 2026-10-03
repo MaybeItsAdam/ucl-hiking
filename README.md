@@ -127,8 +127,10 @@ The hiking app's own privacy policy is at `/privacy`; the store privacy URL is
 
 Adam's Campus Toolbox is the source for Hiking membership. Its browser
 connector stores a complete SU roster (`GET /api/v1/organisers/:id/members`,
-under a `MEMBERS_READ` developer token), and principals confirm each roster
-row's UCL login in the connector. Sign-in, the Members page and the daily
+under a `MEMBERS_READ` developer token). Toolbox links each roster row to a
+UCL login automatically when the name is unambiguous on both sides (at sign-in
+and daily, before the 06:45 sync here), and principals link the rest on its
+`/connector` page. Sign-in, the Members page and the daily
 `/api/sync/toolbox-members` all read that snapshot, and refuse it unless it is
 complete and under 72 hours old.
 
