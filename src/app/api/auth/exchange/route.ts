@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { isGovernanceRole, isMembershipTier } from "@/lib/access";
 import { lockedGovernanceRole, lockedWalkLeader } from "@/lib/roleLocks";
-import { matchRosterByName } from "@/lib/roster";
 import { setSessionCookie } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { getSocietyGovernanceRole, verifyToolboxToken } from "@/lib/toolbox";
-import { fetchToolboxMembers, NAME_MATCH_SYNC_SOURCE, rosterFromToolbox } from "@/lib/toolboxMembers";
+import { fetchToolboxMembers, mapToolboxMember, TOOLBOX_SYNC_SOURCE } from "@/lib/toolboxMembers";
 
 export async function POST(request: Request) {
   let body: { token?: unknown };
@@ -101,32 +100,26 @@ export async function POST(request: Request) {
     }
   }
 
-  // Until Toolbox membership is authoritative, someone on Toolbox's SU roster
-  // whose UCL login isn't confirmed in the connector yet gets in by an
-  // unambiguous name match (src/lib/roster.ts). Their tier and expiry are
-  // re-read at every sign-in, and they lose access once they drop off the
-  // roster. Fails closed for newcomers: no snapshot, no match.
-  if (
-    process.env.TOOLBOX_MEMBERS_AUTHORITATIVE !== "true" &&
-    autoGovernanceRole === null &&
-    identity.name &&
-    (!member || member.sync_source === NAME_MATCH_SYNC_SOURCE)
-  ) {
+  // Membership is Toolbox's SU roster, keyed by UCL login: a roster row linked
+  // to this login (Toolbox links unambiguous names itself at sign-in, and
+  // principals link the rest) lets them in at that row's tier and expiry, so a
+  // new member needn't wait for the daily sync. Rows the roster owns are
+  // re-read every sign-in, and revoked once the login is no longer on it.
+  // Fails closed for newcomers: no snapshot, no row.
+  if (autoGovernanceRole === null && (!member || member.sync_source === TOOLBOX_SYNC_SOURCE)) {
     const snapshot = await fetchToolboxMembers();
-    const match = snapshot.ok ? matchRosterByName(rosterFromToolbox(snapshot.members), identity.name) : null;
+    const entry = snapshot.ok ? snapshot.members.find((m) => m.toolboxUserId === identity.id) : undefined;
+    const row = entry ? mapToolboxMember(entry) : null;
     const now = new Date().toISOString();
-    if (match) {
+    if (row) {
       const { data: linked, error: linkError } = await supabase
         .from("members")
         .upsert(
           {
+            ...row,
             email: identity.email,
-            full_name: member?.full_name || identity.name,
-            toolbox_user_id: identity.id,
-            membership_tier: match.membership_tier,
-            membership_expires_at: match.membership_expires_at,
-            source_reference: `toolbox-member:${match.id}`,
-            sync_source: NAME_MATCH_SYNC_SOURCE,
+            full_name: member?.full_name || row.full_name,
+            sync_source: TOOLBOX_SYNC_SOURCE,
             synced_at: now,
             revoked_at: null,
           },
@@ -137,15 +130,6 @@ export async function POST(request: Request) {
         )
         .single();
       if (!linkError && linked) {
-        if (!member || member.revoked_at) {
-          await supabase.from("audit_log").insert({
-            actor_member_id: linked.id,
-            action: "auth.link_by_roster_name",
-            target_type: "member",
-            target_id: linked.id,
-            metadata: { rosterName: match.full_name, tier: match.membership_tier, toolboxMemberId: match.id },
-          });
-        }
         member = linked;
         error = null;
       }

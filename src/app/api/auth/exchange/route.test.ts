@@ -37,15 +37,15 @@ vi.mock("@/lib/supabase", () => ({
   }),
 }));
 
-const rosterMember = (fullName: string, membershipType = "Explorer") => ({
+const rosterMember = (fullName: string, toolboxUserId: string | null, membershipType = "Explorer") => ({
   id: `tb-${fullName}`,
-  toolboxUserId: null,
-  email: null,
+  toolboxUserId,
+  email: toolboxUserId ? `${toolboxUserId}@ucl.ac.uk` : null,
   fullName,
   memberType: "Student",
   membershipType,
   dateRange: "01/09/2026 - 31/08/2027",
-  identityStatus: "unlinked",
+  identityStatus: toolboxUserId ? "confirmed" : "unlinked",
 });
 
 function toolboxRoster(members: unknown[] | null) {
@@ -61,25 +61,32 @@ function toolboxRoster(members: unknown[] | null) {
 
 const signIn = () => POST(new Request("http://localhost/api/auth/exchange", { method: "POST", body: JSON.stringify({ token: "t" }) }));
 
-describe("POST /api/auth/exchange — name match on Toolbox's roster", () => {
+describe("POST /api/auth/exchange — membership from Toolbox's roster", () => {
   beforeEach(() => {
     process.env.TOOLBOX_API_TOKEN = "token";
     process.env.TOOLBOX_ORGANISER_ID = "org";
     process.env.SESSION_SECRET = "x".repeat(32);
-    delete process.env.TOOLBOX_MEMBERS_AUTHORITATIVE;
     db.member = null;
     db.upserts = [];
     db.updates = [];
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it("lets a newcomer in on an unambiguous name match, at the roster's tier", async () => {
-    toolboxRoster([rosterMember("Ada Lovelace"), rosterMember("Alan Turing", "Taster")]);
+  const onRoster = { id: "m1", email: "ada@ucl.ac.uk", full_name: "Ada Lovelace", membership_tier: "standard", governance_role: null, is_walk_leader: false, membership_expires_at: null, revoked_at: null, sync_source: "toolbox-members" };
+
+  it("lets a newcomer in when their login is linked on the roster, at its tier", async () => {
+    toolboxRoster([rosterMember("Ada Lovelace", "toolbox-ada"), rosterMember("Alan Turing", null, "Taster")]);
     const res = await signIn();
     expect(res.status).toBe(200);
     expect(db.upserts).toMatchObject([
-      { email: "ada@ucl.ac.uk", membership_tier: "explorer", sync_source: "toolbox-name-match", source_reference: "toolbox-member:tb-Ada Lovelace", revoked_at: null },
+      { email: "ada@ucl.ac.uk", toolbox_user_id: "toolbox-ada", membership_tier: "explorer", membership_expires_at: "2027-08-31T23:59:59.999Z", sync_source: "toolbox-members", revoked_at: null },
     ]);
+  });
+
+  it("doesn't let anyone in on their name alone", async () => {
+    toolboxRoster([rosterMember("Ada Lovelace", null)]);
+    expect((await signIn()).status).toBe(403);
+    expect(db.upserts).toEqual([]);
   });
 
   it("keeps a newcomer out when Toolbox can't be read", async () => {
@@ -88,23 +95,16 @@ describe("POST /api/auth/exchange — name match on Toolbox's roster", () => {
     expect(db.upserts).toEqual([]);
   });
 
-  it("revokes a name-matched member who has left the roster", async () => {
-    db.member = { id: "m1", email: "ada@ucl.ac.uk", full_name: "Ada Lovelace", membership_tier: "standard", governance_role: null, is_walk_leader: false, membership_expires_at: null, revoked_at: null, sync_source: "toolbox-name-match" };
-    toolboxRoster([rosterMember("Alan Turing")]);
+  it("revokes a member whose login has left the roster", async () => {
+    db.member = onRoster;
+    toolboxRoster([rosterMember("Alan Turing", "toolbox-alan")]);
     expect((await signIn()).status).toBe(403);
     expect(db.updates[0]).toHaveProperty("revoked_at");
   });
 
-  it("lets a name-matched member keep their access while Toolbox is down", async () => {
-    db.member = { id: "m1", email: "ada@ucl.ac.uk", full_name: "Ada Lovelace", membership_tier: "standard", governance_role: null, is_walk_leader: false, membership_expires_at: null, revoked_at: null, sync_source: "toolbox-name-match" };
+  it("lets a member keep their access while Toolbox is down", async () => {
+    db.member = onRoster;
     toolboxRoster(null);
     expect((await signIn()).status).toBe(200);
-  });
-
-  it("stops matching names once Toolbox membership is authoritative", async () => {
-    process.env.TOOLBOX_MEMBERS_AUTHORITATIVE = "true";
-    toolboxRoster([rosterMember("Ada Lovelace")]);
-    expect((await signIn()).status).toBe(403);
-    expect(db.upserts).toEqual([]);
   });
 });

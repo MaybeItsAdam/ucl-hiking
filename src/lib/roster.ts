@@ -1,65 +1,15 @@
 import type { GovernanceRole, MembershipTier } from "@/lib/access";
 
 /**
- * Name matching between Toolbox's SU roster and UCL sign-in identities, for
- * members whose login isn't confirmed in the Toolbox connector yet. It stops
- * letting anyone in once Toolbox membership sync is authoritative
- * (TOOLBOX_MEMBERS_AUTHORITATIVE=true).
- *
- * The SU roster gives "First Last" with no email; UCL identities from the
- * Toolbox carry a name in the same order. A match must be unambiguous: exactly
- * one roster entry, or nobody gets in on a name alone.
+ * The committee membership list: Toolbox's SU roster, with each person's site
+ * account attached by their linked UCL login. Linking is Toolbox's job (it
+ * links unambiguous names itself; principals link the rest on /connector).
  */
 
 export interface RosterEntry {
   full_name: string;
   membership_tier: MembershipTier;
   membership_expires_at: string | null;
-}
-
-/** Lower-cased, accent-free name words, in any order ("Cleary, Adam" = "Adam Cleary"). */
-export function nameTokens(name: string | null | undefined): Set<string> {
-  const plain = (name ?? "")
-    .normalize("NFKD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .trim();
-  return new Set(plain ? plain.split(" ") : []);
-}
-
-function isSubset(small: Set<string>, large: Set<string>): boolean {
-  for (const token of small) if (!large.has(token)) return false;
-  return true;
-}
-
-/**
- * The one roster entry for this name, or null.
- *
- * Exact word-set matches win. Failing that, one name's words may be a subset of
- * the other's — a middle name on one side only — as long as both have at least
- * a first and last name and exactly one entry fits.
- */
-export function matchRosterByName<T extends RosterEntry>(roster: T[], name: string | null | undefined): T | null {
-  return rosterNameMatcher(roster)(name);
-}
-
-/** matchRosterByName with the roster's names tokenised once, for matching many names. */
-export function rosterNameMatcher<T extends RosterEntry>(roster: T[]): (name: string | null | undefined) => T | null {
-  const withTokens = roster.map((entry) => ({ entry, tokens: nameTokens(entry.full_name) }));
-  return (name) => {
-    const wanted = nameTokens(name);
-    if (wanted.size < 2) return null;
-
-    const exact = withTokens.filter(({ tokens }) => tokens.size === wanted.size && isSubset(wanted, tokens));
-    if (exact.length === 1) return exact[0].entry;
-    if (exact.length > 1) return null;
-
-    const partial = withTokens.filter(
-      ({ tokens }) => tokens.size >= 2 && (isSubset(wanted, tokens) || isSubset(tokens, wanted)),
-    );
-    return partial.length === 1 ? partial[0].entry : null;
-  };
 }
 
 /** An account on the site, as far as the membership list needs it. */
@@ -109,9 +59,8 @@ function accountFields(account: RosterAccount | undefined) {
 }
 
 /**
- * The SU roster with each person's site account attached (by confirmed Toolbox
- * login, else by name), followed by
- * accounts matching nobody on the roster (committee added by hand, say).
+ * The SU roster with each person's site account attached by linked login,
+ * followed by accounts on nobody's row (committee added by hand, say).
  */
 export function buildMembershipList<T extends RosterEntry & { id: string; member_type: string | null; toolbox_user_id?: string | null }>(
   roster: T[],
@@ -119,11 +68,9 @@ export function buildMembershipList<T extends RosterEntry & { id: string; member
 ): MembershipListEntry[] {
   const accountByEntry = new Map<T, RosterAccount>();
   const unmatched: RosterAccount[] = [];
-  const matchName = rosterNameMatcher(roster);
   const byToolboxId = new Map(roster.flatMap((entry) => (entry.toolbox_user_id ? [[entry.toolbox_user_id, entry] as const] : [])));
   for (const account of accounts) {
-    // A login confirmed in the Toolbox connector, then a name match.
-    const entry = (account.toolbox_user_id && byToolboxId.get(account.toolbox_user_id)) || matchName(account.full_name);
+    const entry = account.toolbox_user_id ? byToolboxId.get(account.toolbox_user_id) : undefined;
     if (entry && !accountByEntry.has(entry)) accountByEntry.set(entry, account);
     else unmatched.push(account);
   }

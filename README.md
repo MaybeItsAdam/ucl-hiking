@@ -125,38 +125,33 @@ The hiking app's own privacy policy is at `/privacy`; the store privacy URL is
 
 ## Member sync
 
-Adam's Campus Toolbox is the source for Hiking membership. Its browser
-connector stores a complete SU roster (`GET /api/v1/organisers/:id/members`,
-under a `MEMBERS_READ` developer token). Toolbox links each roster row to a
-UCL login automatically when the name is unambiguous on both sides (at sign-in
-and daily, before the 06:45 sync here), and principals link the rest on its
-`/connector` page. Sign-in, the Members page and the daily
-`/api/sync/toolbox-members` all read that snapshot, and refuse it unless it is
+Membership is Adam's Campus Toolbox's SU roster for the club. Its browser
+connector and nightly pipeline keep a complete copy of the SU member list
+(`GET /api/v1/organisers/:id/members`, under a `MEMBERS_READ` developer token),
+and Toolbox links each row to a UCL login: automatically when the name is
+unambiguous on both sides (at sign-in and daily), and by a principal on its
+`/connector` page for the rest. A member is someone whose login is linked;
+names are never matched here. Every read of the roster is refused unless it is
 complete and under 72 hours old.
 
-**Before logins are confirmed**, sign-in lets in someone whose UCL name matches
-exactly one person on the roster (`src/lib/roster.ts`), at that person's tier
-and expiry (`sync_source = 'toolbox-name-match'`). Their tier is re-read at every
-sign-in, and they lose access once they drop off the roster. The Members page
-lists the whole roster, with site accounts attached by confirmed login, then by
-name.
+- **Sign-in** (`/api/auth/exchange`) admits a login linked on the roster at
+  that row's tier and expiry, so a new member gets in at once. Rows the roster
+  owns (`sync_source = 'toolbox-members'`) are re-read at every sign-in and
+  revoked once the login is no longer on it.
+- **The daily sync** (`/api/sync/toolbox-members`, 06:45 UTC) upserts every
+  linked member by login, then email, and revokes roster-owned rows Toolbox no
+  longer lists. A roster with nobody linked changes nothing. It never touches
+  committee accounts from Toolbox sign-in, committee roles or walk-leader flags.
+- **The Members page** lists the whole roster, with site accounts attached by
+  login.
 
-Keep `TOOLBOX_MEMBERS_AUTHORITATIVE=false` initially. The daily job then reports
-members present on only one side and tier mismatches without changing access.
-Every run, shadow or not, leaves a row in `member_sync_runs` with its `mode`,
-`comparison` and any `error`:
+Every sync run leaves a row in `member_sync_runs`, failures included, with a
+`comparison` of how far the members table was from Toolbox beforehand:
 
 ```sql
-select started_at, mode, received_count, comparison, error
+select started_at, received_count, upserted_count, revoked_count, comparison, error
 from member_sync_runs where source = 'toolbox-members' order by started_at desc limit 10;
 ```
-
-Once the members who use the app have confirmed logins and the comparison
-looks right, setting it to `true` makes Toolbox authoritative: confirmed members
-are upserted by login and email, name matching stops, and name-matched or
-previously synced rows Toolbox hasn't confirmed are revoked. Committee accounts
-from Toolbox sign-in are untouched, and the sync never changes committee roles
-or walk-leader flags.
 
 ### Roles set on the Members page
 

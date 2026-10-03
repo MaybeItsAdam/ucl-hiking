@@ -83,12 +83,8 @@ export function compareToolboxMembers(
   };
 }
 
-/**
- * Members who signed in by a name match against Toolbox's SU roster, before
- * their UCL login was confirmed in the Toolbox connector. The authoritative sync
- * takes them over (or revokes them) once TOOLBOX_MEMBERS_AUTHORITATIVE is on.
- */
-export const NAME_MATCH_SYNC_SOURCE = "toolbox-name-match";
+/** `members.sync_source` for rows Toolbox's SU roster owns: the sync and sign-in keep them current. */
+export const TOOLBOX_SYNC_SOURCE = "toolbox-members";
 
 const SNAPSHOT_MAX_AGE_MS = 72 * 60 * 60 * 1000;
 
@@ -120,7 +116,7 @@ export async function fetchToolboxMembers(): Promise<ToolboxSnapshot> {
   return { ok: true, syncedAt: payload.snapshot.syncedAt, members: payload.members };
 }
 
-/** Everyone on the snapshot with a known tier, linked or not: for name matching and the Members page. */
+/** Everyone on the snapshot with a known tier, linked or not: for the Members page. */
 export function rosterFromToolbox(members: ToolboxMember[]) {
   return members.flatMap((member) => {
     const membershipTier = tierFromToolboxMembership(member.membershipType);

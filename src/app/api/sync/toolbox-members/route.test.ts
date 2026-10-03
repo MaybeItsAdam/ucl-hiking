@@ -25,10 +25,10 @@ vi.mock("@/lib/supabase", () => ({
       return {
         select: () => ({
           is: async () => ({ data: [{ toolbox_user_id: "u1", email: "sam@ucl.ac.uk", membership_tier: "standard" }], error: null }),
-          eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }),
-          in: (_column: string, sources: string[]) => ({
-            is: async () => ({ data: db.owned.filter((row) => sources.includes(row.sync_source)), error: null }),
-          }),
+          eq: (column: string, value: string) =>
+            column === "sync_source"
+              ? { is: async () => ({ data: db.owned.filter((row) => row.sync_source === value), error: null }) }
+              : { maybeSingle: async () => ({ data: null, error: null }) },
         }),
         insert: async () => {
           db.memberWrites += 1;
@@ -71,7 +71,6 @@ describe("GET /api/sync/toolbox-members", () => {
     process.env.CRON_SECRET = "cron";
     process.env.TOOLBOX_API_TOKEN = "token";
     process.env.TOOLBOX_ORGANISER_ID = "org";
-    delete process.env.TOOLBOX_MEMBERS_AUTHORITATIVE;
     db.runs = [];
     db.memberWrites = 0;
     db.owned = [];
@@ -79,31 +78,48 @@ describe("GET /api/sync/toolbox-members", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it("records a shadow run's comparison without touching members", async () => {
+  it("applies the roster and records how far behind the members table was", async () => {
+    db.owned = [
+      { id: "kept", toolbox_user_id: "u1", sync_source: "toolbox-members" },
+      { id: "gone", toolbox_user_id: "u9", sync_source: "toolbox-members" },
+      { id: "committee", toolbox_user_id: "u8", sync_source: "toolbox-auth" },
+    ];
     toolboxReturns({
       snapshot: { id: "s", syncedAt: new Date().toISOString(), memberCount: 2, complete: true },
       members: [member("u1", "sam@ucl.ac.uk", "Explorer"), member("u2", "alex@ucl.ac.uk", "Taster")],
     });
     const res = await sync();
     expect(res.status).toBe(200);
-    expect(db.memberWrites).toBe(0);
+    expect(db.revoked).toEqual(["gone"]);
     expect(db.runs).toMatchObject([
       {
         source: "toolbox-members",
-        mode: "shadow",
         received_count: 2,
-        upserted_count: 0,
+        upserted_count: 2,
+        revoked_count: 1,
         comparison: { toolboxEligible: 2, hikingActive: 1, onlyToolbox: 1, onlyHiking: 0, tierMismatches: 1 },
       },
     ]);
     expect(db.runs[0].error).toBeUndefined();
   });
 
+  it("changes nobody when no one on the roster is linked", async () => {
+    db.owned = [{ id: "kept", toolbox_user_id: "u1", sync_source: "toolbox-members" }];
+    toolboxReturns({
+      snapshot: { id: "s", syncedAt: new Date().toISOString(), memberCount: 1, complete: true },
+      members: [{ ...member("u1", "sam@ucl.ac.uk", "Standard"), toolboxUserId: null, email: null, identityStatus: "unlinked" }],
+    });
+    const res = await sync();
+    expect(res.status).toBe(422);
+    expect(db.memberWrites).toBe(0);
+    expect(db.runs).toMatchObject([{ received_count: 1, error: "No linked members; nobody was changed" }]);
+  });
+
   it("records why a run stopped when Toolbox fails", async () => {
     toolboxReturns({ error: "nope" }, 503);
     const res = await sync();
     expect(res.status).toBe(502);
-    expect(db.runs).toMatchObject([{ mode: "shadow", received_count: 0, comparison: null, error: "Toolbox members API returned 503" }]);
+    expect(db.runs).toMatchObject([{ received_count: 0, comparison: null, error: "Toolbox members API returned 503" }]);
   });
 
   it("records a stale snapshot as a failed run", async () => {
@@ -114,22 +130,5 @@ describe("GET /api/sync/toolbox-members", () => {
     const res = await sync();
     expect(res.status).toBe(409);
     expect(db.runs).toMatchObject([{ received_count: 1, error: "Toolbox member snapshot is older than 72 hours; nobody was changed" }]);
-  });
-
-  it("once authoritative, revokes name-matched sign-ins Toolbox hasn't confirmed", async () => {
-    process.env.TOOLBOX_MEMBERS_AUTHORITATIVE = "true";
-    db.owned = [
-      { id: "kept", toolbox_user_id: "u1", sync_source: "toolbox-name-match" },
-      { id: "gone", toolbox_user_id: "u9", sync_source: "toolbox-name-match" },
-      { id: "committee", toolbox_user_id: "u8", sync_source: "toolbox-auth" },
-    ];
-    toolboxReturns({
-      snapshot: { id: "s", syncedAt: new Date().toISOString(), memberCount: 1, complete: true },
-      members: [member("u1", "sam@ucl.ac.uk", "Standard")],
-    });
-    const res = await sync();
-    expect(res.status).toBe(200);
-    expect(db.revoked).toEqual(["gone"]);
-    expect(db.runs).toMatchObject([{ mode: "authoritative", upserted_count: 1, revoked_count: 1 }]);
   });
 });
