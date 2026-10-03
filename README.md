@@ -132,6 +132,14 @@ confirmed identities to `/api/sync/toolbox-members`.
 
 Keep `TOOLBOX_MEMBERS_AUTHORITATIVE=false` initially. The daily job then reports
 members present on only one side and tier mismatches without changing access.
+Every run, shadow or not, leaves a row in `member_sync_runs` with its `mode`,
+`comparison` and any `error`:
+
+```sql
+select started_at, mode, received_count, comparison, error
+from member_sync_runs where source = 'toolbox-members' order by started_at desc limit 10;
+```
+
 After the identities and comparison have been checked, setting it to `true`
 makes ACT authoritative: confirmed members are upserted and previously ACT-owned
 rows absent from a successful, recent, non-empty snapshot are revoked. The ACT
@@ -139,19 +147,19 @@ sync never touches committee roles or walk-leader flags.
 
 ### Roles set on the Members page
 
-Two other writers do set roles: the `hiking-member-sync` cloud job
-(`/api/sync/members`, from `cloud-jobs/src/hiking_sync/policy.py`) and Toolbox
-sign-in (`/api/auth/exchange`). A role changed on the Members page is *locked*
-(`members.governance_role_locked`, `walk_leader_locked`) and both writers keep
-the locked value; "Return to sync" clears the lock. Any governance role can make
+One other writer sets roles: Toolbox sign-in (`/api/auth/exchange`). A role
+changed on the Members page is *locked* (`members.governance_role_locked`,
+`walk_leader_locked`) and sign-in keeps the locked value; "Return to sync" clears the lock. Any governance role can make
 someone a walk leader. Only a principal (or admin) can add or remove a committee
 seat. Principal and admin are never granted in the app, and a Toolbox promotion
 to either overrides a lock.
 
-The [`cloud-jobs`](./cloud-jobs) SU scraper and `/api/sync/roster` name matcher
-remain temporarily available for rollback. Retire them only after the ACT shadow
-comparison has stayed clean through a membership change and at least seven daily
-runs.
+The SU scraper that used to fill `su_roster` is gone; the table holds its last
+snapshot (14 Sep 2026). Until Toolbox sync is authoritative, sign-in still lets
+in someone whose UCL name matches exactly one roster entry (`src/lib/roster.ts`),
+and the Members page lists that roster. Retire both, and the table, once the
+shadow comparison has stayed clean through a membership change and at least
+seven daily runs.
 
 ## Walks: plans, attendees and the day itself
 
@@ -241,8 +249,9 @@ That matches Toolbox's `signWebhook`/`SIGNATURE_TOLERANCE_SECONDS` exactly.
 
 The body Toolbox sends is `{ id, type, createdAt, batchId, organiserId, data }`
 with `data` as `{ kind, ...the event row }` — note `type`, not `event`, and
-`startTime`/`endTime`, not `startsAt`/`endsAt`. Both vocabularies are accepted,
-because the Cloud Run sync job posts the second to `/api/sync/events`. Toolbox
+`startTime`/`endTime`, not `startsAt`/`endsAt`. Both vocabularies are accepted:
+the second is what the retired SU sync job sent, and a contract that only
+understands one breaks the moment either end changes. Toolbox
 sends no `capacity`, `ticketsSold` or `pricePence` (they are SU ticketing
 fields it has no source for), so the upsert writes only the columns a delivery
 actually carried rather than resetting those three to zero.
@@ -253,5 +262,4 @@ actually carried rather than resetting those three to zero.
 npm run typecheck
 npm run lint
 npm test
-cd cloud-jobs && pytest
 ```

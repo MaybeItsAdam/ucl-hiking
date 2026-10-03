@@ -41,20 +41,17 @@ describe("access model", () => {
     expect(can(profile("standard", "principal"), "request_equipment")).toBe(false);
   });
 
-  it("restricts SU session management and kit to principal and admin roles only", () => {
+  it("restricts kit to principal and admin roles only", () => {
     const committee = profile("standard", "committee");
     const principal = profile("standard", "principal");
     const admin = profile("explorer", "admin");
 
-    expect(can(committee, "manage_suu_session")).toBe(false);
-    expect(can(principal, "manage_suu_session")).toBe(true);
-    expect(can(admin, "manage_suu_session")).toBe(true);
-
-    expect(can(committee, "view_sync_monitor")).toBe(true);
+    expect(can(committee, "trigger_sync")).toBe(true);
     expect(can(committee, "review_equipment_requests")).toBe(false);
     expect(can(committee, "manage_equipment")).toBe(false);
     expect(can(principal, "review_equipment_requests")).toBe(true);
     expect(can(principal, "manage_equipment")).toBe(true);
+    expect(can(admin, "manage_equipment")).toBe(true);
   });
 });
 

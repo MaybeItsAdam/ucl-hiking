@@ -12,7 +12,6 @@ export default defineConfig([
     "capacitor-dist/**",
     "android/**",
     "ios/**",
-    "cloud-jobs/**",
     "next-env.d.ts",
   ]),
 ]);

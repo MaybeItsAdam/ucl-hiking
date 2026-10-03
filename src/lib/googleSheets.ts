@@ -1,4 +1,4 @@
-import { parseServiceAccountKey, signAssertion, type ServiceAccountKey } from "@/lib/cloudRun";
+import { parseServiceAccountKey, signAssertion, type ServiceAccountKey } from "@/lib/serviceAccount";
 
 /**
  * The club's Google Sheets, read and written as the site's service account

@@ -2,7 +2,9 @@ import type { GovernanceRole, MembershipTier } from "@/lib/access";
 
 /**
  * TEMPORARY name matching between the SU roster and UCL sign-in identities.
- * Retire with the `hiking-roster-sync` job (see supabase/migrations/20260914000000_su_roster.sql).
+ * `su_roster` is the last snapshot the retired SU scraper took (14 Sep 2026);
+ * nothing refreshes it. Retire this, and the table, once Toolbox membership
+ * sync is authoritative (TOOLBOX_MEMBERS_AUTHORITATIVE=true).
  *
  * The SU members page shows "First Last" with no email; UCL identities from the
  * Toolbox carry a name in the same order. A match must be unambiguous: exactly
@@ -15,19 +17,6 @@ export interface RosterEntry {
   full_name: string;
   membership_tier: MembershipTier;
   membership_expires_at: string | null;
-}
-
-const TIERS: Record<string, MembershipTier> = {
-  taster: "taster",
-  standard: "standard",
-  explorer: "explorer",
-};
-
-/** "Taster" / "Standard Membership" / "Explorer" → tier, or null for anything unrecognised. */
-export function tierFromMembershipType(value: string | null | undefined): MembershipTier | null {
-  const words = (value ?? "").toLowerCase().split(/[^a-z]+/);
-  const found = words.map((word) => TIERS[word]).filter(Boolean);
-  return found.length === 1 ? found[0] : null;
 }
 
 /** Lower-cased, accent-free name words, in any order ("Cleary, Adam" = "Adam Cleary"). */

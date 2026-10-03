@@ -52,14 +52,14 @@ export async function POST(request: Request) {
    * nothing sends, so every real delivery would have failed the
    * "Invalid payload format" check below.
    *
-   * Both are accepted rather than swapping one for the other: the SU sync job
-   * posts the second shape to `/api/sync/events`, and a webhook contract that
-   * only understands one vocabulary breaks the moment either end is changed.
+   * Both are accepted rather than swapping one for the other: the second is
+   * what the retired SU sync job sent, and a webhook contract that only
+   * understands one vocabulary breaks the moment either end is changed.
    */
   let body: {
     /** Toolbox's field. */
     type?: string;
-    /** Original assumed field, kept so the sync job's vocabulary still works. */
+    /** Original assumed field, kept alongside Toolbox's (see above). */
     event?: string;
     data?: ToolboxEventData;
   };

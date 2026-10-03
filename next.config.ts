@@ -7,9 +7,6 @@ const nextConfig: NextConfig = {
     // instant instead of another round trip. Pull-to-refresh still reloads it.
     staleTimes: { dynamic: 30 },
   },
-  outputFileTracingExcludes: {
-    "*": ["cloud-jobs/**"],
-  },
 };
 
 export default nextConfig;

@@ -20,8 +20,6 @@ export type Capability =
   | "lead_walks"
   | "manage_walks"
   | "manage_members"
-  | "manage_suu_session"
-  | "view_sync_monitor"
   | "trigger_sync"
   | "request_equipment"
   | "review_equipment_requests"
@@ -52,14 +50,12 @@ export function can(profile: AccessProfile, capability: Capability): boolean {
       return isWalkLeader || governanceRole !== null;
     case "manage_walks":
     case "manage_members":
-    case "view_sync_monitor":
     case "trigger_sync":
       return governanceRole !== null;
     // Principals hold the kit: they lend it and never ask to borrow it.
     // Explorers and committee borrow from a principal.
     case "review_equipment_requests":
     case "manage_equipment":
-    case "manage_suu_session":
     // Incident reports can hold health details, so they stay with the principals.
     case "review_incidents":
     // Trip money is the treasurer's and president's, who are principals.

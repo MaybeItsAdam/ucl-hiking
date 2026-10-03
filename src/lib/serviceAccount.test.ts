@@ -1,6 +1,6 @@
 import { generateKeyPairSync, createVerify } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { parseServiceAccountKey, signAssertion } from "./cloudRun";
+import { parseServiceAccountKey, signAssertion } from "./serviceAccount";
 
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const keyJson = JSON.stringify({

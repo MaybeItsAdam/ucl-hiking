@@ -115,7 +115,7 @@ const PRESETS: Preset[] = [
     id: "principal",
     label: "Principal Officer",
     badge: "Officer",
-    description: "President / Treasurer with SU session management",
+    description: "President / Treasurer, with kit, money and incidents",
     tier: "explorer",
     governance: "principal",
     walkLeader: true,

@@ -3,7 +3,6 @@ import {
   buildMembershipList,
   matchRosterByName,
   nameTokens,
-  tierFromMembershipType,
   type RosterAccount,
   type RosterEntry,
 } from "./roster";
@@ -12,20 +11,6 @@ const entry = (full_name: string, membership_tier: RosterEntry["membership_tier"
   full_name,
   membership_tier,
   membership_expires_at: null,
-});
-
-describe("tierFromMembershipType", () => {
-  it("maps the SU membership products", () => {
-    expect(tierFromMembershipType("Taster")).toBe("taster");
-    expect(tierFromMembershipType("Explorer")).toBe("explorer");
-    expect(tierFromMembershipType("Standard Membership")).toBe("standard");
-  });
-
-  it("refuses unknown or ambiguous products", () => {
-    expect(tierFromMembershipType("Life member")).toBeNull();
-    expect(tierFromMembershipType("Taster to Explorer upgrade")).toBeNull();
-    expect(tierFromMembershipType(null)).toBeNull();
-  });
 });
 
 describe("nameTokens", () => {
