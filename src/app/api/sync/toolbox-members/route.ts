@@ -27,42 +27,56 @@ export async function GET(request: Request) {
   if (!isSupabaseConfigured()) return NextResponse.json({ error: "Database not configured" }, { status: 503 });
 
   const base = (process.env.TOOLBOX_URL || "https://www.adamscampustoolbox.org.uk").replace(/\/$/, "");
+  const supabase = getSupabaseAdmin();
+  const authoritative = process.env.TOOLBOX_MEMBERS_AUTHORITATIVE === "true";
+  const mode = authoritative ? "authoritative" : "shadow";
+  const syncedAt = new Date().toISOString();
+  let comparison: ReturnType<typeof compareToolboxMembers> | null = null;
+  let received = 0;
+  // Every run past this point leaves a row in member_sync_runs, so the shadow
+  // comparison can be read back before TOOLBOX_MEMBERS_AUTHORITATIVE is switched on.
+  const fail = async (error: string, status: number) => {
+    await supabase.from("member_sync_runs").insert({ source: "toolbox-members", mode, received_count: received, upserted_count: 0, revoked_count: 0, comparison, error, started_at: syncedAt });
+    return NextResponse.json({ error }, { status });
+  };
+
   let payload: ToolboxMembersResponse;
   try {
     const response = await fetch(`${base}/api/v1/organisers/${encodeURIComponent(organiserId)}/members`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store", signal: AbortSignal.timeout(15_000) });
-    if (!response.ok) return NextResponse.json({ error: `Toolbox members API returned ${response.status}` }, { status: 502 });
+    if (!response.ok) return fail(`Toolbox members API returned ${response.status}`, 502);
     payload = await response.json() as ToolboxMembersResponse;
   } catch {
-    return NextResponse.json({ error: "Toolbox members API is unavailable" }, { status: 502 });
+    return fail("Toolbox members API is unavailable", 502);
   }
   if (!payload.snapshot?.complete || !Array.isArray(payload.members) || payload.members.length === 0) {
-    return NextResponse.json({ error: "Toolbox returned no complete member snapshot; nobody was changed" }, { status: 502 });
+    return fail("Toolbox returned no complete member snapshot; nobody was changed", 502);
   }
+  received = payload.members.length;
   const age = Date.now() - Date.parse(payload.snapshot.syncedAt);
   if (!Number.isFinite(age) || age > 72 * 60 * 60 * 1000) {
-    return NextResponse.json({ error: "Toolbox member snapshot is older than 72 hours; nobody was changed" }, { status: 409 });
+    return fail("Toolbox member snapshot is older than 72 hours; nobody was changed", 409);
   }
   const rows = payload.members.map(mapToolboxMember).filter((row) => row !== null);
   const skipped = payload.members.length - rows.length;
-  const supabase = getSupabaseAdmin();
   const { data: activeMembers, error: comparisonError } = await supabase
     .from("members")
     .select("toolbox_user_id,email,membership_tier")
     .is("revoked_at", null);
-  if (comparisonError) return NextResponse.json({ error: "Current Hiking members could not be compared" }, { status: 500 });
-  const comparison = compareToolboxMembers(rows, (activeMembers ?? []) as ExistingMemberForComparison[]);
-  const authoritative = process.env.TOOLBOX_MEMBERS_AUTHORITATIVE === "true";
-  if (!authoritative) return NextResponse.json({ ok: true, mode: "shadow", snapshot: payload.snapshot, skipped, comparison });
-  if (rows.length === 0) return NextResponse.json({ error: "No linked members; nobody was changed" }, { status: 422 });
+  if (comparisonError) return fail("Current Hiking members could not be compared", 500);
+  comparison = compareToolboxMembers(rows, (activeMembers ?? []) as ExistingMemberForComparison[]);
+  if (!authoritative) {
+    await supabase.from("member_sync_runs").insert({ source: "toolbox-members", mode, received_count: received, upserted_count: 0, revoked_count: 0, comparison, started_at: syncedAt });
+    return NextResponse.json({ ok: true, mode, snapshot: payload.snapshot, skipped, comparison });
+  }
+  if (rows.length === 0) return fail("No linked members; nobody was changed", 422);
 
-  const syncedAt = new Date().toISOString();
   for (const row of rows) {
     const { data: byToolboxId, error: idLookupError } = await supabase
       .from("members")
       .select("id")
       .eq("toolbox_user_id", row.toolbox_user_id)
       .maybeSingle();
-    if (idLookupError) return NextResponse.json({ error: "Existing members could not be checked" }, { status: 500 });
+    if (idLookupError) return fail("Existing members could not be checked", 500);
     let existing = byToolboxId;
     if (!existing) {
       const { data: byEmail, error: emailLookupError } = await supabase
@@ -70,24 +84,24 @@ export async function GET(request: Request) {
         .select("id")
         .eq("email", row.email)
         .maybeSingle();
-      if (emailLookupError) return NextResponse.json({ error: "Existing members could not be checked" }, { status: 500 });
+      if (emailLookupError) return fail("Existing members could not be checked", 500);
       existing = byEmail;
     }
     const values = { ...row, sync_source: "toolbox-members", synced_at: syncedAt, revoked_at: null };
     const result = existing
       ? await supabase.from("members").update(values).eq("id", existing.id)
       : await supabase.from("members").insert(values);
-    if (result.error) return NextResponse.json({ error: "Toolbox members could not be stored" }, { status: 500 });
+    if (result.error) return fail("Toolbox members could not be stored", 500);
   }
 
   const activeIds = new Set(rows.map((row) => row.toolbox_user_id));
   const { data: owned, error: ownedError } = await supabase.from("members").select("id,toolbox_user_id").eq("sync_source", "toolbox-members").is("revoked_at", null);
-  if (ownedError) return NextResponse.json({ error: "Members updated but stale access could not be checked" }, { status: 500 });
+  if (ownedError) return fail("Members updated but stale access could not be checked", 500);
   const missing = (owned ?? []).filter((row) => row.toolbox_user_id && !activeIds.has(row.toolbox_user_id)).map((row) => row.id);
   if (missing.length) {
     const { error } = await supabase.from("members").update({ revoked_at: syncedAt, synced_at: syncedAt }).in("id", missing);
-    if (error) return NextResponse.json({ error: "Members updated but stale access could not be revoked" }, { status: 500 });
+    if (error) return fail("Members updated but stale access could not be revoked", 500);
   }
-  await supabase.from("member_sync_runs").insert({ source: "toolbox-members", received_count: payload.members.length, upserted_count: rows.length, revoked_count: missing.length, started_at: syncedAt });
-  return NextResponse.json({ ok: true, mode: "authoritative", upserted: rows.length, revoked: missing.length, skipped, comparison, syncedAt });
+  await supabase.from("member_sync_runs").insert({ source: "toolbox-members", mode, received_count: received, upserted_count: rows.length, revoked_count: missing.length, comparison, started_at: syncedAt });
+  return NextResponse.json({ ok: true, mode, upserted: rows.length, revoked: missing.length, skipped, comparison, syncedAt });
 }
