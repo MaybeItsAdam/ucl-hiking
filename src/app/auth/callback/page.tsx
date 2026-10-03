@@ -9,6 +9,7 @@ export default function AuthCallback() {
   const [message, setMessage] = useState("Checking your UCL account…");
   const [failed, setFailed] = useState(false);
   const [appLink, setAppLink] = useState<string | null>(null);
+  const [joinUrl, setJoinUrl] = useState<string | null>(null);
 
   useEffect(() => {
     async function completeSignIn() {
@@ -38,7 +39,8 @@ export default function AuthCallback() {
       // A server crash returns an HTML error page, and parsing that as JSON surfaces
       // as the browser's own cryptic message (Safari: "The string did not match the
       // expected pattern"). Read the body defensively so the user sees something real.
-      const body = (await response.json().catch(() => null)) as { error?: string; redirectTo?: string } | null;
+      const body = (await response.json().catch(() => null)) as { error?: string; redirectTo?: string; joinUrl?: string } | null;
+      if (body?.joinUrl) setJoinUrl(body.joinUrl);
       if (!response.ok || !body) {
         throw new Error(
           body?.error ||
@@ -53,5 +55,5 @@ export default function AuthCallback() {
       });
   }, []);
 
-  return <main className="auth-page"><section className="auth-card"><span className="auth-mark"><Mountain /></span><h1>{failed ? "Not quite there" : "Nearly on the trail"}</h1><p>{message}</p>{failed ? <Link className="button primary" href="/auth/signin">Try UCL sign in again</Link> : appLink ? <a className="button primary" href={appLink}>Open the Hiking app</a> : <span className="loading-dots"><i /><i /><i /></span>}<Link className="auth-home" href="/">Back to the homepage</Link></section></main>;
+  return <main className="auth-page"><section className="auth-card"><span className="auth-mark"><Mountain /></span><h1>{failed ? "Not quite there" : "Nearly on the trail"}</h1><p>{message}</p>{failed && joinUrl ? <a className="button primary" href={joinUrl} target="_blank" rel="noopener noreferrer">Buy a membership</a> : failed ? <Link className="button primary" href="/auth/signin">Try UCL sign in again</Link> : appLink ? <a className="button primary" href={appLink}>Open the Hiking app</a> : <span className="loading-dots"><i /><i /><i /></span>}<Link className="auth-home" href="/">Back to the homepage</Link></section></main>;
 }

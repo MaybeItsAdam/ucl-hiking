@@ -3,7 +3,7 @@ import { isGovernanceRole, isMembershipTier } from "@/lib/access";
 import { lockedGovernanceRole, lockedWalkLeader } from "@/lib/roleLocks";
 import { setSessionCookie } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
-import { getSocietyGovernanceRole, verifyToolboxToken } from "@/lib/toolbox";
+import { getSocietyGovernanceRole, SU_MEMBERSHIP_URL, verifyToolboxToken } from "@/lib/toolbox";
 import { fetchToolboxMembers, mapToolboxMember, TOOLBOX_SYNC_SOURCE } from "@/lib/toolboxMembers";
 
 export async function POST(request: Request) {
@@ -148,10 +148,13 @@ export async function POST(request: Request) {
     !isMembershipTier(member.membership_tier) ||
     (member.governance_role !== null && !isGovernanceRole(member.governance_role))
   ) {
+    // Toolbox reads the SU roster overnight, so a membership bought today
+    // only lets someone in tomorrow.
     return NextResponse.json(
       {
         error:
-          "Your UCL account is valid, but it is not on the current Hiking Club member list.",
+          "Your UCL account isn't on the Hiking Club member list. Buy a membership on the Students' Union site to join. If you already have one, it can take until tomorrow to reach us, so try again then.",
+        joinUrl: SU_MEMBERSHIP_URL,
       },
       { status: 403 },
     );

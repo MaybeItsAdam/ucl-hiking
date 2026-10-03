@@ -12,6 +12,7 @@ const db = {
 vi.mock("@/lib/session", () => ({ setSessionCookie: vi.fn(async () => {}) }));
 
 vi.mock("@/lib/toolbox", () => ({
+  SU_MEMBERSHIP_URL: "https://studentsunionucl.org/clubs-societies/hiking-club",
   getSocietyGovernanceRole: () => null,
   verifyToolboxToken: async () => ({ id: "toolbox-ada", email: "ada@ucl.ac.uk", name: "Ada Lovelace" }),
 }));
@@ -85,7 +86,9 @@ describe("POST /api/auth/exchange — membership from Toolbox's roster", () => {
 
   it("doesn't let anyone in on their name alone", async () => {
     toolboxRoster([rosterMember("Ada Lovelace", null)]);
-    expect((await signIn()).status).toBe(403);
+    const res = await signIn();
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ joinUrl: "https://studentsunionucl.org/clubs-societies/hiking-club" });
     expect(db.upserts).toEqual([]);
   });
 

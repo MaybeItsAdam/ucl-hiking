@@ -8,6 +8,7 @@ import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import { LogIn, ShieldCheck, Users, ChevronRight, X } from "lucide-react";
 import { ClubMark } from "@/components/ClubMark";
+import { SU_MEMBERSHIP_URL } from "@/lib/toolbox";
 
 const societyName = process.env.NEXT_PUBLIC_SOCIETY_NAME || "UCL Hiking Club";
 
@@ -24,7 +25,9 @@ function SignIn() {
   // open, and NativeAuthBridge takes over when it hands back.
   const [stage, setStage] = useState<"idle" | "opening" | "waiting">("idle");
   // A failed in-app sign-in comes back here as ?error=, set by NativeAuthBridge.
-  const returnedError = useSearchParams().get("error");
+  const params = useSearchParams();
+  const returnedError = params.get("error");
+  const notMember = params.get("join") === "1";
   const [dismissedError, setDismissedError] = useState(false);
   const signInError = dismissedError ? null : returnedError;
 
@@ -130,6 +133,9 @@ function SignIn() {
         <div className="auth-actions">
           {signInError && (
             <p className="signin-error" role="alert">{signInError}</p>
+          )}
+          {signInError && notMember && (
+            <a className="button primary" href={SU_MEMBERSHIP_URL} target="_blank" rel="noopener noreferrer">Buy a membership</a>
           )}
 
           {stage === "waiting" ? (

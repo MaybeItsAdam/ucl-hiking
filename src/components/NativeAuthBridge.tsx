@@ -35,7 +35,8 @@ function claimToken(token: string): boolean {
   return true;
 }
 
-async function exchange(token: string): Promise<string | null> {
+/** The sign-in page's query on failure: the reason, and `join` when buying a membership is the fix. */
+async function exchange(token: string): Promise<URLSearchParams | null> {
   try {
     const response = await fetch("/api/auth/exchange", {
       method: "POST",
@@ -43,10 +44,13 @@ async function exchange(token: string): Promise<string | null> {
       body: JSON.stringify({ token }),
     });
     if (response.ok) return null;
-    const body = (await response.json().catch(() => null)) as { error?: string } | null;
-    return body?.error || `Sign-in hit a problem on our side (error ${response.status}). Please try again.`;
+    const body = (await response.json().catch(() => null)) as { error?: string; joinUrl?: string } | null;
+    return new URLSearchParams({
+      error: body?.error || `Sign-in hit a problem on our side (error ${response.status}). Please try again.`,
+      ...(body?.joinUrl ? { join: "1" } : {}),
+    });
   } catch {
-    return "Couldn't reach the club's server. Check your connection and try again.";
+    return new URLSearchParams({ error: "Couldn't reach the club's server. Check your connection and try again." });
   }
 }
 
@@ -69,7 +73,7 @@ export function NativeAuthBridge() {
       setBusy(true);
       await Browser.close().catch(() => undefined);
       const error = await exchange(token);
-      window.location.replace(error ? `/auth/signin?error=${encodeURIComponent(error)}` : "/portal");
+      window.location.replace(error ? `/auth/signin?${error}` : "/portal");
     }
 
     const listener = App.addListener("appUrlOpen", ({ url }) => void handle(url));

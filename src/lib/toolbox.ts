@@ -12,6 +12,9 @@ export function getSocietyName(): string {
   return process.env.NEXT_PUBLIC_SOCIETY_NAME || "UCL Hiking Club";
 }
 
+/** Where to buy a Hiking Club membership: the club's Students' Union page sells them. */
+export const SU_MEMBERSHIP_URL = "https://studentsunionucl.org/clubs-societies/hiking-club";
+
 export function getSocietyOrganiserId(): string | null {
   return (
     process.env.TOOLBOX_ORGANISER_ID ||
