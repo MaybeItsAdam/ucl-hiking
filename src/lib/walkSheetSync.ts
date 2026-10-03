@@ -303,11 +303,15 @@ export async function previewWalkSheet() {
 export async function pullWalkSheet(trigger: string): Promise<PullResult> {
   const supabase = getSupabaseAdmin();
   // One at a time: two syncs reading the same new rows would tag them twice.
-  const busy = await lastSync().catch(() => null);
-  if (busy && !busy.finished_at && Date.now() - Date.parse(busy.started_at) < 2 * 60_000) {
-    throw new SheetsError("A sync is already running. Try again in a minute.");
-  }
-  const { data: run } = await supabase.from("sheet_sync_runs").insert({ trigger }).select("id").single();
+  // sheet_sync_runs_one_running allows one unfinished run, so of two syncs
+  // started together the second insert fails. Close a run that died first.
+  await supabase
+    .from("sheet_sync_runs")
+    .update({ finished_at: new Date().toISOString(), ok: false, error: "abandoned" })
+    .is("finished_at", null)
+    .lt("started_at", new Date(Date.now() - 2 * 60_000).toISOString());
+  const { data: run, error: runError } = await supabase.from("sheet_sync_runs").insert({ trigger }).select("id").single();
+  if (runError?.code === "23505") throw new SheetsError("A sync is already running. Try again in a minute.");
   const finish = (fields: Record<string, unknown>) =>
     run ? supabase.from("sheet_sync_runs").update({ finished_at: new Date().toISOString(), ...fields }).eq("id", run.id) : null;
 
