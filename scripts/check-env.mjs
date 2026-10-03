@@ -4,13 +4,13 @@
  * before a deploy finds out the hard way. Values are read in memory and never
  * printed.
  *
- *   npm run env:check            # dev
- *   npm run env:check -- prd     # production
+ *   npm run env:check            # production (local dev runs on it too)
+ *   npm run env:check -- dev     # the unused dev config
  *   npm run env:check -- ci      # GitHub Actions
  */
 import { execFileSync } from "node:child_process";
 
-const config = process.argv[2] ?? "dev";
+const config = process.argv[2] ?? "prd";
 
 /** What each config must hold. */
 const REQUIRED = {

@@ -13,7 +13,12 @@ export function getSocietyName(): string {
 }
 
 export function getSocietyOrganiserId(): string | null {
-  return process.env.NEXT_PUBLIC_ORGANISER_ID || process.env.ORGANISER_ID || null;
+  return (
+    process.env.TOOLBOX_ORGANISER_ID ||
+    process.env.NEXT_PUBLIC_ORGANISER_ID ||
+    process.env.ORGANISER_ID ||
+    null
+  );
 }
 
 const REVIEW_FALLBACK_EMAILS = new Set([
