@@ -65,7 +65,7 @@ function matchesFilter(member: Member, filter: RosterFilter, now: number): boole
       return left >= 0 && left < EXPIRY_WARNING_MS;
     }
     case "not_signed_in":
-      return !member.email;
+      return !member.last_signed_in_at;
     case "off_roster":
       return !member.on_roster;
     case "locked":
@@ -190,7 +190,9 @@ export function MemberAdminPortal({ viewer }: { viewer: RosterViewer }) {
     const all = members ?? [];
     return {
       roster: all.filter((m) => m.on_roster).length,
-      signedIn: all.filter((m) => m.email).length,
+      // An email alone isn't a sign-in: the daily sync creates an account for
+      // everyone Toolbox has linked, whether or not they've opened the app.
+      signedIn: all.filter((m) => m.last_signed_in_at).length,
       explorers: all.filter((m) => m.membership_tier === "explorer").length,
       leaders: all.filter((m) => m.is_walk_leader).length,
       expiring: all.filter((m) => matchesFilter(m, "expiring", loadedAt)).length,
@@ -582,7 +584,7 @@ function MemberSheet({
         </div>
         <div>
           <dt>Last signed in</dt>
-          <dd>{lastSeen ? shortDate.format(lastSeen) : member.email ? "Before sign-ins were recorded" : "Never"}</dd>
+          <dd>{lastSeen ? shortDate.format(lastSeen) : "Never"}</dd>
         </div>
       </dl>
 
