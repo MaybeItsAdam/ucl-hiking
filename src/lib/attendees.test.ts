@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { collapseOps, headcount, parseAttendanceOps, planAttendeeSync, walkRole, type Attendee } from "./attendees";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { collapseOps, fetchToolboxAttendees, headcount, parseAttendanceOps, planAttendeeSync, walkRole, type Attendee } from "./attendees";
 
 const row = (over: Partial<Attendee>): Attendee => ({
   id: "a",
@@ -94,5 +94,37 @@ describe("register", () => {
     expect(allBackAt).toBe("2026-10-18T17:00:00.000Z");
     expect(parseAttendanceOps([{ kind: "check_in", at: "nope", attendeeId: "a" }])).toBeNull();
     expect(parseAttendanceOps("x")).toBeNull();
+  });
+});
+
+describe("fetchToolboxAttendees", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  function answer(status: number, body: unknown) {
+    vi.stubEnv("TOOLBOX_API_TOKEN", "act_test");
+    vi.stubEnv("TOOLBOX_ORGANISER_ID", "org");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(body), { status })));
+  }
+
+  it("reads a linked walk's ticket holders", async () => {
+    answer(200, { eventId: "ev", linked: true, syncedAt: "2026-10-04T10:00:00Z", attendees: [{ name: "Ada", email: "ada@ucl.ac.uk", tier: "Member" }] });
+    expect(await fetchToolboxAttendees("ev")).toEqual({ status: "ok", attendees: [{ name: "Ada", email: "ada@ucl.ac.uk", tier: "Member" }] });
+  });
+
+  it("treats an unlinked or unread walk as not linked, not as the endpoint missing", async () => {
+    answer(200, { eventId: "ev", linked: false, syncedAt: null, attendees: [] });
+    expect((await fetchToolboxAttendees("ev")).status).toBe("not_linked");
+    answer(200, { eventId: "ev", linked: true, syncedAt: null, attendees: [] });
+    expect((await fetchToolboxAttendees("ev")).status).toBe("not_linked");
+  });
+
+  it("treats 404 and 403 as the endpoint or scope not being live", async () => {
+    answer(404, { error: "Not found" });
+    expect((await fetchToolboxAttendees("ev")).status).toBe("unavailable");
+    answer(403, { error: "Forbidden" });
+    expect((await fetchToolboxAttendees("ev")).status).toBe("unavailable");
   });
 });

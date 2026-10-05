@@ -184,12 +184,18 @@ export async function getMemberAttendance(memberId: string): Promise<Attendee[]>
 
 export type ToolboxAttendeeFetch =
   | { status: "ok"; attendees: ToolboxAttendee[] }
+  | { status: "not_linked"; reason: string }
   | { status: "unavailable"; reason: string }
   | { status: "error"; reason: string };
 
 /**
  * Toolbox's attendee list for one event. A 404 or 403 means the endpoint or its
  * ATTENDEES_READ scope isn't live yet, which is expected, not a failure.
+ *
+ * The list exists only once a principal has linked the walk to its SU
+ * ticket-sales page in the Connector and read it; until then Toolbox answers
+ * `linked: false` (or `syncedAt: null`), which is per walk, so the sync moves
+ * on to the next one. Toolbox clears a list 7 days after the walk.
  */
 export async function fetchToolboxAttendees(eventSuuId: string): Promise<ToolboxAttendeeFetch> {
   const token = process.env.TOOLBOX_API_TOKEN;
@@ -203,7 +209,9 @@ export async function fetchToolboxAttendees(eventSuuId: string): Promise<Toolbox
     );
     if (res.status === 404 || res.status === 403) return { status: "unavailable", reason: `Toolbox returned ${res.status}` };
     if (!res.ok) return { status: "error", reason: `Toolbox returned ${res.status}` };
-    const body = (await res.json()) as { attendees?: unknown };
+    const body = (await res.json()) as { attendees?: unknown; linked?: unknown; syncedAt?: unknown };
+    if (body.linked === false) return { status: "not_linked", reason: "Not linked to its SU ticket page yet" };
+    if (body.syncedAt === null) return { status: "not_linked", reason: "Linked, but nobody has read the SU ticket page yet" };
     if (!Array.isArray(body.attendees)) return { status: "error", reason: "Toolbox returned no attendee list" };
     return { status: "ok", attendees: body.attendees as ToolboxAttendee[] };
   } catch {

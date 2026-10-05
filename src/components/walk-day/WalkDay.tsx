@@ -168,6 +168,7 @@ export default function WalkDay({ eventId }: { eventId: string }) {
       const res = await fetch(`/api/events/${eventId}/day`, { method: "POST" });
       const body = await res.json();
       if (body.status === "unavailable") setToast("Toolbox can't share ticket holders yet. Add people by hand.");
+      else if (body.status === "not_linked") setToast("No SU ticket list for this walk yet: a principal links it in the Connector. Add people by hand.");
       else if (body.status === "error") setToast(body.reason ?? "Toolbox didn't answer.");
       else setToast(body.inserted ? `${body.inserted} new ticket holder${body.inserted === 1 ? "" : "s"} added.` : "The list is up to date.");
       await load();

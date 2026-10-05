@@ -9,8 +9,10 @@ const AHEAD_MS = 14 * 24 * 60 * 60 * 1000;
 
 /**
  * Pull SU ticket holders for upcoming events from Toolbox into
- * event_attendees. Until Toolbox serves the attendee endpoint this records
- * "unavailable" and changes nothing; leaders add people on the day instead.
+ * event_attendees. A walk nobody has linked to its SU ticket page in the
+ * Connector comes back "not_linked" and is skipped. If the endpoint or the
+ * ATTENDEES_READ scope isn't live this records "unavailable" and changes
+ * nothing; leaders add people on the day instead.
  */
 export async function GET(request: Request) {
   if (!(await cronOrCommittee(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -47,5 +49,6 @@ export async function GET(request: Request) {
     started_at: startedAt,
   });
 
-  return NextResponse.json({ ok: !failed.length, events: results.length, unavailable: Boolean(unavailable), results });
+  const notLinked = results.filter((r) => r.status === "not_linked").length;
+  return NextResponse.json({ ok: !failed.length, events: results.length, notLinked, unavailable: Boolean(unavailable), results });
 }
