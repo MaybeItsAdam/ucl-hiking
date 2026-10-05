@@ -23,10 +23,12 @@ export default async function AccountPage() {
   // here to delete their account, and role preview must not change what is shown.
   const session = await getSession();
   if (!session) redirect("/auth/signin");
-  const member = await getRealMember();
-  const previewState = await getRolePreviewState();
   // Always the signed-in person's own loans, whatever role is being previewed.
-  const deletionBlock = await getDeletionBlock(session.memberId);
+  const [member, previewState, deletionBlock] = await Promise.all([
+    getRealMember(),
+    getRolePreviewState(),
+    getDeletionBlock(session.memberId),
+  ]);
 
   const name = member?.full_name || session.name;
   const membership = member

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import {
   CalendarPlus,
@@ -36,7 +37,7 @@ import { mapHikes } from "@/lib/hikeMap";
 import { loadPlaces, type LatLng } from "@/lib/places";
 import { getCurrentMember } from "@/lib/session";
 import { canSeeEvent, viewerOf } from "@/lib/walkVisibility";
-import { getWalkForecast } from "@/lib/weather";
+import { getWalkForecast, inForecastWindow } from "@/lib/weather";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -71,12 +72,67 @@ function routeLinkLabel(href: string): string {
   if (/(^|\.)alltrails\.com$/.test(host)) return "Open in AllTrails";
   return "Route";
 }
+/** The day's forecast at the start, or nothing when Open-Meteo has none to give. */
+async function WalkForecast({ at, startsAt }: { at: LatLng; startsAt: string | null }) {
+  const forecast = await getWalkForecast(at, startsAt);
+  if (!forecast) return null;
+  return (
+    <section className="event-section" aria-labelledby="event-weather">
+      <h3 id="event-weather" className="event-section-title">
+        Forecast
+      </h3>
+      <div className="event-forecast">
+        <CloudSun size={22} aria-hidden="true" />
+        <div className="event-forecast-main">
+          <strong>{forecast.summary}</strong>
+          <span>
+            {forecast.tempMin}° to {forecast.tempMax}°C
+          </span>
+        </div>
+        <dl>
+          {forecast.rainChance !== null ? (
+            <div>
+              <dt>Rain</dt>
+              <dd>{forecast.rainChance}%</dd>
+            </div>
+          ) : null}
+          {forecast.windMaxKmh !== null ? (
+            <div>
+              <dt>Wind</dt>
+              <dd>
+                {forecast.windMaxKmh}
+                {forecast.gustMaxKmh !== null && forecast.gustMaxKmh > forecast.windMaxKmh + 10 ? `–${forecast.gustMaxKmh}` : ""} km/h
+              </dd>
+            </div>
+          ) : null}
+          {forecast.sunset ? (
+            <div>
+              <dt>Sunset</dt>
+              <dd>{forecast.sunset.slice(11, 16)}</dd>
+            </div>
+          ) : null}
+        </dl>
+      </div>
+    </section>
+  );
+}
+
+/** Holds the forecast's place while it loads, so the page below doesn't jump. */
+function ForecastPlaceholder() {
+  return (
+    <section className="event-section" aria-busy="true">
+      <h3 className="event-section-title">Forecast</h3>
+      <div className="event-forecast is-loading" aria-hidden="true">
+        <span className="skeleton" />
+      </div>
+    </section>
+  );
+}
+
 
 export default async function EventPage({ params }: Params) {
-  const member = await getCurrentMember();
+  const [member, event] = await Promise.all([getCurrentMember(), params.then(({ id }) => getEvent(id))]);
   if (!member) redirect("/auth/signin");
-
-  const event = await getEvent((await params).id);
   if (!event || !(await canSeeEvent(event, viewerOf(member)))) notFound();
 
   const details = eventDetails(event);
@@ -92,8 +148,9 @@ export default async function EventPage({ params }: Params) {
   const ascentM = details.ascentM ?? route?.ascent_m ?? null;
   const soon = countdown(event);
   const walking = details.kind === "hike" || details.kind === "walk" || details.kind === "trip";
-  const forecastAt = pinned?.start ?? mapRoute?.start ?? pinned?.finish ?? null;
-  const forecast = walking && forecastAt && event.status !== "cancelled" ? await getWalkForecast(forecastAt, event.starts_at) : null;
+  // Streamed in behind the rest of the page, so a slow forecast never holds it up.
+  const forecastSpot = pinned?.start ?? mapRoute?.start ?? pinned?.finish ?? null;
+  const forecastAt = walking && event.status !== "cancelled" && inForecastWindow(event.starts_at) ? forecastSpot : null;
   const editable = Boolean(event.suu_event_id) && canEditPlan(profileOf(member));
   const running = Boolean(event.suu_event_id) && walkRole({ id: member.id, ...profileOf(member) }, plan) !== null;
   const planMeet = plan?.meet_at || plan?.meet_point
@@ -197,44 +254,10 @@ export default async function EventPage({ params }: Params) {
         {editable ? <EventPlanEditor eventId={event.id} startsAt={event.starts_at} /> : null}
       </div>
 
-      {forecast ? (
-        <section className="event-section" aria-labelledby="event-weather">
-          <h3 id="event-weather" className="event-section-title">
-            Forecast
-          </h3>
-          <div className="event-forecast">
-            <CloudSun size={22} aria-hidden="true" />
-            <div className="event-forecast-main">
-              <strong>{forecast.summary}</strong>
-              <span>
-                {forecast.tempMin}° to {forecast.tempMax}°C
-              </span>
-            </div>
-            <dl>
-              {forecast.rainChance !== null ? (
-                <div>
-                  <dt>Rain</dt>
-                  <dd>{forecast.rainChance}%</dd>
-                </div>
-              ) : null}
-              {forecast.windMaxKmh !== null ? (
-                <div>
-                  <dt>Wind</dt>
-                  <dd>
-                    {forecast.windMaxKmh}
-                    {forecast.gustMaxKmh !== null && forecast.gustMaxKmh > forecast.windMaxKmh + 10 ? `–${forecast.gustMaxKmh}` : ""} km/h
-                  </dd>
-                </div>
-              ) : null}
-              {forecast.sunset ? (
-                <div>
-                  <dt>Sunset</dt>
-                  <dd>{forecast.sunset.slice(11, 16)}</dd>
-                </div>
-              ) : null}
-            </dl>
-          </div>
-        </section>
+      {forecastAt ? (
+        <Suspense fallback={<ForecastPlaceholder />}>
+          <WalkForecast at={forecastAt} startsAt={event.starts_at} />
+        </Suspense>
       ) : null}
 
       {day.length || pinned || mapRoute || directions || routeLink ? (

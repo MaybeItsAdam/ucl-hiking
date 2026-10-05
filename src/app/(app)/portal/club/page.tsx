@@ -17,6 +17,7 @@ export default async function ClubStatsPage() {
   const year = clubYear();
   const events = await getEventsInClubYear(year);
   const ids = events.map((e) => e.suu_event_id).filter((id): id is string => Boolean(id));
+  const plansLoad = getEventPlans(ids);
 
   let attendees: StatsAttendee[] = [];
   let tierChanges: TierChange[] = [];
@@ -30,7 +31,7 @@ export default async function ClubStatsPage() {
     attendees = (a.data ?? []) as StatsAttendee[];
     tierChanges = (t.data ?? []) as TierChange[];
   }
-  const plans = await getEventPlans(ids);
+  const plans = await plansLoad;
   const leaders = [...plans.values()].map((p) => ({
     event_suu_id: p.event_suu_id,
     leader_member_id: p.leader_member_id,

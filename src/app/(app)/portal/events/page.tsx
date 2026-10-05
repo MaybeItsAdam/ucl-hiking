@@ -72,15 +72,14 @@ function NextUp({ event }: { event: SUEvent }) {
 }
 
 export default async function EventsPage() {
-  const member = await getCurrentMember();
+  const year = clubYear();
+  const [member, allUpcoming, allThisYear] = await Promise.all([getCurrentMember(), getUpcomingEvents(), getEventsInClubYear(year)]);
   if (!member) redirect("/auth/signin");
 
-  const year = clubYear();
   // Keep the programme fresh without making anyone wait for Google: after
   // this page is sent, pull the sheet if nobody has in the last ten minutes.
   after(() => pullIfStale(10 * 60_000));
   const viewer = viewerOf(member);
-  const [allUpcoming, allThisYear] = await Promise.all([getUpcomingEvents(), getEventsInClubYear(year)]);
   const [upcoming, thisYear] = await Promise.all([visibleEvents(allUpcoming, viewer), visibleEvents(allThisYear, viewer)]);
   // The committee sees everything; say which ones members can't.
   const rules = viewer.isCommittee ? await walkRules(upcoming.map((e) => e.suu_event_id)) : new Map();

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import type { SUEvent } from "@/lib/types";
 
@@ -26,13 +27,14 @@ export async function getUpcomingEvents(): Promise<SUEvent[]> {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export async function getEvent(id: string): Promise<SUEvent | null> {
+/** Cached per request: the page and its metadata both ask for the same event. */
+export const getEvent = cache(async (id: string): Promise<SUEvent | null> => {
   if (!isSupabaseConfigured()) return (await devEvents()).find((e) => e.id === id) ?? null;
   // Anything else would reach Postgres as a uuid cast error rather than a miss.
   if (!UUID.test(id)) return null;
   const { data } = await getSupabaseAdmin().from("events").select("*").eq("id", id).neq("status", "draft").maybeSingle();
   return (data as SUEvent | null) ?? null;
-}
+});
 
 /**
  * Every event in a club year, September to August — the year the committee,

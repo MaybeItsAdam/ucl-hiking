@@ -19,14 +19,14 @@ export const metadata: Metadata = {
 const FIRST_YEAR = 2025;
 
 export default async function WalkMapPage({ searchParams }: { searchParams: Promise<{ year?: string }> }) {
-  const member = await getCurrentMember();
-  if (!member) redirect("/auth/signin");
-
   const current = clubYear();
   const asked = Number((await searchParams).year);
   const year = Number.isInteger(asked) && asked >= FIRST_YEAR && asked <= current ? asked : current;
 
-  const events = await visibleEvents(await getEventsInClubYear(year), viewerOf(member));
+  const [member, yearEvents] = await Promise.all([getCurrentMember(), getEventsInClubYear(year)]);
+  if (!member) redirect("/auth/signin");
+
+  const events = await visibleEvents(yearEvents, viewerOf(member));
   const places = await loadPlaces(eventPlaces(events));
   const hikes = mapHikes(events, places);
   const stats = yearStats(hikes);

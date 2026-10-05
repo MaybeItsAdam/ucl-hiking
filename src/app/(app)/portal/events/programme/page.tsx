@@ -45,9 +45,10 @@ export default async function ProgrammePage() {
   let missing = false;
 
   if (isSupabaseConfigured()) {
-    await pullIfStale();
+    // The SU's events don't come from the sheet, so they load while it's pulled.
+    const [, suEvents] = await Promise.all([pullIfStale(), getEventsInClubYear(year)]);
     const supabase = getSupabaseAdmin();
-    const { data, error } = await supabase
+    const walksLoad = supabase
       .from("sheet_walks")
       .select("*")
       .eq("present", true)
@@ -55,16 +56,16 @@ export default async function ProgrammePage() {
       .lte("starts_on", `${year + 1}-08-31`)
       .order("starts_on", { ascending: true })
       .order("sheet_row", { ascending: true });
+    const [{ data, error }, lastSynced] = await Promise.all([walksLoad, lastSync().catch(() => null)]);
     missing = Boolean(error);
     walks = (data ?? []) as StoredWalk[];
-    sync = await lastSync().catch(() => null);
+    sync = lastSynced;
 
     const editors = [...new Set(walks.flatMap((w) => Object.values(w.conflicts ?? {}).map((c) => c.by)).filter((id): id is string => Boolean(id)))];
     if (editors.length) {
       const { data: people } = await supabase.from("members").select("id, full_name").in("id", editors);
       names = new Map((people ?? []).map((p) => [p.id as string, (p.full_name as string | null) ?? "Someone"]));
     }
-    const suEvents = await getEventsInClubYear(year);
     eventIds = new Map(suEvents.filter((e) => e.suu_event_id).map((e) => [e.suu_event_id!, e.id]));
     events = suEvents
       .filter((e) => e.suu_event_id && e.starts_at)

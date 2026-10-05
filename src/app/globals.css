@@ -696,7 +696,7 @@ a, button, [role="button"], label, summary, .roster-row, .event-row {
 
 .site-header { height: 84px; max-width: 1240px; margin: 0 auto; padding: 0 30px; display: flex; align-items: center; gap: 38px; position: relative; z-index: 10; }
 .brand { display: inline-flex; align-items: center; gap: 10px; letter-spacing: -.02em; font-family: var(--font-display), sans-serif; font-size: 17px; white-space: nowrap; }
-.club-mark { width: 42px; height: 42px; object-fit: cover; border-radius: 11px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14); }
+.club-mark { width: 42px; height: 42px; object-fit: cover; border-radius: 11px; }
 
 /* Hardy, solid buttons with heavy typography & tactile press */
 .sign-in, .button {
@@ -763,7 +763,7 @@ a, button, [role="button"], label, summary, .roster-row, .event-row {
 
 footer { max-width: 1180px; margin: 0 auto; padding: 40px 30px 55px; display: flex; align-items: center; gap: 25px; border-top: 1px solid var(--line); color: color-mix(in srgb, var(--ink) 68%, transparent); font-size: 11px; }
 
-.auth-page { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 50% 15%, var(--auth-glow), transparent 35%), var(--cream); }.auth-card { width: min(460px, 100%); padding: 54px 40px; text-align: center; border: 1px solid var(--line); border-radius: 26px; background: color-mix(in srgb, var(--surface) 78%, transparent); box-shadow: 0 28px 80px rgba(24,55,47,.12); }.auth-mark { width: 60px; height: 60px; margin: 0 auto; display: grid; place-items: center; border-radius: 50%; color: white; background: var(--ink-fill); }.auth-card h1 { font-size: 36px; }.auth-card p { margin: 0 auto 28px; max-width: 340px; line-height: 1.6; opacity: .7; }.auth-card .button { width: fit-content; }.auth-home { margin-top: 24px; display: block; font-size: 12px; text-decoration: underline; opacity: .6; }.loading-dots { display: flex; justify-content: center; gap: 6px; }.loading-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: bounce 1s infinite alternate; }.loading-dots i:nth-child(2) { animation-delay: .2s; }.loading-dots i:nth-child(3) { animation-delay: .4s; } @keyframes bounce { to { transform: translateY(-8px); opacity: .4; } }
+.auth-page { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 50% 15%, var(--auth-glow), transparent 35%), var(--cream); }.auth-card { width: min(460px, 100%); padding: 54px 40px; text-align: center; border: 1px solid var(--line); border-radius: 26px; background: color-mix(in srgb, var(--surface) 78%, transparent); }.auth-mark { width: 60px; height: 60px; margin: 0 auto; display: grid; place-items: center; border-radius: 50%; color: white; background: var(--ink-fill); }.auth-card h1 { font-size: 36px; }.auth-card p { margin: 0 auto 28px; max-width: 340px; line-height: 1.6; opacity: .7; }.auth-card .button { width: fit-content; }.auth-home { margin-top: 24px; display: block; font-size: 12px; text-decoration: underline; opacity: .6; }.loading-dots { display: flex; justify-content: center; gap: 6px; }.loading-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: bounce 1s infinite alternate; }.loading-dots i:nth-child(2) { animation-delay: .2s; }.loading-dots i:nth-child(3) { animation-delay: .4s; } @keyframes bounce { to { transform: translateY(-8px); opacity: .4; } }
 
 .authenticator-card { width: min(520px, 100%); padding: 44px 36px; }
 .auth-header-brand { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 20px; }
@@ -825,7 +825,7 @@ select:focus {
 }
 
 .modal-overlay { position: fixed; inset: 0; z-index: 100; background: rgba(15, 23, 42, .6); backdrop-filter: blur(4px); display: grid; place-items: center; padding: 20px; }
-.modal-card { background: var(--surface); border-radius: 20px; max-width: 480px; width: 100%; padding: 28px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, .25); }
+.modal-card { background: var(--surface); border-radius: 20px; max-width: 480px; width: 100%; padding: 28px; border: 1px solid var(--line); }
 .modal-card h3 { margin: 0 0 6px; font: 800 20px var(--font-display); }
 .modal-card p { margin: 0 0 18px; font-size: 13px; opacity: .65; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
@@ -888,7 +888,7 @@ select:focus {
   }
   .portal-subnav button.active, .portal-subnav a.active {
     background: var(--surface); color: var(--ink); border-bottom-color: transparent;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, .06);
+    box-shadow: inset 0 0 0 1px var(--line);
   }
   .portal-subnav button > svg { display: none; }
   
@@ -1016,14 +1016,12 @@ select:focus {
   font: inherit;
   outline: none;
   text-align: left;
-  transition: all .15s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
   box-sizing: border-box;
 }
 
 .member-pill-btn:hover {
   border-color: var(--ink);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .member-pill-btn.is-previewing {
@@ -1086,7 +1084,6 @@ select:focus {
   background: var(--surface);
   border: 1.5px solid var(--ink);
   border-radius: 20px;
-  box-shadow: 0 20px 40px -8px rgba(15, 23, 42, 0.18), 0 0 0 1px rgba(15, 23, 42, 0.05);
   z-index: 1000;
   padding: 16px;
   display: flex;
@@ -1174,7 +1171,7 @@ select:focus {
   font-weight: 700;
   color: var(--ink);
   text-decoration: none;
-  transition: all .15s ease;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
 
 .popover-portal-link:hover {
@@ -1281,13 +1278,13 @@ select:focus {
   opacity: .6;
   border-radius: 7px;
   cursor: pointer;
-  transition: all .15s ease;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
 
 .tab-btn.active {
   background: var(--surface);
   opacity: 1;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+  box-shadow: inset 0 0 0 1px var(--line);
   color: var(--ink);
 }
 
@@ -1310,7 +1307,7 @@ select:focus {
   border: 1px solid var(--line);
   background: var(--surface);
   cursor: pointer;
-  transition: all .15s ease;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
 
 .popover-preset-card:hover {
@@ -1446,7 +1443,7 @@ select:focus {
   top: 2px;
   left: 2px;
   transition: transform .2s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
 }
 
 .modern-switch.on .switch-knob {
@@ -1492,7 +1489,7 @@ select:focus {
   color: var(--ink);
   border-radius: 8px;
   cursor: pointer;
-  transition: all .15s ease;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
 }
 
 .seg-item:hover {
@@ -1503,7 +1500,6 @@ select:focus {
   background: var(--ink-fill);
   color: #ffffff;
   font-weight: 700;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .popover-apply-btn {
@@ -2130,6 +2126,8 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 .event-forecast dl > div + div { border-left: 1px solid var(--line); padding-left: 12px; }
 .event-forecast dt { font: 800 10.5px var(--font-body); letter-spacing: .13em; text-transform: uppercase; color: var(--muted); }
 .event-forecast dd { margin: 3px 0 0; font-weight: 800; font-variant-numeric: tabular-nums; }
+.event-forecast.is-loading { display: block; }
+.event-forecast.is-loading .skeleton { display: block; height: 96px; border-radius: 6px; }
 
 .kit-checklist { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
 .kit-checklist-count { margin: 0; padding: 9px 14px; font: 800 10.5px var(--font-body); letter-spacing: .13em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); }
