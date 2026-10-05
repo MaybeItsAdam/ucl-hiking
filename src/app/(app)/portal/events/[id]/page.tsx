@@ -24,10 +24,9 @@ import { DifficultyChip } from "@/components/EventFacts";
 import { EventPlanEditor } from "@/components/EventPlanEditor";
 import { KitChecklist } from "@/components/KitChecklist";
 import { OpenExternal } from "@/components/OpenExternal";
+import { RouteView } from "@/components/RouteView";
 import { profileOf } from "@/lib/access";
 import { walkRole } from "@/lib/attendees";
-import { ElevationProfile } from "@/components/ElevationProfile";
-import { HikeMap } from "@/components/HikeMap";
 import { DIFFICULTY_LABELS, eventDetails, formatAscent, formatKm, isHeading, KIND_LABELS } from "@/lib/eventDetails";
 import { countdown, eventWhen, longDate } from "@/lib/eventList";
 import { canEditPlan, getEventPlan } from "@/lib/eventPlans";
@@ -72,6 +71,7 @@ function routeLinkLabel(href: string): string {
   if (/(^|\.)alltrails\.com$/.test(host)) return "Open in AllTrails";
   return "Route";
 }
+
 /** The day's forecast at the start, or nothing when Open-Meteo has none to give. */
 async function WalkForecast({ at, startsAt }: { at: LatLng; startsAt: string | null }) {
   const forecast = await getWalkForecast(at, startsAt);
@@ -129,7 +129,6 @@ function ForecastPlaceholder() {
   );
 }
 
-
 export default async function EventPage({ params }: Params) {
   const [member, event] = await Promise.all([getCurrentMember(), params.then(({ id }) => getEvent(id))]);
   if (!member) redirect("/auth/signin");
@@ -163,6 +162,16 @@ export default async function EventPage({ params }: Params) {
     directionsUrl(pinned?.start ?? mapRoute?.start ?? null, details.start ? `${details.start} station` : details.meetingPoint);
   // A GPX link already drawn and downloadable here doesn't need its own button too.
   const routeLink = plan?.route_url && plan.route_url !== route?.source_url ? plan.route_url : null;
+
+  const routeFacts = route ? (
+    <p className="event-route-facts">
+      <Route size={15} aria-hidden="true" />
+      <span>
+        {route.osmaps_route_id ? "Route from the club's OS Maps" : "GPX route"} · {formatKm(route.distance_m / 1000)}
+        {route.ascent_m !== null ? ` · ${formatAscent(route.ascent_m)} up` : ""}
+      </span>
+    </p>
+  ) : null;
 
   const stats = [
     distanceKm !== null ? { label: "Distance", value: formatKm(distanceKm) } : null,
@@ -278,18 +287,12 @@ export default async function EventPage({ params }: Params) {
               </ul>
             ) : null}
             {pinned || mapRoute ? (
-              <HikeMap hikes={pinned ? [pinned] : []} route={mapRoute} label={`Map of ${details.name}`} />
-            ) : null}
-            {route ? (
-              <p className="event-route-facts">
-                <Route size={15} aria-hidden="true" />
-                <span>
-                  {route.osmaps_route_id ? "Route from the club's OS Maps" : "GPX route"} · {formatKm(route.distance_m / 1000)}
-                  {route.ascent_m !== null ? ` · ${formatAscent(route.ascent_m)} up` : ""}
-                </span>
-              </p>
-            ) : null}
-            {mapRoute?.profile.length ? <ElevationProfile profile={mapRoute.profile} /> : null}
+              <RouteView hikes={pinned ? [pinned] : []} route={mapRoute} label={`Map of ${details.name}`}>
+                {routeFacts}
+              </RouteView>
+            ) : (
+              routeFacts
+            )}
             <div className="event-day-actions">
               {route ? (
                 // Desktop only: on a phone the route lives on the map above, not in a file.
