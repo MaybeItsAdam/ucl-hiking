@@ -8,7 +8,7 @@ const BEHIND_MS = 24 * 60 * 60 * 1000;
 const AHEAD_MS = 14 * 24 * 60 * 60 * 1000;
 
 /**
- * Pull SU ticket holders for upcoming events from Toolbox into
+ * Pull SU ticketholders for upcoming events from Toolbox into
  * event_attendees. A walk nobody has linked to its SU ticket page in the
  * Connector comes back "not_linked" and is skipped. If the endpoint or the
  * ATTENDEES_READ scope isn't live this records "unavailable" and changes

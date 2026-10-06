@@ -3,7 +3,7 @@ import type { EventPlan } from "@/lib/eventPlans";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 
 /**
- * Who is on a walk. SU ticket holders arrive from Adam's Campus Toolbox; the
+ * Who is on a walk. SU ticketholders arrive from Adam's Campus Toolbox; the
  * leader adds anyone else on the day. Checking in and "all back" are recorded
  * on the same rows, so the register is also the attendance history.
  */
@@ -292,7 +292,7 @@ export async function syncEventAttendees(eventSuuId: string) {
 export const TICKET_LIST_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
- * Drop what came from Toolbox for walks that ended over 7 days ago. Buyers who
+ * Drop what came from Toolbox for walks that ended over 7 days ago. Ticketholders who
  * never turned up and aren't members go entirely, as do refunds. Everyone else
  * stays as attendance history (name and member link), without the email.
  */

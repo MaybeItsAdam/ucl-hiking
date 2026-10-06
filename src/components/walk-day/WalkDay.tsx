@@ -168,12 +168,12 @@ export default function WalkDay({ eventId }: { eventId: string }) {
     try {
       const res = await fetch(`/api/events/${eventId}/day`, { method: "POST" });
       const body = await res.json();
-      if (body.status === "unavailable") setToast("Toolbox can't share ticket holders yet. Add people by hand.");
+      if (body.status === "unavailable") setToast("Toolbox can't share ticketholders yet. Add people by hand.");
       else if (body.status === "not_linked") setToast("No SU ticket list for this walk yet: a principal links it in the Connector. Add people by hand.");
       else if (body.status === "not_found") setToast("Toolbox doesn't have this walk as the club's own event. Add people by hand.");
       else if (body.status === "recent") setToast("Checked in the last 15 minutes. Try again shortly.");
       else if (body.status === "error") setToast(body.reason ?? "Toolbox didn't answer.");
-      else setToast(body.inserted ? `${body.inserted} new ticket holder${body.inserted === 1 ? "" : "s"} added.` : "The list is up to date.");
+      else setToast(body.inserted ? `${body.inserted} new ticketholder${body.inserted === 1 ? "" : "s"} added.` : "The list is up to date.");
       await load();
     } catch {
       setToast("You're offline. Try again with signal.");
@@ -266,7 +266,7 @@ export default function WalkDay({ eventId }: { eventId: string }) {
           </h3>
           <button type="button" className="kit-btn" onClick={refreshFromToolbox} disabled={refreshing || !online}>
             <RefreshCw size={14} aria-hidden="true" />
-            {refreshing ? "Checking…" : "Ticket holders"}
+            {refreshing ? "Checking…" : "Ticketholders"}
           </button>
           <button type="button" className="kit-btn" onClick={() => setAdding(true)} disabled={!online}>
             <UserPlus size={14} aria-hidden="true" />
@@ -312,7 +312,7 @@ export default function WalkDay({ eventId }: { eventId: string }) {
           </ul>
         ) : (
           <p className="day-note">
-            Nobody on the register yet. Pull ticket holders from Toolbox, or add people as they arrive.
+            Nobody on the register yet. Pull ticketholders from Toolbox, or add people as they arrive.
           </p>
         )}
         {missing.length && count.checkedIn ? (

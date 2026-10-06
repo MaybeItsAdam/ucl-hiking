@@ -56,7 +56,7 @@ export async function POST(request: Request, { params }: Params) {
   return NextResponse.json({ ok: true, attendees: await getAttendees(eventSuuId) });
 }
 
-/** Take someone off the register. Ticket holders are hidden, not deleted, so the sync doesn't re-add them. */
+/** Take someone off the register. Ticketholders are hidden, not deleted, so the sync doesn't re-add them. */
 export async function DELETE(request: Request, { params }: Params) {
   const member = await getCurrentMember();
   if (!member) return NextResponse.json({ error: "Sign in first." }, { status: 401 });

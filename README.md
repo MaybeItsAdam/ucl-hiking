@@ -169,7 +169,7 @@ reconcile recreates event rows with new uuids.
 
 - **Plans** (`event_plans`): the trip brief leaders write on the event page.
   Committee assign the leader and backmarker, from the plan or the Rota.
-- **Attendees** (`event_attendees`): SU ticket holders arrive from Toolbox via
+- **Attendees** (`event_attendees`): SU ticketholders arrive from Toolbox via
   `/api/sync/toolbox-attendees` (daily cron, and on demand from the day page).
   It calls `GET /api/v1/organisers/:id/events/:eventId/attendees`, expecting
   `{ linked, syncedAt, attendees: [{ name, email, tier }] }` under the
@@ -181,7 +181,7 @@ reconcile recreates event rows with new uuids.
     not granted) logs `unavailable` in `event_sync_runs` and stops.
   - Toolbox's rules for consumers are kept here: each walk is asked at most
     every 15 minutes (`ticket_list_checks`), the day page shows the list's
-    age, buyers' emails never leave the server, and 7 days after a walk the
+    age, ticketholders' emails never leave the server, and 7 days after a walk the
     nightly sync deletes no-show non-members and refunds and blanks everyone
     else's email (`purgeExpiredTicketHolders`).
   - Either way leaders can add people on the day.

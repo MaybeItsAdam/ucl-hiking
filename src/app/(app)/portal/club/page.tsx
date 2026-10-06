@@ -97,7 +97,7 @@ export default async function ClubStatsPage() {
             </details>
           </>
         ) : (
-          <p className="day-note">Fills in once walks have registers, from Toolbox ticket holders or leaders checking people in.</p>
+          <p className="day-note">Fills in once walks have registers, from Toolbox ticketholders or leaders checking people in.</p>
         )}
       </section>
 

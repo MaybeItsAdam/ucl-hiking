@@ -17,7 +17,7 @@ const row = (over: Partial<Attendee>): Attendee => ({
 const members = [{ id: "m1", email: "ada@ucl.ac.uk", full_name: "Ada Lovelace" }];
 
 describe("planAttendeeSync", () => {
-  it("adds new ticket holders and links them to members by email", () => {
+  it("adds new ticketholders and links them to members by email", () => {
     const plan = planAttendeeSync("ev", [], [{ name: "Ada L", email: " ADA@ucl.ac.uk " }, { email: "guest@example.com" }], members);
     expect(plan.insert).toEqual([
       { event_suu_id: "ev", member_id: "m1", name: "Ada L", email: "ada@ucl.ac.uk", source: "toolbox", removed: false },
@@ -38,7 +38,7 @@ describe("planAttendeeSync", () => {
     expect(plan.update).toEqual([]);
   });
 
-  it("brings back a refunded ticket holder who rebooks", () => {
+  it("brings back a refunded ticketholder who rebooks", () => {
     const plan = planAttendeeSync("ev", [row({ id: "back", email: "ada@ucl.ac.uk", removed: true, member_id: "m1", name: "Ada" })], [{ name: "Ada", email: "ada@ucl.ac.uk" }], members);
     expect(plan.update).toEqual([{ id: "back", name: "Ada", member_id: "m1", removed: false }]);
   });
@@ -109,7 +109,7 @@ describe("fetchToolboxAttendees", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify(body), { status })));
   }
 
-  it("reads a linked walk's ticket holders", async () => {
+  it("reads a linked walk's ticketholders", async () => {
     answer(200, { eventId: "ev", linked: true, syncedAt: "2026-10-04T10:00:00Z", attendees: [{ name: "Ada", email: "ada@ucl.ac.uk", tier: "Member" }] });
     expect(await fetchToolboxAttendees("ev")).toEqual({
       status: "ok",

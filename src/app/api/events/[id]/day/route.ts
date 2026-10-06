@@ -71,7 +71,7 @@ export async function GET(_request: Request, { params }: Params) {
     role,
     leader: plan?.leader?.full_name ?? null,
     backmarker: plan?.backmarker?.full_name ?? null,
-    // The register works by name; buyers' emails stay on the server.
+    // The register works by name; ticketholders' emails stay on the server.
     attendees: attendees.map((a) => ({ ...a, email: null })),
     headcount: headcount(attendees),
     safety,
@@ -81,7 +81,7 @@ export async function GET(_request: Request, { params }: Params) {
   });
 }
 
-/** Ask Toolbox for the latest ticket holders now, rather than waiting for the daily run. */
+/** Ask Toolbox for the latest ticketholders now, rather than waiting for the daily run. */
 export async function POST(_request: Request, { params }: Params) {
   const member = await getCurrentMember();
   if (!member) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
