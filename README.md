@@ -174,13 +174,17 @@ reconcile recreates event rows with new uuids.
   It calls `GET /api/v1/organisers/:id/events/:eventId/attendees`, expecting
   `{ linked, syncedAt, attendees: [{ name, email, tier }] }` under the
   `ATTENDEES_READ` scope. A list exists only once a principal has **linked**
-  the walk to its SU ticket-sales page in the Connector (retrieval page ▸
-  Ticket links) and pressed "Read and send buyers"; Toolbox clears it 7 days
-  after the walk. An unlinked walk comes back `not_linked` and the sync moves
-  on; a 404/403 (endpoint unreleased, or the scope not granted) logs
-  `unavailable` in `event_sync_runs` and stops. Either way leaders can add
-  people on the day. The Connector side is development builds only until its
-  ticket-sales parser is checked against a real SU page.
+  the walk to its SU ticket page; the Connector then reads the SU's
+  "Tickets (CSV)" export and re-sends it until the day after the walk.
+  - An unlinked (or merged) walk comes back `not_linked`, and a 404 (Toolbox
+    doesn't host it for the club) `not_found`; the sync moves on. A 403 (scope
+    not granted) logs `unavailable` in `event_sync_runs` and stops.
+  - Toolbox's rules for consumers are kept here: each walk is asked at most
+    every 15 minutes (`ticket_list_checks`), the day page shows the list's
+    age, buyers' emails never leave the server, and 7 days after a walk the
+    nightly sync deletes no-show non-members and refunds and blanks everyone
+    else's email (`purgeExpiredTicketHolders`).
+  - Either way leaders can add people on the day.
 - **Emergency details** (`member_safety`) are opt-in and encrypted in the app
   with `SAFETY_DATA_KEY`. Only a walk's leader and backmarker can read them,
   for members on that walk, from 24 h before to 24 h after, and every read is

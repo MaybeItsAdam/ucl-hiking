@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ago } from "@/lib/ago";
 import { redirect } from "next/navigation";
 import { EventsSubnav } from "@/components/EventsSubnav";
 import { ProgrammeBoard, type ProgrammeEvent, type ProgrammeWalk } from "@/components/ProgrammeBoard";
@@ -17,14 +18,6 @@ export const maxDuration = 60;
 const ZONE = "Europe/London";
 const fmt = (iso: string, options: Intl.DateTimeFormatOptions) =>
   new Intl.DateTimeFormat("en-GB", { timeZone: ZONE, ...options }).format(new Date(`${iso}T12:00:00Z`));
-
-function ago(iso: string): string {
-  const minutes = Math.round((Date.now() - Date.parse(iso)) / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  return hours < 24 ? `${hours} h ago` : `${Math.round(hours / 24)} days ago`;
-}
 
 /**
  * The committee calendar, synced: each row with its publish switch and who

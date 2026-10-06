@@ -111,7 +111,11 @@ describe("fetchToolboxAttendees", () => {
 
   it("reads a linked walk's ticket holders", async () => {
     answer(200, { eventId: "ev", linked: true, syncedAt: "2026-10-04T10:00:00Z", attendees: [{ name: "Ada", email: "ada@ucl.ac.uk", tier: "Member" }] });
-    expect(await fetchToolboxAttendees("ev")).toEqual({ status: "ok", attendees: [{ name: "Ada", email: "ada@ucl.ac.uk", tier: "Member" }] });
+    expect(await fetchToolboxAttendees("ev")).toEqual({
+      status: "ok",
+      attendees: [{ name: "Ada", email: "ada@ucl.ac.uk", tier: "Member" }],
+      syncedAt: "2026-10-04T10:00:00Z",
+    });
   });
 
   it("treats an unlinked or unread walk as not linked, not as the endpoint missing", async () => {
@@ -121,9 +125,9 @@ describe("fetchToolboxAttendees", () => {
     expect((await fetchToolboxAttendees("ev")).status).toBe("not_linked");
   });
 
-  it("treats 404 and 403 as the endpoint or scope not being live", async () => {
-    answer(404, { error: "Not found" });
-    expect((await fetchToolboxAttendees("ev")).status).toBe("unavailable");
+  it("treats 404 as this event only, and 403 as the scope not being granted", async () => {
+    answer(404, { error: "Event not found." });
+    expect((await fetchToolboxAttendees("ev")).status).toBe("not_found");
     answer(403, { error: "Forbidden" });
     expect((await fetchToolboxAttendees("ev")).status).toBe("unavailable");
   });

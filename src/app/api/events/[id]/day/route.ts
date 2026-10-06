@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAttendees, headcount, syncEventAttendees } from "@/lib/attendees";
+import { getAttendees, getTicketListCheck, headcount, syncEventAttendees, type TicketListCheck } from "@/lib/attendees";
 import { audit } from "@/lib/audit";
 import { canViewSafety, loadSafety, type SafetyDetails } from "@/lib/safety";
 import { getCurrentMember } from "@/lib/session";
@@ -44,22 +44,16 @@ export async function GET(_request: Request, { params }: Params) {
   }
 
   let kit: { id: string; name: string; quantity: number; status: string; borrower: string | null }[] = [];
-  let lastSync: { status: string; completed_at: string; error_message: string | null } | null = null;
+  let ticketList: TicketListCheck | null = null;
   if (isSupabaseConfigured()) {
     const supabase = getSupabaseAdmin();
-    const [kitRes, syncRes] = await Promise.all([
+    const [kitRes, check] = await Promise.all([
       supabase
         .from("equipment_requests")
         .select("id, quantity, status, equipment:equipment_id (name), member:member_id (full_name)")
         .eq("event_suu_id", event.suu_event_id)
         .in("status", ["pending", "approved"]),
-      supabase
-        .from("event_sync_runs")
-        .select("status, completed_at, error_message")
-        .eq("source", "toolbox-attendees")
-        .order("completed_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
+      getTicketListCheck(event.suu_event_id),
     ]);
     type KitRow = { id: string; quantity: number; status: string; equipment: { name: string } | null; member: { full_name: string | null } | null };
     kit = ((kitRes.data ?? []) as unknown as KitRow[]).map((r) => ({
@@ -69,7 +63,7 @@ export async function GET(_request: Request, { params }: Params) {
       status: r.status,
       borrower: r.member?.full_name ?? null,
     }));
-    lastSync = syncRes.data ?? null;
+    ticketList = check;
   }
 
   return NextResponse.json({
@@ -77,11 +71,12 @@ export async function GET(_request: Request, { params }: Params) {
     role,
     leader: plan?.leader?.full_name ?? null,
     backmarker: plan?.backmarker?.full_name ?? null,
-    attendees,
+    // The register works by name; buyers' emails stay on the server.
+    attendees: attendees.map((a) => ({ ...a, email: null })),
     headcount: headcount(attendees),
     safety,
     kit,
-    lastSync,
+    ticketList,
     fetchedAt: new Date().toISOString(),
   });
 }

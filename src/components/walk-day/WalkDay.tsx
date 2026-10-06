@@ -15,6 +15,7 @@ import {
   UserPlus,
 } from "lucide-react";
 import { Sheet } from "@/components/Sheet";
+import { ago } from "@/lib/ago";
 import { headcount, type AttendanceOp, type Attendee } from "@/lib/attendees";
 import {
   applyOps,
@@ -169,6 +170,8 @@ export default function WalkDay({ eventId }: { eventId: string }) {
       const body = await res.json();
       if (body.status === "unavailable") setToast("Toolbox can't share ticket holders yet. Add people by hand.");
       else if (body.status === "not_linked") setToast("No SU ticket list for this walk yet: a principal links it in the Connector. Add people by hand.");
+      else if (body.status === "not_found") setToast("Toolbox doesn't have this walk as the club's own event. Add people by hand.");
+      else if (body.status === "recent") setToast("Checked in the last 15 minutes. Try again shortly.");
       else if (body.status === "error") setToast(body.reason ?? "Toolbox didn't answer.");
       else setToast(body.inserted ? `${body.inserted} new ticket holder${body.inserted === 1 ? "" : "s"} added.` : "The list is up to date.");
       await load();
@@ -270,6 +273,11 @@ export default function WalkDay({ eventId }: { eventId: string }) {
             Add
           </button>
         </div>
+        {snapshot.ticketList?.synced_at ? (
+          <p className="day-note">
+            SU ticket list as of {ago(snapshot.ticketList.synced_at)}. Checked with Toolbox {ago(snapshot.ticketList.checked_at)}.
+          </p>
+        ) : null}
         {attendees.length ? (
           <ul className="day-register">
             {attendees.map((a) => {

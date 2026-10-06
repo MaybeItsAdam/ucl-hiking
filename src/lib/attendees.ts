@@ -183,14 +183,16 @@ export async function getMemberAttendance(memberId: string): Promise<Attendee[]>
 }
 
 export type ToolboxAttendeeFetch =
-  | { status: "ok"; attendees: ToolboxAttendee[] }
+  | { status: "ok"; attendees: ToolboxAttendee[]; syncedAt: string }
   | { status: "not_linked"; reason: string }
+  | { status: "not_found"; reason: string }
   | { status: "unavailable"; reason: string }
   | { status: "error"; reason: string };
 
 /**
- * Toolbox's attendee list for one event. A 404 or 403 means the endpoint or its
- * ATTENDEES_READ scope isn't live yet, which is expected, not a failure.
+ * Toolbox's attendee list for one event. A 403 means the token lacks
+ * ATTENDEES_READ, which stops the whole sync. A 404 is this event only: Toolbox
+ * doesn't know it, or another society hosts it.
  *
  * The list exists only once a principal has linked the walk to its SU
  * ticket-sales page in the Connector and read it; until then Toolbox answers
@@ -207,24 +209,63 @@ export async function fetchToolboxAttendees(eventSuuId: string): Promise<Toolbox
       `${toolbox}/api/v1/organisers/${encodeURIComponent(organiserId)}/events/${encodeURIComponent(eventSuuId)}/attendees`,
       { headers: { Authorization: `Bearer ${token}` }, cache: "no-store", signal: AbortSignal.timeout(15_000) },
     );
-    if (res.status === 404 || res.status === 403) return { status: "unavailable", reason: `Toolbox returned ${res.status}` };
+    if (res.status === 404) return { status: "not_found", reason: "Toolbox doesn't host this event for the club" };
+    if (res.status === 403 || res.status === 401) return { status: "unavailable", reason: `Toolbox returned ${res.status}` };
     if (!res.ok) return { status: "error", reason: `Toolbox returned ${res.status}` };
     const body = (await res.json()) as { attendees?: unknown; linked?: unknown; syncedAt?: unknown };
     if (body.linked === false) return { status: "not_linked", reason: "Not linked to its SU ticket page yet" };
     if (body.syncedAt === null) return { status: "not_linked", reason: "Linked, but nobody has read the SU ticket page yet" };
-    if (!Array.isArray(body.attendees)) return { status: "error", reason: "Toolbox returned no attendee list" };
-    return { status: "ok", attendees: body.attendees as ToolboxAttendee[] };
+    if (!Array.isArray(body.attendees) || typeof body.syncedAt !== "string") return { status: "error", reason: "Toolbox returned no attendee list" };
+    return { status: "ok", attendees: body.attendees as ToolboxAttendee[], syncedAt: body.syncedAt };
   } catch {
     return { status: "error", reason: "Toolbox is unreachable" };
   }
 }
 
-/** Fetch and apply one event's list. Returns what happened, for the sync log and the day page. */
+/** Toolbox asks that a list be checked at most this often. */
+export const TICKET_LIST_INTERVAL_MS = 15 * 60_000;
+
+export interface TicketListCheck {
+  checked_at: string;
+  synced_at: string | null;
+  status: string;
+}
+
+/** When this walk's ticket list was last asked for, and how old it was then. */
+export async function getTicketListCheck(eventSuuId: string): Promise<TicketListCheck | null> {
+  if (!isSupabaseConfigured()) return null;
+  const { data, error } = await getSupabaseAdmin()
+    .from("ticket_list_checks")
+    .select("checked_at, synced_at, status")
+    .eq("event_suu_id", eventSuuId)
+    .maybeSingle();
+  return error ? null : ((data as TicketListCheck | null) ?? null);
+}
+
+/**
+ * Fetch and apply one event's list. Returns what happened, for the sync log and
+ * the day page. Asked again within 15 minutes, it answers "recent" from the
+ * last check instead of asking Toolbox.
+ */
 export async function syncEventAttendees(eventSuuId: string) {
+  const supabase = getSupabaseAdmin();
+  const last = await getTicketListCheck(eventSuuId);
+  if (last && Date.now() - Date.parse(last.checked_at) < TICKET_LIST_INTERVAL_MS) {
+    return { status: "recent" as const, syncedAt: last.synced_at, inserted: 0, updated: 0, removed: 0 };
+  }
+
   const fetched = await fetchToolboxAttendees(eventSuuId);
+  // A network failure never reached Toolbox, so it doesn't count as a check.
+  if (fetched.status !== "error" || fetched.reason !== "Toolbox is unreachable") {
+    await supabase.from("ticket_list_checks").upsert({
+      event_suu_id: eventSuuId,
+      checked_at: new Date().toISOString(),
+      synced_at: fetched.status === "ok" ? fetched.syncedAt : null,
+      status: fetched.status,
+    });
+  }
   if (fetched.status !== "ok") return { ...fetched, inserted: 0, updated: 0, removed: 0 };
 
-  const supabase = getSupabaseAdmin();
   const emails = [...new Set(fetched.attendees.map((a) => normEmail(a.email)).filter((e): e is string => Boolean(e)))];
   const [existing, members] = await Promise.all([
     getAttendees(eventSuuId),
@@ -244,5 +285,43 @@ export async function syncEventAttendees(eventSuuId: string) {
   if (plan.remove.length) {
     await supabase.from("event_attendees").update({ removed: true }).in("id", plan.remove);
   }
-  return { status: "ok" as const, inserted: plan.insert.length, updated: plan.update.length, removed: plan.remove.length };
+  return { status: "ok" as const, syncedAt: fetched.syncedAt, inserted: plan.insert.length, updated: plan.update.length, removed: plan.remove.length };
+}
+
+/** Toolbox deletes a ticket list 7 days after the event; copies here go then too. */
+export const TICKET_LIST_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Drop what came from Toolbox for walks that ended over 7 days ago. Buyers who
+ * never turned up and aren't members go entirely, as do refunds. Everyone else
+ * stays as attendance history (name and member link), without the email.
+ */
+export async function purgeExpiredTicketHolders(now = Date.now()): Promise<{ deleted: number; scrubbed: number }> {
+  if (!isSupabaseConfigured()) return { deleted: 0, scrubbed: 0 };
+  const supabase = getSupabaseAdmin();
+  const { data: rows } = await supabase.from("event_attendees").select("event_suu_id").eq("source", "toolbox").not("email", "is", null);
+  const ids = [...new Set((rows ?? []).map((r) => r.event_suu_id as string))];
+  if (!ids.length) return { deleted: 0, scrubbed: 0 };
+  const { data: events } = await supabase.from("events").select("suu_event_id, starts_at, ends_at").in("suu_event_id", ids);
+  const cutoff = now - TICKET_LIST_RETENTION_MS;
+  const expired = (events ?? [])
+    .filter((e) => {
+      const end = (e.ends_at ?? e.starts_at) as string | null;
+      return end !== null && Date.parse(end) < cutoff;
+    })
+    .map((e) => e.suu_event_id as string);
+  if (!expired.length) return { deleted: 0, scrubbed: 0 };
+
+  const base = () => supabase.from("event_attendees").delete({ count: "exact" }).eq("source", "toolbox").in("event_suu_id", expired);
+  const [refunds, noShows] = await Promise.all([
+    base().eq("removed", true),
+    base().is("member_id", null).is("checked_in_at", null),
+  ]);
+  const { count: scrubbed } = await supabase
+    .from("event_attendees")
+    .update({ email: null }, { count: "exact" })
+    .eq("source", "toolbox")
+    .in("event_suu_id", expired)
+    .not("email", "is", null);
+  return { deleted: (refunds.count ?? 0) + (noShows.count ?? 0), scrubbed: scrubbed ?? 0 };
 }

@@ -1,4 +1,4 @@
-import type { AttendanceOp, Attendee, Headcount } from "@/lib/attendees";
+import type { AttendanceOp, Attendee, Headcount, TicketListCheck } from "@/lib/attendees";
 import type { SafetyDetails } from "@/lib/safety";
 
 /**
@@ -19,7 +19,8 @@ export interface DaySnapshot {
   headcount: Headcount;
   safety: Record<string, SafetyDetails>;
   kit: { id: string; name: string; quantity: number; status: string; borrower: string | null }[];
-  lastSync: { status: string; completed_at: string; error_message: string | null } | null;
+  /** When the SU ticket list was last checked, and how old it was; null until it ever has been. */
+  ticketList?: TicketListCheck | null;
   fetchedAt: string;
 }
 

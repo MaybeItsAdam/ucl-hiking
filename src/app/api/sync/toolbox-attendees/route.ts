@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { syncEventAttendees } from "@/lib/attendees";
+import { purgeExpiredTicketHolders, syncEventAttendees } from "@/lib/attendees";
 import { cronOrCommittee } from "@/lib/cronAuth";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 
@@ -13,6 +13,9 @@ const AHEAD_MS = 14 * 24 * 60 * 60 * 1000;
  * Connector comes back "not_linked" and is skipped. If the endpoint or the
  * ATTENDEES_READ scope isn't live this records "unavailable" and changes
  * nothing; leaders add people on the day instead.
+ *
+ * Then drops the emails and stray rows of walks that ended over 7 days ago, as
+ * Toolbox asks of anyone holding a copy of its lists.
  */
 export async function GET(request: Request) {
   if (!(await cronOrCommittee(request))) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -49,6 +52,7 @@ export async function GET(request: Request) {
     started_at: startedAt,
   });
 
-  const notLinked = results.filter((r) => r.status === "not_linked").length;
-  return NextResponse.json({ ok: !failed.length, events: results.length, notLinked, unavailable: Boolean(unavailable), results });
+  const notLinked = results.filter((r) => r.status === "not_linked" || r.status === "not_found").length;
+  const purged = await purgeExpiredTicketHolders();
+  return NextResponse.json({ ok: !failed.length, events: results.length, notLinked, unavailable: Boolean(unavailable), purged, results });
 }
