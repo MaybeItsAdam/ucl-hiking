@@ -2220,13 +2220,6 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 }
 
 /* ===== Rota ===== */
-.rota-list { display: grid; gap: 10px; margin: 12px 0 0; padding: 0; list-style: none; }
-.rota-list > li { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
-.rota-list > li.needs-leader { border-color: var(--warn-line); }
-.rota-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
-.rota-head a { color: var(--ink); text-decoration: none; }
-.rota-head a:hover strong { text-decoration: underline; }
-.rota-head .event-meta { margin: 0; }
 .rota-mine { display: flex; gap: 6px; }
 .rota-mine button { flex: 1; min-height: 40px; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--ink); font: 700 13px var(--font-body); cursor: pointer; }
 .rota-mine button.active { border-color: var(--ink); background: var(--ink-fill); color: var(--on-accent); }
@@ -2905,3 +2898,26 @@ button.kit-item-main { cursor: pointer; }
   .kit-scan-target.is-active { animation-duration: .01s; animation-iteration-count: 1; }
   .kit-progress-bar span { transition-duration: .01s; }
 }
+
+/* ── Rota, programme-style ── */
+.rota-rows > li { display: block; padding: 0; }
+.rota-rows > li.needs-leader { box-shadow: inset 3px 0 0 var(--warn-line); }
+.rota-row { display: grid; grid-template-columns: 52px 1fr auto; align-items: center; gap: 14px; width: 100%; min-height: 64px; padding: 14px 14px 14px 16px; border: 0; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; transition: background-color .15s ease; }
+.rota-row:hover { background: var(--surface-2); }
+.rota-row:focus-visible { outline: 2px solid var(--forest); outline-offset: -2px; }
+.rota-row .programme-body { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.rota-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-weight: 800; font-size: 16px; line-height: 1.35; }
+.rota-title .event-status { margin-left: 0; }
+.rota-row .event-meta { margin: 0; }
+.rota-chevron { color: var(--muted); }
+.rota-mine-tag { display: inline-flex; align-items: center; padding: 1px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.rota-mine-tag.is-available { border-color: var(--ok-line); color: var(--ok-fg); }
+.rota-mine-tag.is-maybe { border-color: var(--warn-line); color: var(--warn-fg); }
+.rota-mine-tag.is-unavailable { color: var(--muted); }
+.rota-sheet-section { display: grid; gap: 8px; margin: 18px 0 0; }
+.rota-sheet-section .event-eyebrow { margin: 0; }
+.rota-offers { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 8px; }
+.rota-offers li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; }
+.rota-offers li + li { border-top: 1px solid var(--line); }
+@media (pointer: coarse) { .rota-mine button { min-height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .rota-row { transition-duration: .01s; } }

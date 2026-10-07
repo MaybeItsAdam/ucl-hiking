@@ -13,6 +13,9 @@ import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 
 export const metadata: Metadata = { title: "Leader rota | UCL Hiking Club" };
 
+const londonDate = (iso: string, options: Intl.DateTimeFormatOptions) =>
+  new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", ...options }).format(new Date(iso));
+
 export default async function RotaPage() {
   const member = await getCurrentMember();
   if (!member) redirect("/auth/signin");
@@ -43,6 +46,9 @@ export default async function RotaPage() {
       suuId: event.suu_event_id!,
       name: eventDetails(event).name,
       when: `${longDate(event.starts_at!)} · ${eventWhen(event)}`,
+      weekday: londonDate(event.starts_at!, { weekday: "short" }),
+      day: londonDate(event.starts_at!, { day: "numeric" }),
+      month: londonDate(event.starts_at!, { month: "long", year: "numeric" }),
       leaderId: plan?.leader_member_id ?? null,
       leaderName: plan?.leader?.full_name ?? null,
       backmarkerId: plan?.backmarker_member_id ?? null,
@@ -56,7 +62,7 @@ export default async function RotaPage() {
     <article className="events-page">
       <EventsSubnav active="rota" showRota showProgramme={canAssign} />
       <p className="day-note">
-        Say which walks you can lead. {canAssign ? "Pick a leader and backmarker for each; it goes on the walk's plan." : "The committee picks from those who offer."}
+        Tap a walk to say whether you can lead it. {canAssign ? "Pick its leader and backmarker there too; it goes on the walk's plan." : "The committee picks from those who offer."}
       </p>
       <RotaBoard walks={walks} people={people} canAssign={canAssign} />
     </article>
