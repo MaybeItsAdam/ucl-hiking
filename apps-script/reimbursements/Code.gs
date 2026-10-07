@@ -24,7 +24,7 @@ var UCLH_APP_TAB = 'App submissions';
 var UCLH_APP_HEADERS = [
   'Timestamp', 'Reference', 'Claim type', 'Name', 'Email', 'App member ID',
   'Walk / event', 'Date of expense', 'Category', 'Description', 'Amount (£)',
-  'Receipt', 'Account name', 'Sort code', 'Account number', 'Notes',
+  'Receipt', 'Account name', 'Sort code', 'Account number',
 ];
 var UCLH_APP_CATEGORIES = ['Travel', 'Equipment', 'First aid', 'Food and drink', 'Printing', 'Room or venue', 'Other'];
 var UCLH_APP_RECEIPT_TYPES = ['image/jpeg', 'image/png', 'image/heic', 'image/heif', 'image/webp', 'application/pdf'];
@@ -48,7 +48,7 @@ function uclhApp_handle(e) {
   var who = uclhApp_verifyToken(body && body.token, secret, Math.floor(Date.now() / 1000));
   if (!who.ok) return uclhApp_reply({ ok: false, error: who.error });
 
-  var claim = uclhApp_parseClaim(body.claim);
+  var claim = uclhApp_parseClaim(body.claim, who.claims.kind);
   if (!claim.ok) return uclhApp_reply({ ok: false, error: claim.error });
 
   var receipt = null;
@@ -75,7 +75,7 @@ function uclhApp_handle(e) {
       new Date(), ref, who.claims.kind === 'committee' ? 'Committee' : 'Walk leader',
       who.claims.name, who.claims.email, who.claims.sub,
       claim.value.event, claim.value.date, claim.value.category, claim.value.description, claim.value.amount,
-      receiptLink, claim.value.accountName, claim.value.sortCode, claim.value.accountNumber, claim.value.notes,
+      receiptLink, claim.value.accountName, claim.value.sortCode, claim.value.accountNumber,
     ].map(uclhApp_cell);
     var at = sheet.getLastRow() + 1;
     var range = sheet.getRange(at, 1, 1, row.length);
@@ -140,7 +140,8 @@ function uclhApp_text(value, max) {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
 }
 
-function uclhApp_parseClaim(c) {
+/** Walk-leader claims leave Description blank: the spreadsheet writes it from the day of the walk. */
+function uclhApp_parseClaim(c, kind) {
   if (!c || typeof c !== 'object') return { ok: false, error: 'The claim is empty.' };
   var amount = Number(c.amount);
   if (!isFinite(amount) || amount <= 0 || amount > 2000 || Math.round(amount * 100) !== Math.round(amount * 100 * 1000) / 1000) {
@@ -151,7 +152,8 @@ function uclhApp_parseClaim(c) {
   var category = uclhApp_text(c.category, 40);
   if (UCLH_APP_CATEGORIES.indexOf(category) === -1) return { ok: false, error: 'Pick what the money was for.' };
   var description = uclhApp_text(c.description, 500);
-  if (!description) return { ok: false, error: 'Say what you bought.' };
+  if (kind === 'committee' && !description) return { ok: false, error: 'Say what you bought.' };
+  if (kind !== 'committee') description = '';
   var accountName = uclhApp_text(c.accountName, 70);
   if (!accountName) return { ok: false, error: 'Give the name on the bank account.' };
   var sortCode = String(c.sortCode || '').replace(/[\s-]/g, '');
@@ -169,7 +171,6 @@ function uclhApp_parseClaim(c) {
       accountName: accountName,
       sortCode: sortCode.slice(0, 2) + '-' + sortCode.slice(2, 4) + '-' + sortCode.slice(4),
       accountNumber: accountNumber,
-      notes: uclhApp_text(c.notes, 1000),
     },
   };
 }

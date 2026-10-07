@@ -1,14 +1,13 @@
 import Link from "next/link";
 
-export type ClubSection = "stats" | "broadcast" | "money" | "expenses" | "handbook" | "incidents";
+export type ClubSection = "stats" | "broadcast" | "money" | "handbook" | "incidents";
 
-/** Stats · Broadcast · Money · Expenses · Handbook · Incidents; money and incidents are principals'. */
+/** Stats · Broadcast · Money · Handbook · Incidents; money and incidents are principals'. Expenses has its own tab. */
 export function ClubSubnav({ active, principal }: { active: ClubSection; principal: boolean }) {
   const items: { key: ClubSection; href: string; label: string }[] = [
     { key: "stats", href: "/portal/club", label: "Stats" },
     { key: "broadcast", href: "/portal/club/broadcast", label: "Broadcast" },
     ...(principal ? [{ key: "money" as const, href: "/portal/club/money", label: "Money" }] : []),
-    { key: "expenses", href: "/portal/club/expenses", label: "Expenses" },
     { key: "handbook", href: "/portal/club/handbook", label: "Handbook" },
     ...(principal ? [{ key: "incidents" as const, href: "/portal/club/incidents", label: "Incidents" }] : []),
   ];

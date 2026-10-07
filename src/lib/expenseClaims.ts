@@ -32,18 +32,23 @@ export interface ClaimFields {
   accountName: string;
   sortCode: string;
   accountNumber: string;
-  notes: string;
 }
 
+/**
+ * Only committee claims say what was bought: the walk-leader spreadsheet writes
+ * its own description from the day of the walk.
+ */
+export const asksWhatWasBought = (kind: ClaimKind) => kind === "committee";
+
 /** The first thing wrong with a claim, in the words the form shows; null when it's ready. */
-export function claimProblem(c: ClaimFields): string | null {
+export function claimProblem(c: ClaimFields, kind: ClaimKind): string | null {
   const amount = Number(c.amount.replace(/[£,\s]/g, ""));
   if (!/^\d+(\.\d{1,2})?$/.test(c.amount.replace(/[£,\s]/g, "")) || !(amount > 0) || amount > 2000) {
     return "The amount should be in pounds, between £0.01 and £2,000.";
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(c.date)) return "Give the date you paid.";
   if (!(CLAIM_CATEGORIES as readonly string[]).includes(c.category)) return "Pick what the money was for.";
-  if (!c.description.trim()) return "Say what you bought.";
+  if (asksWhatWasBought(kind) && !c.description.trim()) return "Say what you bought.";
   if (!c.accountName.trim()) return "Give the name on the bank account.";
   if (!/^\d{6}$/.test(c.sortCode.replace(/[\s-]/g, ""))) return "The sort code should be 6 digits.";
   if (!/^\d{8}$/.test(c.accountNumber.replace(/\s/g, ""))) return "The account number should be 8 digits.";

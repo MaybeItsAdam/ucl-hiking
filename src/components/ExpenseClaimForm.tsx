@@ -3,7 +3,7 @@
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Send } from "lucide-react";
 import { OpenExternal } from "@/components/OpenExternal";
-import { CLAIM_CATEGORIES, CLAIM_FORMS, CLAIM_KIND_LABELS, claimProblem, type ClaimFields } from "@/lib/expenseClaims";
+import { asksWhatWasBought, CLAIM_CATEGORIES, CLAIM_FORMS, CLAIM_KIND_LABELS, claimProblem, type ClaimFields } from "@/lib/expenseClaims";
 import type { ClaimKind } from "@/lib/reimbursementToken";
 
 const MAX_RECEIPT_BYTES = 5 * 1024 * 1024;
@@ -20,7 +20,6 @@ const blank = (): ClaimFields => ({
   accountName: "",
   sortCode: "",
   accountNumber: "",
-  notes: "",
 });
 
 /** A phone photo shrunk to a readable JPEG, so it travels well over a walk's mobile signal. */
@@ -70,7 +69,7 @@ export function ExpenseClaimForm({ kinds, name, email }: { kinds: ClaimKind[]; n
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    const problem = claimProblem(fields);
+    const problem = claimProblem(fields, kind);
     if (problem) {
       setMessage({ ok: false, text: problem });
       return;
@@ -94,6 +93,7 @@ export function ExpenseClaimForm({ kinds, name, email }: { kinds: ClaimKind[]; n
 
       const claim = {
         ...fields,
+        description: asksWhatWasBought(kind) ? fields.description : "",
         amount: fields.amount.replace(/[£,\s]/g, ""),
         sortCode: fields.sortCode.replace(/[\s-]/g, ""),
         accountNumber: fields.accountNumber.replace(/\s/g, ""),
@@ -169,9 +169,11 @@ export function ExpenseClaimForm({ kinds, name, email }: { kinds: ClaimKind[]; n
         </Field>
       </div>
 
-      <Field label="What you bought">
-        <textarea rows={2} value={fields.description} onChange={set("description")} maxLength={500} required placeholder="Train ticket to Seaford for the first-aid kit run" />
-      </Field>
+      {asksWhatWasBought(kind) ? (
+        <Field label="What you bought">
+          <textarea rows={2} value={fields.description} onChange={set("description")} maxLength={500} required placeholder="Train ticket to Seaford for the first-aid kit run" />
+        </Field>
+      ) : null}
 
       <Field label="Receipt" hint="A photo or PDF, up to 5 MB.">
         <input
@@ -199,10 +201,6 @@ export function ExpenseClaimForm({ kinds, name, email }: { kinds: ClaimKind[]; n
           </Field>
         </div>
       </fieldset>
-
-      <Field label="Anything else (optional)">
-        <textarea rows={2} value={fields.notes} onChange={set("notes")} maxLength={1000} />
-      </Field>
 
       <p className="day-note">
         This goes straight to the treasurer&apos;s reimbursement spreadsheet. The hiking app checks it&apos;s you, but never sees or

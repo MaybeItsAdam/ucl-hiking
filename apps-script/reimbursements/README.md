@@ -1,7 +1,6 @@
 # Expense claims from the app → the reimbursement spreadsheet
 
-Walk leaders and committee claim expenses in the app (Settings › Expenses, or
-Club › Expenses). The claim, bank details and receipt go **from their browser
+Walk leaders and committee claim expenses in the app's **Expenses** tab. The claim, bank details and receipt go **from their browser
 straight to this Apps Script** on the reimbursement spreadsheet. The app's
 server only signs a ten-minute token saying who is claiming. It never sees or
 stores the claim.
@@ -29,6 +28,8 @@ Claims land in a tab called **App submissions**, one row each:
 - the claim's reference, such as `UH-20261002-K7QD`;
 - the claimant;
 - the walk, date, category and amount;
+- for committee claims, what was bought (walk-leader rows leave Description
+  blank for the spreadsheet to fill from the walk's day);
 - a Drive link to the receipt;
 - the bank details.
 
