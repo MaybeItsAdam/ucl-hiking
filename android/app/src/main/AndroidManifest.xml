@@ -50,4 +50,9 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <!-- Kit tags (NTAG213) on the equipment pages. required="false" so phones
+         without NFC can still install the app from Play; the page asks
+         src/lib/nfc.ts and hides scanning when there's no reader. -->
+    <uses-permission android:name="android.permission.NFC" />
+    <uses-feature android:name="android.hardware.nfc" android:required="false" />
 </manifest>

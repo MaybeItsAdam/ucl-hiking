@@ -2809,3 +2809,99 @@ button.kit-item-main { cursor: pointer; }
 .map3d-mark.is-point { width: 10px; height: 10px; cursor: default; }
 .map3d-mark.is-along { width: 14px; height: 14px; pointer-events: none; }
 .map3d-along { display: block; width: 100%; height: 100%; border: 3px solid #fff; border-radius: 999px; background: var(--info-fg); }
+
+/* ── Tagged kit: scanning, item card, handover, shelf audit (lenders only) ── */
+.kit-scan-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.kit-scan-bar-actions { display: flex; gap: 8px; }
+.kit-queue { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 4px 4px 4px 12px; border: 1px solid var(--warn-line); border-radius: 8px; background: var(--warn-bg); color: var(--warn-fg); font-size: 13px; font-weight: 700; }
+.kit-queue .kit-btn { min-height: 32px; padding: 0 12px; font-size: 13px; }
+.kit-queue.is-error { flex: 1 1 100%; align-items: flex-start; border-color: var(--bad-line); background: var(--bad-bg); color: var(--bad-fg); padding: 8px 4px 8px 12px; }
+.kit-queue-failures { flex: 1; min-width: 0; }
+.kit-queue-failures ul { margin: 4px 0 0; padding-left: 18px; font-weight: 500; line-height: 1.45; overflow-wrap: anywhere; }
+.kit-queue-dismiss { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border: 0; border-radius: 6px; background: none; color: inherit; cursor: pointer; }
+
+.kit-asset { font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); letter-spacing: .02em; }
+.kit-tag.is-available, .kit-tag.is-good { border-color: var(--ok-line); background: var(--ok-bg); color: var(--ok-fg); }
+.kit-tag.is-on_loan { border-color: var(--info-line); background: var(--info-bg); color: var(--info-fg); }
+.kit-tag.is-maintenance { border-color: var(--warn-line); background: var(--warn-bg); color: var(--warn-fg); }
+.kit-tag.is-missing { border-color: var(--bad-line); background: var(--bad-bg); color: var(--bad-fg); }
+
+/* Text inside the scanning sheets: .modal-card p is a faded caption by default. */
+.modal-card :is(.kit-card, .kit-mode, .kit-form, .kit-scan-search, .kit-scan-prompt) p { opacity: 1; }
+.modal-card :is(.kit-card, .kit-mode, .kit-form, .kit-scan-search) .event-section-title { margin: 0 0 6px; }
+.modal-card .kit-card-lede { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+.modal-card h3 .kit-asset { display: block; }
+.kit-card-label { display: block; margin-top: 2px; font: 600 15px var(--font-body); color: var(--muted); }
+
+.kit-nfc-notice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--warn-line); border-radius: 8px; background: var(--warn-bg); color: var(--warn-fg); font-size: 13px; font-weight: 600; line-height: 1.4; }
+.kit-nfc-notice span { flex: 1 1 200px; }
+.kit-scan-target { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; min-height: 64px; margin-bottom: 12px; padding: 10px 12px; border: 1px dashed var(--line-strong); border-radius: 8px; color: var(--muted); font-size: 14px; font-weight: 600; }
+.kit-scan-target span { flex: 1 1 160px; }
+.kit-scan-target.is-active { border-style: solid; border-color: var(--forest); color: var(--ink); animation: kit-scan-pulse 1.6s ease-in-out infinite; }
+.kit-scan-target.is-active svg { color: var(--forest); }
+@keyframes kit-scan-pulse { 50% { border-color: color-mix(in srgb, var(--forest) 35%, transparent); } }
+.modal-card .kit-scan-error { margin: -4px 0 12px; font-size: 13px; color: var(--bad-fg); }
+.kit-scan-search { margin-top: 4px; }
+.kit-scan-search .roster-search { min-height: 44px; }
+.kit-scan-results { margin-top: 8px; }
+.kit-scan-results .kit-item, .kit-tagged .kit-item { padding-right: 12px; }
+.modal-card .kit-scan-none { margin: 8px 0 0; color: var(--muted); }
+
+.kit-facts { display: grid; grid-template-columns: 1fr 1fr; margin: 0 0 14px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.kit-facts > div { min-width: 0; padding: 8px 12px; border-top: 1px solid var(--line); }
+.kit-facts > div:nth-child(-n + 2) { border-top: 0; }
+.kit-facts > div:nth-child(odd):not(.is-wide) { border-right: 1px solid var(--line); }
+.kit-facts > div.is-wide { grid-column: 1 / -1; border-right: 0; }
+.kit-facts dt { font: 800 10px var(--font-body); letter-spacing: .15em; text-transform: uppercase; color: var(--muted); }
+.kit-facts dd { margin: 2px 0 0; font-size: 14px; overflow-wrap: anywhere; }
+.modal-card .kit-card-offline { margin: 0 0 12px; padding: 8px 12px; border: 1px solid var(--warn-line); border-radius: 8px; background: var(--warn-bg); color: var(--warn-fg); font-size: 13px; }
+.kit-card-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.kit-btn.is-open { border-color: var(--ink); background: var(--surface-2); }
+.kit-card-panel { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
+.kit-card-submit { display: flex; justify-content: flex-end; gap: 8px; }
+.modal-card .kit-card-empty { margin: 0; font-size: 13px; color: var(--muted); }
+.modal-card .kit-card-note { margin: 12px 0 0; padding: 8px 12px; border: 1px solid var(--ok-line); border-radius: 8px; background: var(--ok-bg); color: var(--ok-fg); font-size: 13px; font-weight: 600; }
+.modal-card .kit-card-note.is-queued { border-color: var(--warn-line); background: var(--warn-bg); color: var(--warn-fg); }
+.modal-card .kit-card-note.is-error { border-color: var(--bad-line); background: var(--bad-bg); color: var(--bad-fg); }
+
+.kit-progress { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; font-variant-numeric: tabular-nums; }
+.kit-progress strong { font-size: 15px; }
+.kit-progress-bar { display: block; height: 8px; border: 1px solid var(--line-strong); border-radius: 999px; overflow: hidden; }
+.kit-progress-bar span { display: block; height: 100%; background: var(--forest); transition: width .2s ease; }
+.kit-progress.is-complete strong { color: var(--ok-fg); }
+.kit-progress.is-complete .kit-progress-bar span { background: var(--ok-fg); }
+.modal-card .kit-progress-line { margin: 0 0 8px; color: var(--muted); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.kit-scan-log { max-height: 40vh; overflow-y: auto; margin-bottom: 12px; }
+.kit-log-row { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 12px 6px 0; border-left: 3px solid transparent; }
+.kit-log-row.is-ok { border-left-color: var(--ok-fg); }
+.kit-log-row.is-queued { border-left-color: var(--warn-fg); }
+.kit-log-row.is-unknown { border-left-color: var(--info-fg); }
+.kit-log-row.is-error { border-left-color: var(--bad-fg); }
+.kit-log-mark { display: grid; place-items: center; flex-shrink: 0; width: 14px; color: var(--muted); }
+.kit-log-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.kit-log-title { font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
+.kit-log-text { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.kit-log-row.is-error .kit-log-text { color: var(--bad-fg); }
+.kit-not-seen { margin-bottom: 4px; font-size: 13px; }
+.kit-not-seen summary { min-height: 44px; display: flex; align-items: center; gap: 4px; font-weight: 700; cursor: pointer; }
+.kit-not-seen summary span { font-weight: 500; color: var(--muted); }
+.kit-not-seen .kit-log-row { padding-left: 12px; }
+
+.kit-handover-done { align-self: center; font-size: 12px; font-weight: 700; color: var(--ok-fg); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.kit-tagged { margin-top: 24px; }
+.kit-tagged-empty { margin: 0; font-size: 13px; color: var(--muted); }
+
+@media (pointer: coarse) {
+  :is(.kit-scan-bar, .kit-card, .kit-mode, .kit-form, .kit-scan-prompt, .kit-nfc-notice) .kit-btn, .kit-btn.kit-handover { min-height: 44px; }
+  .kit-queue-dismiss { width: 44px; height: 44px; }
+}
+@media (max-width: 768px) {
+  /* 16px stops iOS zooming into the field and never zooming back. */
+  .kit-scan-search .roster-search input, .modal-card .kit-field input, .modal-card .kit-field select { font-size: 16px; }
+  .kit-request-actions { flex-wrap: wrap; justify-content: flex-end; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kit-scan-target.is-active { animation-duration: .01s; animation-iteration-count: 1; }
+  .kit-progress-bar span { transition-duration: .01s; }
+}

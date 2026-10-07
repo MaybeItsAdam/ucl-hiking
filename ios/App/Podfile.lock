@@ -6,12 +6,21 @@ PODS:
   - CapacitorBrowser (7.0.5):
     - Capacitor
   - CapacitorCordova (7.6.9)
+  - CapacitorHaptics (7.0.5):
+    - Capacitor
+  - CapacitorPushNotifications (7.0.7):
+    - Capacitor
+  - CapgoCapacitorNfc (7.2.0):
+    - Capacitor
 
 DEPENDENCIES:
   - "Capacitor (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorApp (from `../../node_modules/@capacitor/app`)"
   - "CapacitorBrowser (from `../../node_modules/@capacitor/browser`)"
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
+  - "CapacitorHaptics (from `../../node_modules/@capacitor/haptics`)"
+  - "CapacitorPushNotifications (from `../../node_modules/@capacitor/push-notifications`)"
+  - "CapgoCapacitorNfc (from `../../node_modules/@capgo/capacitor-nfc`)"
 
 EXTERNAL SOURCES:
   Capacitor:
@@ -22,13 +31,22 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/browser"
   CapacitorCordova:
     :path: "../../node_modules/@capacitor/ios"
+  CapacitorHaptics:
+    :path: "../../node_modules/@capacitor/haptics"
+  CapacitorPushNotifications:
+    :path: "../../node_modules/@capacitor/push-notifications"
+  CapgoCapacitorNfc:
+    :path: "../../node_modules/@capgo/capacitor-nfc"
 
 SPEC CHECKSUMS:
   Capacitor: 46067d1c8df89760dbed78780d436327d588c726
   CapacitorApp: f01a913211780e0718dae9750442c3e23f96e106
   CapacitorBrowser: 6d09f59655e89aede71654ef08b98de55cf032b6
   CapacitorCordova: 2080fc0d6bfbc9dcc0e6d88e77fa624190d343ca
+  CapacitorHaptics: 1b145fa83c622e5383a3bac04ea81e2514f0b0f5
+  CapacitorPushNotifications: 0527809a9619ed775439d5ab2c2d996122b48319
+  CapgoCapacitorNfc: 3306447e38359522e6c1ea233aa6e84a54632534
 
-PODFILE CHECKSUM: 4aff2922841799f9ef78cd5d462744c7648af68b
+PODFILE CHECKSUM: bc74158a51ae8f17c08ef7fd3ccfc554e13186c8
 
 COCOAPODS: 1.17.0

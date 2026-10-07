@@ -18,6 +18,8 @@ import { londonDay } from "@/lib/weather";
 import { Sheet } from "./Sheet";
 import { readCache, writeCache } from "@/lib/client-cache";
 import { useAppRefresh } from "@/lib/refresh";
+import { KitLenderProvider } from "./kit/KitLender";
+import { HandoverButton, KitScanBar, TaggedItemsList } from "./kit/KitControls";
 
 type Tab = "catalog" | "requests" | "active_loans" | "my_requests";
 type StockFilter = "all" | "in_stock" | "out_of_stock" | "needs_repair";
@@ -166,6 +168,7 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
   const [deleting, setDeleting] = useState<Equipment | null>(null);
   const [declining, setDeclining] = useState<EquipmentRequest | null>(null);
   const [declineNotes, setDeclineNotes] = useState("");
+  const [confirmReturn, setConfirmReturn] = useState<EquipmentRequest | null>(null);
 
   const [showSheets, setShowSheets] = useState(false);
   const [sheetsUrl, setSheetsUrl] = useState("");
@@ -293,7 +296,14 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
     setMsg({ type: "success", text });
     setDeclining(null);
     setDeclineNotes("");
+    setConfirmReturn(null);
     void load();
+  }
+
+  /** Mark a loan returned, asking first if tagged items are still out on it. */
+  function checkIn(request: EquipmentRequest) {
+    if (request.items?.length) setConfirmReturn(request);
+    else void updateStatus(request, "returned");
   }
 
   async function saveItem(event: FormEvent) {
@@ -468,7 +478,9 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
       ];
 
   return (
+    <KitLenderProvider enabled={isPrincipal} equipment={items} requests={requests} onChanged={load}>
     <div className="kit-page">
+      <KitScanBar />
       <div className="portal-subnav kit-tabs" role="tablist" aria-label="Equipment">
         {tabs.map(({ value, label, count, alert }) => (
           <button
@@ -591,6 +603,7 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
               ))}
             </ul>
           )}
+          {isPrincipal && <TaggedItemsList />}
         </section>
       )}
 
@@ -638,9 +651,12 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
                         </button>
                       </>
                     ) : request.status === "approved" ? (
-                      <button type="button" className="kit-btn" disabled={busy} onClick={() => updateStatus(request, "returned")}>
-                        Check in
-                      </button>
+                      <>
+                        <HandoverButton request={request} />
+                        <button type="button" className="kit-btn" disabled={busy} onClick={() => checkIn(request)}>
+                          Check in
+                        </button>
+                      </>
                     ) : null
                   }
                 />
@@ -665,9 +681,12 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
                     view="committee"
                     today={today}
                     actions={
-                      <button type="button" className="kit-btn" disabled={busy} onClick={() => updateStatus(loan, "returned")}>
-                        Check in
-                      </button>
+                      <>
+                        <HandoverButton request={loan} />
+                        <button type="button" className="kit-btn" disabled={busy} onClick={() => checkIn(loan)}>
+                          Check in
+                        </button>
+                      </>
                     }
                   />
                 ))}
@@ -935,6 +954,26 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
         </Sheet>
       )}
 
+      {confirmReturn && (
+        <Sheet onClose={() => setConfirmReturn(null)} labelledBy="return-sheet">
+          <h3 id="return-sheet">Tagged kit still out</h3>
+          <p>
+            {confirmReturn.items!.length === 1
+              ? "1 tagged item is still out on this loan"
+              : `${confirmReturn.items!.length} tagged items are still out on this loan`}{" "}
+            ({confirmReturn.items!.map((i) => i.asset_code).join(", ")}). Mark it returned anyway?
+          </p>
+          <div className="modal-actions">
+            <button type="button" className="kit-btn" onClick={() => setConfirmReturn(null)}>
+              Cancel
+            </button>
+            <button type="button" className="kit-btn primary" disabled={busy} onClick={() => updateStatus(confirmReturn, "returned")}>
+              {busy ? "Saving…" : "Mark returned"}
+            </button>
+          </div>
+        </Sheet>
+      )}
+
       {showSheets && (
         <Sheet onClose={() => setShowSheets(false)} labelledBy="sheets-sheet">
           <h3 id="sheets-sheet">Google Sheets</h3>
@@ -1003,6 +1042,7 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
         </Sheet>
       )}
     </div>
+    </KitLenderProvider>
   );
 }
 

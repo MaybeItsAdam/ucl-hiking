@@ -14,6 +14,7 @@
  * 1. "Dashboard"   - Live KPI metric cards, category formulas, and fleet telemetry
  * 2. "Master List" - Complete asset catalog with stock levels, dropdowns, and condition tags
  * 3. "Ledger Log"  - Chronological borrowing audit history, returns, and status tracking
+ * 4. "Items"       - One row per NFC-tagged item: asset code, tag, status, borrower
  */
 
 var BRAND = {
@@ -191,6 +192,17 @@ function doPost(e) {
         true
       );
       applyLedgerStyling(ss.getSheetByName("Ledger Log"));
+    }
+
+    // 2b. Update Items tab (one row per NFC-tagged item), if sent
+    if (payload.equipmentItems && Array.isArray(payload.equipmentItems)) {
+      results.items = updateSheet(
+        ss,
+        "Items",
+        payload.equipmentItems,
+        BRAND.INK,
+        true
+      );
     }
 
     // 3. Update Dashboard tab with styled KPI cards & live formulas

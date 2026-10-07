@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { can } from "@/lib/access";
+import { itemsOutByRequest } from "@/lib/equipmentItems";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 
@@ -61,7 +62,23 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Failed to fetch equipment requests" }, { status: 500 });
   }
 
-  return NextResponse.json({ requests: data || [] });
+  const requests = data || [];
+
+  // Tagged items handed over against each approved loan (additive; skipped
+  // quietly if the items table isn't there yet).
+  const approvedIds = requests.filter((r) => r.status === "approved").map((r) => r.id as string);
+  if (approvedIds.length) {
+    try {
+      const byRequest = await itemsOutByRequest(supabase, approvedIds);
+      for (const r of requests) {
+        if (r.status === "approved") r.items = byRequest.get(r.id) ?? [];
+      }
+    } catch (err) {
+      console.warn(`[equipment/requests] items not attached: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  return NextResponse.json({ requests });
 }
 
 export async function POST(request: Request) {

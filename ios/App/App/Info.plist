@@ -58,6 +58,8 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NFCReaderUsageDescription</key>
+	<string>Scan the NFC tags on club kit to check it in and out.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Shows where you are on a walk's route map. Your location stays on your phone.</string>
 </dict>

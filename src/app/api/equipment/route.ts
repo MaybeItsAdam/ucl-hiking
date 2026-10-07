@@ -137,6 +137,14 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
+      // equipment_guard_total: tagged items can't outnumber the type's total.
+      if (error.message?.includes("item_limit")) {
+        const tagged = /tagged=(\d+)/.exec(error.details ?? "")?.[1];
+        return NextResponse.json(
+          { error: `${tagged ?? "More"} ${name} are tagged, so the total can't go below that.` },
+          { status: 409 },
+        );
+      }
       return NextResponse.json({ error: "Failed to update equipment item" }, { status: 500 });
     }
 

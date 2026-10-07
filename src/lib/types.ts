@@ -83,4 +83,6 @@ export interface EquipmentRequest {
   updated_at: string;
   member?: Member | null;
   equipment?: Equipment;
+  /** Approved loans only, for kit lenders: the tagged items handed over against it. */
+  items?: { id: string; asset_code: string; label: string | null }[];
 }

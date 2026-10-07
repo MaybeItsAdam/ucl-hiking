@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { can } from "@/lib/access";
+import { listItemSummaries, type ItemSummary } from "@/lib/equipmentItems";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 
@@ -109,6 +110,24 @@ function buildEquipmentLedgerRows(requests: EquipmentRequestRow[]): string[][] {
       req.status || "pending",
       req.reviewed_by || "",
       req.notes || "",
+    ]);
+  }
+  return rows;
+}
+
+function buildItemRows(items: ItemSummary[]): string[][] {
+  const rows = [["Asset Code", "Type", "Label", "Tag UID", "Location", "Status", "Condition", "Borrower", "Last Audited"]];
+  for (const item of items) {
+    rows.push([
+      item.asset_code,
+      item.equipment_name,
+      item.label || "",
+      item.tag_uid || "",
+      item.location || "",
+      item.status,
+      item.condition,
+      item.loan?.borrower || "",
+      item.last_audited_at || "",
     ]);
   }
   return rows;
@@ -341,6 +360,9 @@ export async function POST(request: Request) {
   // =========================================================================
   let equipmentItems: EquipmentRow[] = [];
   let requestItems: EquipmentRequestRow[] = [];
+  // Tagged items. Null when there are none to send (dev store, or the items
+  // migration not run yet), so the payload stays exactly as before.
+  let taggedItems: ItemSummary[] | null = null;
 
   if (!isSupabaseConfigured()) {
     if (process.env.NODE_ENV !== "production") {
@@ -373,6 +395,12 @@ export async function POST(request: Request) {
 
     equipmentItems = (eqRes.data || []) as EquipmentRow[];
     requestItems = (reqRes.data || []) as EquipmentRequestRow[];
+
+    try {
+      taggedItems = await listItemSummaries(supabase);
+    } catch (err) {
+      console.warn(`[sync-sheets] tagged items skipped: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   const masterRows = buildEquipmentMasterRows(equipmentItems);
@@ -396,6 +424,8 @@ export async function POST(request: Request) {
           equipmentMaster: masterRows,
           equipmentLedger: ledgerRows,
           dashboard: dashboardRows,
+          // An "Items" tab. Scripts deployed before this ignore the key.
+          ...(taggedItems ? { equipmentItems: buildItemRows(taggedItems) } : {}),
         }),
       });
 
