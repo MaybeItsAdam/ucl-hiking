@@ -29,7 +29,7 @@ const script = readFileSync(join(__dirname, "../../apps-script/reimbursements/Co
 const gs: Record<string, unknown> = { Utilities };
 runInNewContext(script, gs);
 type Verify = (token: unknown, secret: string, now: number) => { ok: boolean; claims?: Record<string, unknown>; error?: string };
-type Parse = (claim: unknown) => { ok: boolean; value?: Record<string, unknown>; error?: string };
+type Parse = (claim: unknown, kind?: string) => { ok: boolean; value?: Record<string, unknown>; error?: string };
 const verify = gs.uclhApp_verifyToken as Verify;
 const parseClaim = gs.uclhApp_parseClaim as Parse;
 
@@ -68,30 +68,38 @@ describe("claim tokens", () => {
 });
 
 describe("the Apps Script's claim check", () => {
-  const good = {
-    event: "Seven Sisters #2",
-    date: "2026-10-18",
-    category: "Travel",
-    description: "Train ticket",
-    amount: "31.65",
-    accountName: "A Walker",
-    sortCode: "04-00-04",
-    accountNumber: "01234567",
-    notes: "",
-  };
+  const bank = { bankOnFile: "no", accountName: "A Walker", sortCode: "04-00-04", accountNumber: "01234567" };
+  const committee = { date: "2026-10-18", description: "Train ticket", amount: "31.65", ...bank };
+  const wl = { date: "2026-10-18", nickname: "Al", uclEmail: "A.Walker@UCL.ac.uk", routeFeedback: true, ...bank };
 
   it("keeps leading zeros and formats the sort code", () => {
-    const parsed = parseClaim(good);
+    const parsed = parseClaim(committee, "committee");
     expect(parsed.ok).toBe(true);
-    expect(parsed.value).toMatchObject({ amount: 31.65, sortCode: "04-00-04", accountNumber: "01234567" });
+    expect(parsed.value).toMatchObject({ amount: 31.65, sortCode: "04-00-04", accountNumber: "01234567", bankOnFile: false });
   });
 
   it("refuses bad bank details and amounts", () => {
-    expect(parseClaim({ ...good, sortCode: "12345" }).ok).toBe(false);
-    expect(parseClaim({ ...good, accountNumber: "1234567" }).ok).toBe(false);
-    expect(parseClaim({ ...good, amount: "0" }).ok).toBe(false);
-    expect(parseClaim({ ...good, amount: "12.345" }).ok).toBe(false);
-    expect(parseClaim({ ...good, amount: "2000.01" }).ok).toBe(false);
-    expect(parseClaim({ ...good, category: "Beer" }).ok).toBe(false);
+    expect(parseClaim({ ...committee, sortCode: "12345" }, "committee").ok).toBe(false);
+    expect(parseClaim({ ...committee, accountNumber: "1234567" }, "committee").ok).toBe(false);
+    expect(parseClaim({ ...committee, amount: "0" }, "committee").ok).toBe(false);
+    expect(parseClaim({ ...committee, amount: "12.345" }, "committee").ok).toBe(false);
+    expect(parseClaim({ ...committee, amount: "2000.01" }, "committee").ok).toBe(false);
+    expect(parseClaim({ ...committee, description: " " }, "committee").ok).toBe(false);
+  });
+
+  it("takes walk-leader claims without an amount, needing the nickname and a UCL email", () => {
+    const parsed = parseClaim({ ...wl, amount: "99", description: "ignored" }, "wl");
+    expect(parsed.ok).toBe(true);
+    expect(parsed.value).toMatchObject({ nickname: "Al", uclEmail: "a.walker@ucl.ac.uk", amount: "", description: "" });
+    expect(parseClaim({ ...wl, nickname: "" }, "wl").ok).toBe(false);
+    expect(parseClaim({ ...wl, uclEmail: "al@gmail.com" }, "wl").ok).toBe(false);
+    expect(parseClaim({ ...wl, routeFeedback: false }, "wl").ok).toBe(false);
+  });
+
+  it("sends no bank details when the treasurer already has them", () => {
+    const parsed = parseClaim({ ...wl, bankOnFile: "yes", sortCode: "junk" }, "wl");
+    expect(parsed.ok).toBe(true);
+    expect(parsed.value).toMatchObject({ bankOnFile: true, accountName: "", sortCode: "", accountNumber: "" });
+    expect(parseClaim({ ...wl, bankOnFile: undefined }, "wl").ok).toBe(false);
   });
 });

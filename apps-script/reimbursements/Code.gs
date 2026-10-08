@@ -23,12 +23,12 @@
 var UCLH_APP_TAB = 'App submissions';
 var UCLH_APP_HEADERS = [
   'Timestamp', 'Reference', 'Claim type', 'Name', 'Email', 'App member ID',
-  'Walk / event', 'Date of expense', 'Category', 'Description', 'Amount (£)',
-  'Receipt', 'Account name', 'Sort code', 'Account number',
+  'Nickname / preferred name', 'UCL email', 'Route feedback submitted', 'Date (walk or purchase)', 'Description', 'Amount (£)',
+  'Receipts', 'Bank details submitted before', 'Account name', 'Sort code', 'Account number',
 ];
-var UCLH_APP_CATEGORIES = ['Travel', 'Equipment', 'First aid', 'Food and drink', 'Printing', 'Room or venue', 'Other'];
 var UCLH_APP_RECEIPT_TYPES = ['image/jpeg', 'image/png', 'image/heic', 'image/heif', 'image/webp', 'application/pdf'];
 var UCLH_APP_RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
+var UCLH_APP_RECEIPT_MAX_FILES = 5;
 
 function doPost(e) {
   return uclhApp_handle(e);
@@ -51,10 +51,14 @@ function uclhApp_handle(e) {
   var claim = uclhApp_parseClaim(body.claim, who.claims.kind);
   if (!claim.ok) return uclhApp_reply({ ok: false, error: claim.error });
 
-  var receipt = null;
-  if (body.receipt) {
-    receipt = uclhApp_parseReceipt(body.receipt);
+  // Older app builds send one `receipt`; current ones send `receipts`.
+  var sent = Array.isArray(body.receipts) ? body.receipts : body.receipt ? [body.receipt] : [];
+  if (sent.length > UCLH_APP_RECEIPT_MAX_FILES) return uclhApp_reply({ ok: false, error: 'Attach up to ' + UCLH_APP_RECEIPT_MAX_FILES + ' receipts.' });
+  var receipts = [];
+  for (var i = 0; i < sent.length; i++) {
+    var receipt = uclhApp_parseReceipt(sent[i] || {});
     if (!receipt.ok) return uclhApp_reply({ ok: false, error: receipt.error });
+    receipts.push(receipt);
   }
 
   var lock = LockService.getScriptLock();
@@ -67,20 +71,20 @@ function uclhApp_handle(e) {
     cache.put(seenKey, '1', 21600);
 
     var ref = uclhApp_reference();
-    var receiptLink = '';
-    if (receipt) receiptLink = uclhApp_saveReceipt(receipt, ref, who.claims.name);
+    var receiptLinks = receipts.map(function (r) { return uclhApp_saveReceipt(r, ref, who.claims.name); }).join('\n');
 
     var sheet = uclhApp_sheet();
     var row = [
       new Date(), ref, who.claims.kind === 'committee' ? 'Committee' : 'Walk leader',
       who.claims.name, who.claims.email, who.claims.sub,
-      claim.value.event, claim.value.date, claim.value.category, claim.value.description, claim.value.amount,
-      receiptLink, claim.value.accountName, claim.value.sortCode, claim.value.accountNumber,
+      claim.value.nickname, claim.value.uclEmail, claim.value.routeFeedback, claim.value.date,
+      claim.value.description, claim.value.amount, receiptLinks, claim.value.bankOnFile ? 'Yes' : 'No',
+      claim.value.accountName, claim.value.sortCode, claim.value.accountNumber,
     ].map(uclhApp_cell);
     var at = sheet.getLastRow() + 1;
     var range = sheet.getRange(at, 1, 1, row.length);
     // Sort code and account number as text, so leading zeros survive.
-    sheet.getRange(at, 14, 1, 2).setNumberFormat('@');
+    sheet.getRange(at, 16, 1, 2).setNumberFormat('@');
     range.setValues([row]);
     return uclhApp_reply({ ok: true, ref: ref });
   } finally {
@@ -140,36 +144,63 @@ function uclhApp_text(value, max) {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
 }
 
-/** Walk-leader claims leave Description blank: the spreadsheet writes it from the day of the walk. */
+/**
+ * Walk-leader claims mirror the WL Google Form: the walk's date, the name they
+ * lead under on the WL calendar, their UCL email and that they've sent the
+ * route feedback form. The spreadsheet works out
+ * the amount and description from the walk. Committee claims give the date
+ * of purchase, what was bought and how much. Either may say the treasurer already has
+ * their bank details, and then sends none.
+ */
 function uclhApp_parseClaim(c, kind) {
   if (!c || typeof c !== 'object') return { ok: false, error: 'The claim is empty.' };
-  var amount = Number(c.amount);
-  if (!isFinite(amount) || amount <= 0 || amount > 2000 || Math.round(amount * 100) !== Math.round(amount * 100 * 1000) / 1000) {
-    return { ok: false, error: 'The amount should be in pounds, between £0.01 and £2,000.' };
-  }
+  var wl = kind !== 'committee';
   var date = uclhApp_text(c.date, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: 'Give the date you paid.' };
-  var category = uclhApp_text(c.category, 40);
-  if (UCLH_APP_CATEGORIES.indexOf(category) === -1) return { ok: false, error: 'Pick what the money was for.' };
-  var description = uclhApp_text(c.description, 500);
-  if (kind === 'committee' && !description) return { ok: false, error: 'Say what you bought.' };
-  if (kind !== 'committee') description = '';
-  var accountName = uclhApp_text(c.accountName, 70);
-  if (!accountName) return { ok: false, error: 'Give the name on the bank account.' };
-  var sortCode = String(c.sortCode || '').replace(/[\s-]/g, '');
-  if (!/^\d{6}$/.test(sortCode)) return { ok: false, error: 'The sort code should be 6 digits.' };
-  var accountNumber = String(c.accountNumber || '').replace(/\s/g, '');
-  if (!/^\d{8}$/.test(accountNumber)) return { ok: false, error: 'The account number should be 8 digits.' };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: wl ? 'Give the date of the walk.' : 'Give the date of purchase.' };
+
+  var nickname = '', uclEmail = '', routeFeedback = '', description = '', amount = '';
+  if (wl) {
+    nickname = uclhApp_text(c.nickname, 60);
+    if (!nickname) return { ok: false, error: 'Give the name you use on the WL calendar.' };
+    uclEmail = uclhApp_text(c.uclEmail, 120).toLowerCase();
+    if (!/^[^\s@]+@ucl\.ac\.uk$/.test(uclEmail)) return { ok: false, error: 'Give your UCL email, ending @ucl.ac.uk.' };
+    if (c.routeFeedback !== true) return { ok: false, error: 'Fill in the Walk/Hike Route Feedback Form for this walk first.' };
+    routeFeedback = 'Yes';
+  } else {
+    var n = Number(c.amount);
+    if (!isFinite(n) || n <= 0 || n > 2000 || Math.round(n * 100) !== Math.round(n * 100 * 1000) / 1000) {
+      return { ok: false, error: 'The amount should be in pounds, between £0.01 and £2,000.' };
+    }
+    amount = Math.round(n * 100) / 100;
+    description = uclhApp_text(c.description, 500);
+    if (!description) return { ok: false, error: 'Describe the purchase.' };
+  }
+
+  if (c.bankOnFile !== 'yes' && c.bankOnFile !== 'no') return { ok: false, error: "Say whether you've sent your bank details before." };
+  var bankOnFile = c.bankOnFile === 'yes';
+  var accountName = '', sortCode = '', accountNumber = '';
+  if (!bankOnFile) {
+    accountName = uclhApp_text(c.accountName, 70);
+    if (!accountName) return { ok: false, error: 'Give the name on the bank account.' };
+    sortCode = String(c.sortCode || '').replace(/[\s-]/g, '');
+    if (!/^\d{6}$/.test(sortCode)) return { ok: false, error: 'The sort code should be 6 digits.' };
+    accountNumber = String(c.accountNumber || '').replace(/\s/g, '');
+    if (!/^\d{8}$/.test(accountNumber)) return { ok: false, error: 'The account number should be 8 digits.' };
+    sortCode = sortCode.slice(0, 2) + '-' + sortCode.slice(2, 4) + '-' + sortCode.slice(4);
+  }
+
   return {
     ok: true,
     value: {
-      event: uclhApp_text(c.event, 200),
       date: date,
-      category: category,
+      nickname: nickname,
+      uclEmail: uclEmail,
+      routeFeedback: routeFeedback,
       description: description,
-      amount: Math.round(amount * 100) / 100,
+      amount: amount,
+      bankOnFile: bankOnFile,
       accountName: accountName,
-      sortCode: sortCode.slice(0, 2) + '-' + sortCode.slice(2, 4) + '-' + sortCode.slice(4),
+      sortCode: sortCode,
       accountNumber: accountNumber,
     },
   };
@@ -212,6 +243,11 @@ function uclhApp_sheet() {
     sheet = book.insertSheet(UCLH_APP_TAB);
     sheet.getRange(1, 1, 1, UCLH_APP_HEADERS.length).setValues([UCLH_APP_HEADERS]).setFontWeight('bold');
     sheet.setFrozenRows(1);
+  } else if (sheet.getRange(1, 1, 1, UCLH_APP_HEADERS.length).getValues()[0].join('|') !== UCLH_APP_HEADERS.join('|')) {
+    // The form's questions changed: keep earlier rows under their old headings
+    // and start a fresh tab for the new layout.
+    sheet.setName(UCLH_APP_TAB + ' (old ' + Utilities.formatDate(new Date(), 'Europe/London', 'yyyy-MM-dd') + ')');
+    return uclhApp_sheet();
   }
   return sheet;
 }

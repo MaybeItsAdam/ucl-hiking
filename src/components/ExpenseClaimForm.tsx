@@ -3,23 +3,26 @@
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Send } from "lucide-react";
 import { OpenExternal } from "@/components/OpenExternal";
-import { asksWhatWasBought, CLAIM_CATEGORIES, CLAIM_FORMS, CLAIM_KIND_LABELS, claimProblem, type ClaimFields } from "@/lib/expenseClaims";
+import { CLAIM_FORMS, CLAIM_KIND_LABELS, claimProblem, isUclEmail, isWalkLeaderClaim, type ClaimFields } from "@/lib/expenseClaims";
 import type { ClaimKind } from "@/lib/reimbursementToken";
 
 const MAX_RECEIPT_BYTES = 5 * 1024 * 1024;
+const MAX_RECEIPTS = 5;
 const RECEIPT_TYPES = ["image/jpeg", "image/png", "image/heic", "image/heif", "image/webp", "application/pdf"];
 
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date());
 
-const blank = (): ClaimFields => ({
-  event: "",
+const blank = (email: string): ClaimFields => ({
   date: today(),
-  category: "",
   description: "",
   amount: "",
+  bankOnFile: "",
   accountName: "",
   sortCode: "",
   accountNumber: "",
+  nickname: "",
+  uclEmail: isUclEmail(email) ? email : "",
+  routeFeedback: false,
 });
 
 /** A phone photo shrunk to a readable JPEG, so it travels well over a walk's mobile signal. */
@@ -56,8 +59,8 @@ function base64Of(blob: Blob): Promise<string> {
  */
 export function ExpenseClaimForm({ kinds, name, email }: { kinds: ClaimKind[]; name: string; email: string }) {
   const [kind, setKind] = useState<ClaimKind>(kinds[0]);
-  const [fields, setFields] = useState<ClaimFields>(blank);
-  const [receipt, setReceipt] = useState<File | null>(null);
+  const [fields, setFields] = useState<ClaimFields>(() => blank(email));
+  const [receipts, setReceipts] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -77,32 +80,40 @@ export function ExpenseClaimForm({ kinds, name, email }: { kinds: ClaimKind[]; n
     setBusy(true);
     setMessage(null);
     try {
-      let receiptBody: { name: string; type: string; data: string } | null = null;
-      if (receipt) {
+      if (receipts.length > MAX_RECEIPTS) throw new Error(`Attach up to ${MAX_RECEIPTS} receipts.`);
+      const receiptBodies: { name: string; type: string; data: string }[] = [];
+      for (const receipt of receipts) {
         const blob = await shrinkPhoto(receipt);
-        if (blob.size > MAX_RECEIPT_BYTES) throw new Error("The receipt is over 5 MB. Take a smaller photo.");
+        if (blob.size > MAX_RECEIPT_BYTES) throw new Error(`${receipt.name} is over 5 MB. Take a smaller photo.`);
         const type = blob.type || receipt.type;
-        if (!RECEIPT_TYPES.includes(type)) throw new Error("The receipt should be a photo or a PDF.");
+        if (!RECEIPT_TYPES.includes(type)) throw new Error("Receipts should be photos or PDFs.");
         const baseName = receipt.name.replace(/\.[^.]+$/, "") || "receipt";
-        receiptBody = { name: blob === receipt ? receipt.name : `${baseName}.jpg`, type, data: await base64Of(blob) };
+        receiptBodies.push({ name: blob === receipt ? receipt.name : `${baseName}.jpg`, type, data: await base64Of(blob) });
       }
 
       const tokenRes = await fetch(`/api/reimbursements/token?kind=${kind}`, { cache: "no-store" });
       const pass = (await tokenRes.json().catch(() => ({}))) as { token?: string; endpoint?: string; error?: string };
       if (!tokenRes.ok || !pass.token || !pass.endpoint) throw new Error(pass.error ?? "The claim form isn't available right now.");
 
+      const wl = isWalkLeaderClaim(kind);
+      const newBank = fields.bankOnFile === "no";
       const claim = {
-        ...fields,
-        description: asksWhatWasBought(kind) ? fields.description : "",
-        amount: fields.amount.replace(/[£,\s]/g, ""),
-        sortCode: fields.sortCode.replace(/[\s-]/g, ""),
-        accountNumber: fields.accountNumber.replace(/\s/g, ""),
+        date: fields.date,
+        description: wl ? "" : fields.description,
+        amount: wl ? "" : fields.amount.replace(/[£,\s]/g, ""),
+        nickname: wl ? fields.nickname : "",
+        uclEmail: wl ? fields.uclEmail.trim() : "",
+        routeFeedback: wl && fields.routeFeedback,
+        bankOnFile: fields.bankOnFile,
+        accountName: newBank ? fields.accountName : "",
+        sortCode: newBank ? fields.sortCode.replace(/[\s-]/g, "") : "",
+        accountNumber: newBank ? fields.accountNumber.replace(/\s/g, "") : "",
       };
       // text/plain keeps this a "simple" request: Apps Script can't answer a CORS preflight.
       const res = await fetch(pass.endpoint, {
         method: "POST",
         headers: { "Content-Type": "text/plain;charset=utf-8" },
-        body: JSON.stringify({ token: pass.token, claim, receipt: receiptBody }),
+        body: JSON.stringify({ token: pass.token, claim, receipts: receiptBodies }),
         redirect: "follow",
         credentials: "omit",
         cache: "no-store",
@@ -111,8 +122,8 @@ export function ExpenseClaimForm({ kinds, name, email }: { kinds: ClaimKind[]; n
       if (!result) throw new Error("The treasurer's spreadsheet didn't answer. Nothing was sent; try again, or use the Google Form.");
       if (!result.ok) throw new Error(result.error ?? "The spreadsheet turned the claim down.");
 
-      setFields(blank());
-      setReceipt(null);
+      setFields(blank(email));
+      setReceipts([]);
       if (fileInput.current) fileInput.current.value = "";
       setMessage({ ok: true, text: `Sent to the treasurer. Your reference is ${result.ref}.` });
     } catch (err) {
@@ -130,6 +141,15 @@ export function ExpenseClaimForm({ kinds, name, email }: { kinds: ClaimKind[]; n
         {name ? <span className="expense-email"> · {email}</span> : null}
       </p>
 
+      {isWalkLeaderClaim(kind) ? (
+        <div className="day-note expense-intro">
+          <p>One claim per walk, within a month of it. You need full WL status: two shadowing walks and the training quiz.</p>
+          <p>Only the first six leaders to sign up are reimbursed: up to 75% of the recommended ticket price, and at most £30 a walk.</p>
+        </div>
+      ) : (
+        <p className="day-note expense-intro">Only claim with prior approval from the President or Treasurer.</p>
+      )}
+
       {kinds.length > 1 ? (
         <Field label="Claim type">
           <select value={kind} onChange={(e) => setKind(e.target.value as ClaimKind)}>
@@ -142,64 +162,105 @@ export function ExpenseClaimForm({ kinds, name, email }: { kinds: ClaimKind[]; n
         </Field>
       ) : null}
 
-      <div className="kit-form-row is-wide-first">
-        <Field label="Walk or event">
-          <input value={fields.event} onChange={set("event")} maxLength={200} placeholder="Seven Sisters #2" />
-        </Field>
-        <Field label="Date paid">
-          <input type="date" value={fields.date} onChange={set("date")} max={today()} required />
-        </Field>
-      </div>
+      {isWalkLeaderClaim(kind) ? (
+        <>
+          <Field label="Date of the walk/hike">
+            <input type="date" value={fields.date} onChange={set("date")} max={today()} required />
+          </Field>
+          <Field label="Nickname/preferred name" hint="Spelt as you sign up on the WL calendar, so the spreadsheet can see you led it.">
+            <input value={fields.nickname} onChange={set("nickname")} maxLength={60} required autoComplete="off" />
+          </Field>
+          <Field label="UCL email">
+            <input type="email" value={fields.uclEmail} onChange={set("uclEmail")} maxLength={120} placeholder="zcabxxx@ucl.ac.uk" required />
+          </Field>
+          <fieldset className="expense-question">
+            <legend>Have you submitted the Walk/Hike Route Feedback Form for this hike?</legend>
+            <div className="expense-choice">
+              <label>
+                <input
+                  type="checkbox"
+                  checked={fields.routeFeedback}
+                  onChange={(e) => {
+                    setFields((f) => ({ ...f, routeFeedback: e.target.checked }));
+                    setMessage(null);
+                  }}
+                  required
+                />
+                Yes
+              </label>
+            </div>
+            <small className="kit-field-hint">It takes about a minute, and the claim isn&apos;t processed without it.</small>
+          </fieldset>
+        </>
+      ) : (
+        <>
+          <div className="kit-form-row is-wide-first">
+            <Field label="Date of purchase">
+              <input type="date" value={fields.date} onChange={set("date")} max={today()} required />
+            </Field>
+            <Field label="Amount (£)" hint="The amount the President or Treasurer approved; it may not be the full cost.">
+              <input value={fields.amount} onChange={set("amount")} inputMode="decimal" placeholder="31.65" maxLength={10} required />
+            </Field>
+          </div>
+          <Field label="Description of purchase and extra info">
+            <textarea rows={2} value={fields.description} onChange={set("description")} maxLength={500} required placeholder="Train ticket to Seaford for the first-aid kit run" />
+          </Field>
+        </>
+      )}
 
-      <div className="kit-form-row is-wide-first">
-        <Field label="What for">
-          <select value={fields.category} onChange={set("category")} required>
-            <option value="" disabled>
-              Choose…
-            </option>
-            {CLAIM_CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Amount (£)">
-          <input value={fields.amount} onChange={set("amount")} inputMode="decimal" placeholder="31.65" maxLength={10} required />
-        </Field>
-      </div>
-
-      {asksWhatWasBought(kind) ? (
-        <Field label="What you bought">
-          <textarea rows={2} value={fields.description} onChange={set("description")} maxLength={500} required placeholder="Train ticket to Seaford for the first-aid kit run" />
-        </Field>
-      ) : null}
-
-      <Field label="Receipt" hint="A photo or PDF, up to 5 MB.">
+      <Field
+        label="Receipts"
+        hint={
+          isWalkLeaderClaim(kind)
+            ? "Not the ticket itself: the SU rejects those. Upload the order confirmation (a PDF or screenshot is fine), one per ticket, showing the cost, how and when it was paid, the date of travel and the journey's start and end. Up to 5 photos or PDFs, 5 MB each."
+            : "The order confirmation is fine (a PDF or screenshot), showing the cost, how it was paid and the date of purchase. Up to 5 photos or PDFs, 5 MB each."
+        }
+      >
         <input
           ref={fileInput}
           type="file"
+          multiple
           accept="image/*,application/pdf"
           onChange={(e) => {
-            setReceipt(e.target.files?.[0] ?? null);
+            setReceipts(Array.from(e.target.files ?? []));
             setMessage(null);
           }}
         />
       </Field>
 
       <fieldset className="expense-bank">
-        <legend className="event-eyebrow">Pay it into</legend>
-        <Field label="Name on the account">
-          <input value={fields.accountName} onChange={set("accountName")} maxLength={70} required autoComplete="off" />
-        </Field>
-        <div className="kit-form-row">
-          <Field label="Sort code">
-            <input value={fields.sortCode} onChange={set("sortCode")} inputMode="numeric" placeholder="00-00-00" maxLength={8} required autoComplete="off" />
-          </Field>
-          <Field label="Account number">
-            <input value={fields.accountNumber} onChange={set("accountNumber")} inputMode="numeric" placeholder="8 digits" maxLength={9} required autoComplete="off" />
-          </Field>
+        <legend className="event-eyebrow">Have you submitted your bank details before?</legend>
+        <small className="kit-field-hint">
+          {isWalkLeaderClaim(kind)
+            ? "Yes if you've given them on a walk-leader claim before."
+            : "Yes if you've given them on a committee expenses claim since August 2026. Walk-leader claims don't count: the two are kept separately."}
+        </small>
+        <div className="expense-choice" role="radiogroup">
+          {(["yes", "no"] as const).map((v) => (
+            <label key={v}>
+              <input type="radio" name="bankOnFile" value={v} checked={fields.bankOnFile === v} onChange={set("bankOnFile")} required />
+              {v === "yes" ? "Yes" : "No"}
+            </label>
+          ))}
         </div>
+        {fields.bankOnFile === "yes" ? (
+          <p className="kit-field-hint">The treasurer will pay into the account they already have for you.</p>
+        ) : null}
+        {fields.bankOnFile === "no" ? (
+          <>
+            <Field label="Name on the account">
+              <input value={fields.accountName} onChange={set("accountName")} maxLength={70} required autoComplete="off" />
+            </Field>
+            <div className="kit-form-row">
+              <Field label="Sort code">
+                <input value={fields.sortCode} onChange={set("sortCode")} inputMode="numeric" placeholder="00-00-00" maxLength={8} required autoComplete="off" />
+              </Field>
+              <Field label="Account number">
+                <input value={fields.accountNumber} onChange={set("accountNumber")} inputMode="numeric" placeholder="8 digits" maxLength={9} required autoComplete="off" />
+              </Field>
+            </div>
+          </>
+        ) : null}
       </fieldset>
 
       <p className="day-note">
