@@ -20,12 +20,25 @@
  * already exists, see README.md.
  */
 
-var UCLH_APP_TAB = 'App submissions';
-var UCLH_APP_HEADERS = [
-  'Timestamp', 'Reference', 'Claim type', 'Name', 'Email', 'App member ID',
-  'Nickname / preferred name', 'UCL email', 'Route feedback submitted', 'Date (walk or purchase)', 'Description', 'Amount (£)',
-  'Receipts', 'Bank details submitted before', 'Account name', 'Sort code', 'Account number',
-];
+/**
+ * One tab per form. Where a column holds what the claimant typed, it takes the
+ * heading Slava's WL Reimbursement / COM Reimbursement tabs use, so their
+ * formulas can read either. Columns those tabs work out (Form Status, Fancy
+ * Date, Did they WL this hike?, the payment descriptions) are left to them.
+ */
+var UCLH_APP_TABS = { wl: 'App WL claims', committee: 'App COM claims' };
+var UCLH_APP_HEADERS = {
+  wl: [
+    'Date Requested', 'Reference', 'Full Name (as on UCL ID)', 'App sign-in email', 'Preferred Name', 'Date of Hike:',
+    'Route feedback submitted', 'Receipt:', 'Previously submitted payment details?',
+    'Payee Name:', 'Payee Phone Number:', 'Payee UCL Email Address', 'Account Number', 'Sort Code',
+  ],
+  committee: [
+    'Date Requested', 'Reference', 'Full Name (as on UCL ID)', 'App sign-in email', 'Date of Purchase', 'Amount (£):',
+    'Purchase Description Submitted', 'Receipt:', 'Previously submitted payment details?',
+    'Payee Name:', 'Payee Phone Number:', 'Payee UCL Email Address', 'Account Number', 'Sort Code',
+  ],
+};
 var UCLH_APP_RECEIPT_TYPES = ['image/jpeg', 'image/png', 'image/heic', 'image/heif', 'image/webp', 'application/pdf'];
 var UCLH_APP_RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
 var UCLH_APP_RECEIPT_MAX_FILES = 5;
@@ -73,19 +86,37 @@ function uclhApp_handle(e) {
     var ref = uclhApp_reference();
     var receiptLinks = receipts.map(function (r) { return uclhApp_saveReceipt(r, ref, who.claims.name); }).join('\n');
 
-    var sheet = uclhApp_sheet();
-    var row = [
-      new Date(), ref, who.claims.kind === 'committee' ? 'Committee' : 'Walk leader',
-      who.claims.name, who.claims.email, who.claims.sub,
-      claim.value.nickname, claim.value.uclEmail, claim.value.routeFeedback, claim.value.date,
-      claim.value.description, claim.value.amount, receiptLinks, claim.value.bankOnFile ? 'Yes' : 'No',
-      claim.value.accountName, claim.value.sortCode, claim.value.accountNumber,
-    ].map(uclhApp_cell);
+    var kind = who.claims.kind === 'committee' ? 'committee' : 'wl';
+    var v = claim.value;
+    var cells = {
+      'Date Requested': new Date(),
+      'Reference': ref,
+      'Full Name (as on UCL ID)': who.claims.name,
+      'App sign-in email': who.claims.email,
+      'Preferred Name': v.nickname,
+      'Date of Hike:': v.date,
+      'Date of Purchase': v.date,
+      'Route feedback submitted': v.routeFeedback,
+      'Amount (£):': v.amount,
+      'Purchase Description Submitted': v.description,
+      'Receipt:': receiptLinks,
+      'Previously submitted payment details?': v.bankOnFile ? 'Yes' : 'No',
+      'Payee Name:': v.accountName,
+      'Payee Phone Number:': v.phone,
+      // Walk leaders always give a UCL email; payees only when they're new.
+      'Payee UCL Email Address': v.uclEmail,
+      'Account Number': v.accountNumber,
+      'Sort Code': v.sortCode,
+    };
+    var headers = UCLH_APP_HEADERS[kind];
+    var row = headers.map(function (h) { return uclhApp_cell(cells[h]); });
+    var sheet = uclhApp_sheet(kind);
     var at = sheet.getLastRow() + 1;
-    var range = sheet.getRange(at, 1, 1, row.length);
-    // Sort code and account number as text, so leading zeros survive.
-    sheet.getRange(at, 16, 1, 2).setNumberFormat('@');
-    range.setValues([row]);
+    // Phone, account number and sort code as text, so leading zeros survive.
+    ['Payee Phone Number:', 'Account Number', 'Sort Code'].forEach(function (h) {
+      sheet.getRange(at, headers.indexOf(h) + 1).setNumberFormat('@');
+    });
+    sheet.getRange(at, 1, 1, row.length).setValues([row]);
     return uclhApp_reply({ ok: true, ref: ref });
   } finally {
     lock.releaseLock();
@@ -150,7 +181,8 @@ function uclhApp_text(value, max) {
  * route feedback form. The spreadsheet works out
  * the amount and description from the walk. Committee claims give the date
  * of purchase, what was bought and how much. Either may say the treasurer already has
- * their bank details, and then sends none.
+ * their bank details, and then sends none; new payees add a phone number
+ * (and, on committee claims, their UCL email) as the sheet's payee columns ask.
  */
 function uclhApp_parseClaim(c, kind) {
   if (!c || typeof c !== 'object') return { ok: false, error: 'The claim is empty.' };
@@ -178,7 +210,7 @@ function uclhApp_parseClaim(c, kind) {
 
   if (c.bankOnFile !== 'yes' && c.bankOnFile !== 'no') return { ok: false, error: "Say whether you've sent your bank details before." };
   var bankOnFile = c.bankOnFile === 'yes';
-  var accountName = '', sortCode = '', accountNumber = '';
+  var accountName = '', sortCode = '', accountNumber = '', phone = '';
   if (!bankOnFile) {
     accountName = uclhApp_text(c.accountName, 70);
     if (!accountName) return { ok: false, error: 'Give the name on the bank account.' };
@@ -187,6 +219,14 @@ function uclhApp_parseClaim(c, kind) {
     accountNumber = String(c.accountNumber || '').replace(/\s/g, '');
     if (!/^\d{8}$/.test(accountNumber)) return { ok: false, error: 'The account number should be 8 digits.' };
     sortCode = sortCode.slice(0, 2) + '-' + sortCode.slice(2, 4) + '-' + sortCode.slice(4);
+    phone = uclhApp_text(c.phone, 20);
+    if (!/^\+?[\d\s()-]{10,20}$/.test(phone) || phone.replace(/\D/g, '').length < 10) {
+      return { ok: false, error: 'Give a phone number the treasurer can reach you on.' };
+    }
+    if (!wl) {
+      uclEmail = uclhApp_text(c.uclEmail, 120).toLowerCase();
+      if (!/^[^\s@]+@ucl\.ac\.uk$/.test(uclEmail)) return { ok: false, error: 'Give your UCL email, ending @ucl.ac.uk.' };
+    }
   }
 
   return {
@@ -202,6 +242,7 @@ function uclhApp_parseClaim(c, kind) {
       accountName: accountName,
       sortCode: sortCode,
       accountNumber: accountNumber,
+      phone: phone,
     },
   };
 }
@@ -236,18 +277,20 @@ function uclhApp_folder() {
   return folder;
 }
 
-function uclhApp_sheet() {
+function uclhApp_sheet(kind) {
+  var name = UCLH_APP_TABS[kind];
+  var headers = UCLH_APP_HEADERS[kind];
   var book = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = book.getSheetByName(UCLH_APP_TAB);
+  var sheet = book.getSheetByName(name);
   if (!sheet) {
-    sheet = book.insertSheet(UCLH_APP_TAB);
-    sheet.getRange(1, 1, 1, UCLH_APP_HEADERS.length).setValues([UCLH_APP_HEADERS]).setFontWeight('bold');
+    sheet = book.insertSheet(name);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
     sheet.setFrozenRows(1);
-  } else if (sheet.getRange(1, 1, 1, UCLH_APP_HEADERS.length).getValues()[0].join('|') !== UCLH_APP_HEADERS.join('|')) {
+  } else if (sheet.getRange(1, 1, 1, headers.length).getValues()[0].join('|') !== headers.join('|')) {
     // The form's questions changed: keep earlier rows under their old headings
     // and start a fresh tab for the new layout.
-    sheet.setName(UCLH_APP_TAB + ' (old ' + Utilities.formatDate(new Date(), 'Europe/London', 'yyyy-MM-dd') + ')');
-    return uclhApp_sheet();
+    sheet.setName(name + ' (old ' + Utilities.formatDate(new Date(), 'Europe/London', 'yyyy-MM-dd') + ')');
+    return uclhApp_sheet(kind);
   }
   return sheet;
 }
@@ -272,5 +315,5 @@ function uclhApp_checkSetup() {
   var secret = props.getProperty('UCLH_APP_SECRET');
   Logger.log(secret ? 'UCLH_APP_SECRET is set (' + secret.length + ' characters).' : 'UCLH_APP_SECRET is missing.');
   Logger.log('Receipts go to: ' + uclhApp_folder().getName());
-  Logger.log('Claims go to the tab: ' + uclhApp_sheet().getName());
+  Logger.log('Claims go to the tabs: ' + uclhApp_sheet('wl').getName() + ', ' + uclhApp_sheet('committee').getName());
 }

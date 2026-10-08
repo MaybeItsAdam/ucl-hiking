@@ -68,8 +68,8 @@ describe("claim tokens", () => {
 });
 
 describe("the Apps Script's claim check", () => {
-  const bank = { bankOnFile: "no", accountName: "A Walker", sortCode: "04-00-04", accountNumber: "01234567" };
-  const committee = { date: "2026-10-18", description: "Train ticket", amount: "31.65", ...bank };
+  const bank = { bankOnFile: "no", accountName: "A Walker", sortCode: "04-00-04", accountNumber: "01234567", phone: "07700 900123" };
+  const committee = { date: "2026-10-18", description: "Train ticket", amount: "31.65", uclEmail: "a.walker@ucl.ac.uk", ...bank };
   const wl = { date: "2026-10-18", nickname: "Al", uclEmail: "A.Walker@UCL.ac.uk", routeFeedback: true, ...bank };
 
   it("keeps leading zeros and formats the sort code", () => {
@@ -85,6 +85,8 @@ describe("the Apps Script's claim check", () => {
     expect(parseClaim({ ...committee, amount: "12.345" }, "committee").ok).toBe(false);
     expect(parseClaim({ ...committee, amount: "2000.01" }, "committee").ok).toBe(false);
     expect(parseClaim({ ...committee, description: " " }, "committee").ok).toBe(false);
+    expect(parseClaim({ ...committee, phone: "123" }, "committee").ok).toBe(false);
+    expect(parseClaim({ ...committee, uclEmail: "" }, "committee").ok).toBe(false);
   });
 
   it("takes walk-leader claims without an amount, needing the nickname and a UCL email", () => {
@@ -99,7 +101,7 @@ describe("the Apps Script's claim check", () => {
   it("sends no bank details when the treasurer already has them", () => {
     const parsed = parseClaim({ ...wl, bankOnFile: "yes", sortCode: "junk" }, "wl");
     expect(parsed.ok).toBe(true);
-    expect(parsed.value).toMatchObject({ bankOnFile: true, accountName: "", sortCode: "", accountNumber: "" });
+    expect(parsed.value).toMatchObject({ bankOnFile: true, accountName: "", sortCode: "", accountNumber: "", phone: "" });
     expect(parseClaim({ ...wl, bankOnFile: undefined }, "wl").ok).toBe(false);
   });
 });

@@ -20,6 +20,7 @@ const blank = (email: string): ClaimFields => ({
   accountName: "",
   sortCode: "",
   accountNumber: "",
+  phone: "",
   nickname: "",
   uclEmail: isUclEmail(email) ? email : "",
   routeFeedback: false,
@@ -102,7 +103,8 @@ export function ExpenseClaimForm({ kinds, name, email }: { kinds: ClaimKind[]; n
         description: wl ? "" : fields.description,
         amount: wl ? "" : fields.amount.replace(/[£,\s]/g, ""),
         nickname: wl ? fields.nickname : "",
-        uclEmail: wl ? fields.uclEmail.trim() : "",
+        uclEmail: wl || newBank ? fields.uclEmail.trim() : "",
+        phone: newBank ? fields.phone.trim() : "",
         routeFeedback: wl && fields.routeFeedback,
         bankOnFile: fields.bankOnFile,
         accountName: newBank ? fields.accountName : "",
@@ -259,6 +261,14 @@ export function ExpenseClaimForm({ kinds, name, email }: { kinds: ClaimKind[]; n
                 <input value={fields.accountNumber} onChange={set("accountNumber")} inputMode="numeric" placeholder="8 digits" maxLength={9} required autoComplete="off" />
               </Field>
             </div>
+            <Field label="Phone number">
+              <input type="tel" value={fields.phone} onChange={set("phone")} maxLength={20} placeholder="07700 900123" required autoComplete="tel" />
+            </Field>
+            {isWalkLeaderClaim(kind) ? null : (
+              <Field label="UCL email">
+                <input type="email" value={fields.uclEmail} onChange={set("uclEmail")} maxLength={120} placeholder="zcabxxx@ucl.ac.uk" required />
+              </Field>
+            )}
           </>
         ) : null}
       </fieldset>

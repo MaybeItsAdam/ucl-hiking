@@ -27,23 +27,29 @@ https://docs.google.com/spreadsheets/d/1RdlKdjaaBLwE6fSU2Obd1KcPcyEIAHXzkOyY3I6U
    - After editing the script, use **Manage deployments › Edit › New version**,
      so the URL stays the same.
 
-Claims land in a tab called **App submissions**, one row each:
+Claims land in two tabs, **App WL claims** and **App COM claims**, one row
+each. Columns the claimant fills in use the same headings as the WL
+Reimbursement and COM Reimbursement tabs (Date Requested, Preferred Name,
+Date of Hike:, Date of Purchase, Amount (£):, Receipt:, Payee Name:, Payee
+Phone Number:, Payee UCL Email Address, Account Number, Sort Code), so those
+tabs' formulas can read them. Columns they work out themselves (Form Status,
+Fancy Date, Did they WL this hike?, the payment descriptions) are not written.
+Each row also has:
 - the claim's reference, such as `UH-20261002-K7QD`;
-- the claimant;
-- for walk-leader claims, the date of the walk, the nickname they sign up
-  under on the WL calendar, their UCL email and that they've sent the route
-  feedback form (Description and Amount are
-  left blank for the spreadsheet to work out from the walk);
-- for committee claims, the date of purchase, what was bought and the amount;
+- the claimant's full name from their SU membership, and the email they
+  signed in to the app with;
+- for walk-leader claims, that they've sent the route feedback form
+  (Amount is left to the sheet, which works it out from the walk);
+- for committee claims, what was bought, under Purchase Description Submitted;
 - Drive links to the receipts (up to five, one per line);
-- whether they have sent their bank details before. If **Yes**, the bank
-  columns are blank and the spreadsheet uses the details it already has.
-  If **No**, the new bank details follow.
+- whether they have submitted payment details before. If **Yes**, the payee
+  columns are blank and the sheet uses the details stored under their name.
+  If **No**, the payee name, phone, UCL email and bank details follow.
 
-If the tab already exists with older headings (from before these columns), the
-script renames it to `App submissions (old <date>)` and starts a fresh one.
+If a tab already exists with older headings, the script renames it to
+`… (old <date>)` and starts a fresh one.
 
-The sort code and account number are stored as text. The form's own tab and
+The phone number, sort code and account number are stored as text. The form's own tab and
 existing scripts are untouched.
 
 "Anyone" means anyone can *reach* the URL. Only requests carrying a valid,

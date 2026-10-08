@@ -29,6 +29,8 @@ export interface ClaimFields {
   accountName: string;
   sortCode: string;
   accountNumber: string;
+  /** New payees: the treasurer's sheet keeps a phone number with the bank details. */
+  phone: string;
   /** Walk-leader claims: the name they sign up under on the WL calendar. */
   nickname: string;
   uclEmail: string;
@@ -42,6 +44,8 @@ export interface ClaimFields {
  * Committee claims say what was bought and how much.
  */
 export const isWalkLeaderClaim = (kind: ClaimKind) => kind === "wl";
+
+export const isPhone = (phone: string) => /^\+?[\d\s()-]{10,20}$/.test(phone.trim()) && phone.replace(/\D/g, "").length >= 10;
 
 export const isUclEmail = (email: string) => /^[^\s@]+@ucl\.ac\.uk$/i.test(email.trim());
 
@@ -65,6 +69,8 @@ export function claimProblem(c: ClaimFields, kind: ClaimKind): string | null {
     if (!c.accountName.trim()) return "Give the name on the bank account.";
     if (!/^\d{6}$/.test(c.sortCode.replace(/[\s-]/g, ""))) return "The sort code should be 6 digits.";
     if (!/^\d{8}$/.test(c.accountNumber.replace(/\s/g, ""))) return "The account number should be 8 digits.";
+    if (!isPhone(c.phone)) return "Give a phone number the treasurer can reach you on.";
+    if (!isWalkLeaderClaim(kind) && !isUclEmail(c.uclEmail)) return "Give your UCL email, ending @ucl.ac.uk.";
   }
   return null;
 }
