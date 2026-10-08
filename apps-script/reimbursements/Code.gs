@@ -21,23 +21,25 @@
  */
 
 /**
- * One tab per form. Where a column holds what the claimant typed, it takes the
- * heading Slava's WL Reimbursement / COM Reimbursement tabs use, so their
- * formulas can read either. Columns those tabs work out (Form Status, Fancy
- * Date, Did they WL this hike?, the payment descriptions) are left to them.
+ * One tab per form, with the columns of that form's raw-responses tab
+ * (WL_RawData and its committee twin) in the same order, filled the way Google
+ * Forms fills them. So the sheet's formulas can read both stacked, e.g.
+ *   ={WL_RawData!A2:L; 'App WL claims'!A2:L}
+ * The app's own columns come after the form's and stay out of that range.
  */
 var UCLH_APP_TABS = { wl: 'App WL claims', committee: 'App COM claims' };
+var UCLH_APP_PAYMENT_HEADERS = [
+  'Have you previously submitted your payment details?', 'Phone Number:', 'UCL Email (name.name.year@ucl.ac.uk):',
+  'Full Name (as on bank account):', 'Account Number:', 'Sort Code:',
+];
+var UCLH_APP_EXTRA_HEADERS = ['App reference', 'App sign-in email'];
 var UCLH_APP_HEADERS = {
-  wl: [
-    'Date Requested', 'Reference', 'Full Name (as on UCL ID)', 'App sign-in email', 'Preferred Name', 'Date of Hike:',
-    'Route feedback submitted', 'Receipt:', 'Previously submitted payment details?',
-    'Payee Name:', 'Payee Phone Number:', 'Payee UCL Email Address', 'Account Number', 'Sort Code',
-  ],
-  committee: [
-    'Date Requested', 'Reference', 'Full Name (as on UCL ID)', 'App sign-in email', 'Date of Purchase', 'Amount (£):',
-    'Purchase Description Submitted', 'Receipt:', 'Previously submitted payment details?',
-    'Payee Name:', 'Payee Phone Number:', 'Payee UCL Email Address', 'Account Number', 'Sort Code',
-  ],
+  wl: ['Timestamp', 'Full Name (as on UCL ID)', 'Date of the walk/hike:',
+    'Have you submitted the required Walk/Hike Route Feedback Form for this hike?', 'Receipt:']
+    .concat(UCLH_APP_PAYMENT_HEADERS, ['Preferred Name'], UCLH_APP_EXTRA_HEADERS),
+  committee: ['Timestamp', 'Full Name (as on UCL ID)', 'Date of purchase:', 'Amount (£) eligible for reimbursement:',
+    'Description of purchase and extra info:', 'Receipt:']
+    .concat(UCLH_APP_PAYMENT_HEADERS, UCLH_APP_EXTRA_HEADERS),
 };
 var UCLH_APP_RECEIPT_TYPES = ['image/jpeg', 'image/png', 'image/heic', 'image/heif', 'image/webp', 'application/pdf'];
 var UCLH_APP_RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
@@ -84,36 +86,38 @@ function uclhApp_handle(e) {
     cache.put(seenKey, '1', 21600);
 
     var ref = uclhApp_reference();
-    var receiptLinks = receipts.map(function (r) { return uclhApp_saveReceipt(r, ref, who.claims.name); }).join('\n');
+    var receiptLinks = receipts.map(function (r) { return uclhApp_saveReceipt(r, ref, who.claims.name); }).join(', ');
 
     var kind = who.claims.kind === 'committee' ? 'committee' : 'wl';
     var v = claim.value;
+    var day = v.date.split('-');
     var cells = {
-      'Date Requested': new Date(),
-      'Reference': ref,
+      'Timestamp': new Date(),
       'Full Name (as on UCL ID)': who.claims.name,
-      'App sign-in email': who.claims.email,
-      'Preferred Name': v.nickname,
-      'Date of Hike:': v.date,
-      'Date of Purchase': v.date,
-      'Route feedback submitted': v.routeFeedback,
-      'Amount (£):': v.amount,
-      'Purchase Description Submitted': v.description,
+      'Date of the walk/hike:': new Date(Number(day[0]), Number(day[1]) - 1, Number(day[2])),
+      'Date of purchase:': new Date(Number(day[0]), Number(day[1]) - 1, Number(day[2])),
+      'Have you submitted the required Walk/Hike Route Feedback Form for this hike?': v.routeFeedback,
+      'Amount (£) eligible for reimbursement:': v.amount,
+      'Description of purchase and extra info:': v.description,
+      // Forms lists uploads as comma-separated Drive links.
       'Receipt:': receiptLinks,
-      'Previously submitted payment details?': v.bankOnFile ? 'Yes' : 'No',
-      'Payee Name:': v.accountName,
-      'Payee Phone Number:': v.phone,
-      // Walk leaders always give a UCL email; payees only when they're new.
-      'Payee UCL Email Address': v.uclEmail,
-      'Account Number': v.accountNumber,
-      'Sort Code': v.sortCode,
+      'Have you previously submitted your payment details?': v.bankOnFile ? 'Yes' : 'No',
+      'Phone Number:': v.phone,
+      // Walk leaders always give a UCL email; committee payees only when they're new.
+      'UCL Email (name.name.year@ucl.ac.uk):': v.uclEmail,
+      'Full Name (as on bank account):': v.accountName,
+      'Account Number:': v.accountNumber,
+      'Sort Code:': v.sortCode,
+      'Preferred Name': v.nickname,
+      'App reference': ref,
+      'App sign-in email': who.claims.email,
     };
     var headers = UCLH_APP_HEADERS[kind];
     var row = headers.map(function (h) { return uclhApp_cell(cells[h]); });
     var sheet = uclhApp_sheet(kind);
     var at = sheet.getLastRow() + 1;
     // Phone, account number and sort code as text, so leading zeros survive.
-    ['Payee Phone Number:', 'Account Number', 'Sort Code'].forEach(function (h) {
+    ['Phone Number:', 'Account Number:', 'Sort Code:'].forEach(function (h) {
       sheet.getRange(at, headers.indexOf(h) + 1).setNumberFormat('@');
     });
     sheet.getRange(at, 1, 1, row.length).setValues([row]);

@@ -28,23 +28,20 @@ https://docs.google.com/spreadsheets/d/1RdlKdjaaBLwE6fSU2Obd1KcPcyEIAHXzkOyY3I6U
      so the URL stays the same.
 
 Claims land in two tabs, **App WL claims** and **App COM claims**, one row
-each. Columns the claimant fills in use the same headings as the WL
-Reimbursement and COM Reimbursement tabs (Date Requested, Preferred Name,
-Date of Hike:, Date of Purchase, Amount (£):, Receipt:, Payee Name:, Payee
-Phone Number:, Payee UCL Email Address, Account Number, Sort Code), so those
-tabs' formulas can read them. Columns they work out themselves (Form Status,
-Fancy Date, Did they WL this hike?, the payment descriptions) are not written.
-Each row also has:
-- the claim's reference, such as `UH-20261002-K7QD`;
-- the claimant's full name from their SU membership, and the email they
-  signed in to the app with;
-- for walk-leader claims, that they've sent the route feedback form
-  (Amount is left to the sheet, which works it out from the walk);
-- for committee claims, what was bought, under Purchase Description Submitted;
-- Drive links to the receipts (up to five, one per line);
-- whether they have submitted payment details before. If **Yes**, the payee
-  columns are blank and the sheet uses the details stored under their name.
-  If **No**, the payee name, phone, UCL email and bank details follow.
+each. Their first columns are exactly the columns of the forms' raw-response
+tabs (`WL_RawData` and the committee one), in the same order and filled the
+way Google Forms fills them: Yes/No answers, dates as dates, receipts as
+comma-separated Drive links, and the payment columns blank when the claimant
+has submitted them before. So the sheet's formulas can read the form and the
+app together, for example:
+
+    ={WL_RawData!A2:L; 'App WL claims'!A2:L}
+
+After those come two columns of the app's own: the claim's reference (such as
+`UH-20261002-K7QD`) and the email the claimant signed in to the app with.
+
+Walk-leader rows always carry the UCL email. They leave Amount to the sheet,
+which works it out from the walk.
 
 If a tab already exists with older headings, the script renames it to
 `… (old <date>)` and starts a fresh one.
