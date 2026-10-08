@@ -150,14 +150,24 @@ export function columnLetter(index: number): string {
 
 
 /** Each row's value for a developer-metadata key, for one tab (index 0 = row 1). */
-export async function rowKeys(spreadsheetId: string, tab: string, key: string): Promise<(string | null)[]> {
+export interface RowTag {
+  id: number;
+  value: string;
+}
+
+/** Each row's tags under `key`, in Google's order, which isn't stable: a row can carry more than one. */
+export async function rowTags(spreadsheetId: string, tab: string, key: string): Promise<RowTag[][]> {
   const data = await call<{
-    sheets?: { data?: { rowMetadata?: { developerMetadata?: { metadataKey?: string; metadataValue?: string }[] }[] }[] }[];
+    sheets?: { data?: { rowMetadata?: { developerMetadata?: { metadataId?: number; metadataKey?: string; metadataValue?: string }[] }[] }[] }[];
   }>(
-    `${encodeURIComponent(spreadsheetId)}?ranges=${encodeURIComponent(a1(tab, "A:A"))}&fields=sheets.data.rowMetadata.developerMetadata(metadataKey,metadataValue)`,
+    `${encodeURIComponent(spreadsheetId)}?ranges=${encodeURIComponent(a1(tab, "A:A"))}&fields=sheets.data.rowMetadata.developerMetadata(metadataId,metadataKey,metadataValue)`,
   );
   const rows = data.sheets?.[0]?.data?.[0]?.rowMetadata ?? [];
-  return rows.map((r) => r.developerMetadata?.find((m) => m.metadataKey === key)?.metadataValue ?? null);
+  return rows.map((r) =>
+    (r.developerMetadata ?? [])
+      .filter((m) => m.metadataKey === key && m.metadataValue && m.metadataId !== undefined)
+      .map((m) => ({ id: m.metadataId!, value: m.metadataValue! })),
+  );
 }
 
 async function batchUpdate(spreadsheetId: string, requests: unknown[]) {
@@ -182,6 +192,14 @@ export async function tagRows(spreadsheetId: string, sheetId: number, key: strin
         },
       },
     })),
+  );
+}
+
+/** Remove tags by their metadata IDs. */
+export async function untagRows(spreadsheetId: string, ids: number[]) {
+  await batchUpdate(
+    spreadsheetId,
+    ids.map((metadataId) => ({ deleteDeveloperMetadata: { dataFilter: { developerMetadataLookup: { metadataId } } } })),
   );
 }
 

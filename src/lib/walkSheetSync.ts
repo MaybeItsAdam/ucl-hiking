@@ -6,8 +6,9 @@ import {
   columnLetter,
   formulaCells,
   readValues,
-  rowKeys,
+  rowTags,
   SheetsError,
+  untagRows,
   spreadsheetTabs,
   tagRows,
   writeCells,
@@ -73,6 +74,7 @@ export interface StoredWalk {
   visibility_source: "sheet" | "app";
   present: boolean;
   synced_at: string;
+  created_at?: string;
 }
 
 export interface Conflict {
@@ -105,14 +107,40 @@ const stable = (value: unknown) =>
 /** Read all three tabs into walks with every editable value, tagging any untagged rows. */
 async function readSheets(known: StoredWalk[], { tag = true } = {}): Promise<Snapshot> {
   const main = WALK_SHEETS.main;
-  const [{ tabs }, rows, formulas, keys] = await Promise.all([
+  const [{ tabs }, rows, formulas, tagged] = await Promise.all([
     spreadsheetTabs(main),
     readValues(main, a1(TABS.main, "A1:AZ")),
     readValues(main, a1(TABS.main, "A1:AZ"), "FORMULA"),
-    rowKeys(main, TABS.main, ROW_KEY),
+    rowTags(main, TABS.main, ROW_KEY),
   ]);
   const mainTab = tabs.find((t) => t.title === TABS.main);
   if (!mainTab) throw new SheetsError(`The committee calendar has no "${TABS.main}" tab.`);
+  const keys = tagged.map((tags) => tags[0]?.value ?? null);
+  // A row tagged twice (two syncs that raced on 2 Oct) comes back with its tags
+  // in either order, so each read would swap which stored walk is current. Keep
+  // the tag of the walk already shown, else the oldest, and drop the others.
+  const byKey = new Map(known.map((k) => [k.row_key, k]));
+  const extraTags: number[] = [];
+  const extraKeys: string[] = [];
+  tagged.forEach((tags, i) => {
+    if (tags.length < 2) return;
+    const rank = (t: { value: string }) => {
+      const k = byKey.get(t.value);
+      return [k?.present ? 0 : 1, k ? 0 : 1, k?.created_at ?? "", t.value].join("|");
+    };
+    const [keep, ...drop] = [...tags].sort((a, b) => rank(a).localeCompare(rank(b)));
+    keys[i] = keep.value;
+    for (const t of drop) {
+      extraTags.push(t.id);
+      extraKeys.push(t.value);
+    }
+  });
+  // Tags first: once a row has one, no later read can bring the dropped walk back.
+  if (extraTags.length && tag) {
+    await untagRows(main, extraTags);
+    const { error } = await getSupabaseAdmin().from("sheet_walks").delete().in("row_key", extraKeys);
+    if (error) throw new Error(error.message);
+  }
   const calendar = readCalendar(rows, formulas, keys);
   if (!calendar) throw new SheetsError(`Couldn't find the header row (DATE, EVENT NAME, MEMBERSHIP) on "${TABS.main}".`);
 
