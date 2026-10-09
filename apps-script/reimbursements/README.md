@@ -51,3 +51,25 @@ existing scripts are untouched.
 
 "Anyone" means anyone can *reach* the URL. Only requests carrying a valid,
 unexpired, unused token from the app are written. Each token works once.
+
+## My walks: which walks still need a claim
+
+The app's **Events › My walks** page shows walk leaders the walks they've led
+in the last three months, each marked **Claimed** or **Not claimed**. It asks
+this script, server to server, for the spreadsheet's walk-leader claims
+(`{"action": "wlClaims", ...}` on the same `/exec` URL). The pass is signed
+with the same secret but carries `scope: "wl-claims"`, which the tokens given
+to members' browsers never have, and lasts a minute. The answer is each
+claim's walk date, full name, preferred name and emails: no amounts, bank
+details or receipts.
+
+It reads every tab laid out like the WL form's responses (`Timestamp` in A1
+and a "Date of the walk/hike" column), so the form's own tab, **App WL
+claims** and any `(old …)` tabs. To name the tabs instead, set the script
+property `UCLH_WL_CLAIM_TABS` to a comma-separated list, e.g.
+`WL_RawData, App WL claims`. `uclhApp_checkSetup` logs which tabs it reads.
+
+After pasting in a new `Code.gs`, publish it with **Manage deployments › Edit
+› Version: New version › Deploy** so the URL stays the same. Until the script
+is deployed and the app has `REIMBURSE_SCRIPT_URL` and
+`REIMBURSE_SIGNING_SECRET`, My walks leaves claim status out.

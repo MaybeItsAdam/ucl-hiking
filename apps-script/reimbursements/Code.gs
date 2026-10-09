@@ -60,6 +60,11 @@ function uclhApp_handle(e) {
   var secret = PropertiesService.getScriptProperties().getProperty('UCLH_APP_SECRET');
   if (!secret) return uclhApp_reply({ ok: false, error: 'The spreadsheet is not set up for app claims yet.' });
 
+  // The app's server asking which walks have claims, for its My walks page.
+  if (body && body.action === 'wlClaims') {
+    return uclhApp_reply(uclhApp_wlClaims(body, secret, Math.floor(Date.now() / 1000), SpreadsheetApp.getActiveSpreadsheet()));
+  }
+
   var who = uclhApp_verifyToken(body && body.token, secret, Math.floor(Date.now() / 1000));
   if (!who.ok) return uclhApp_reply({ ok: false, error: who.error });
 
@@ -147,24 +152,31 @@ function uclhApp_b64urlDecode(text) {
  */
 function uclhApp_verifyToken(token, secret, nowSeconds) {
   var bad = { ok: false, error: 'Your sign-in to the claim form has expired. Reload the page in the app and send it again.' };
-  if (typeof token !== 'string' || token.length > 4000) return bad;
+  var claims = uclhApp_signedClaims(token, secret, nowSeconds);
+  if (!claims) return bad;
+  if (claims.kind !== 'wl' && claims.kind !== 'committee') return bad;
+  if (typeof claims.sub !== 'string' || typeof claims.email !== 'string' || typeof claims.jti !== 'string') return bad;
+  if (typeof claims.name !== 'string') claims.name = '';
+  return { ok: true, claims: claims };
+}
+
+/** The claims of a correctly signed, unexpired token; null otherwise. */
+function uclhApp_signedClaims(token, secret, nowSeconds) {
+  if (typeof token !== 'string' || token.length > 4000) return null;
   var parts = token.split('.');
-  if (parts.length !== 2 || !/^[A-Za-z0-9_-]+$/.test(parts[0]) || !/^[A-Za-z0-9_-]+$/.test(parts[1])) return bad;
+  if (parts.length !== 2 || !/^[A-Za-z0-9_-]+$/.test(parts[0]) || !/^[A-Za-z0-9_-]+$/.test(parts[1])) return null;
 
   var expected = uclhApp_b64url(Utilities.computeHmacSha256Signature(parts[0], secret, Utilities.Charset.UTF_8));
-  if (!uclhApp_sameText(expected, parts[1])) return bad;
+  if (!uclhApp_sameText(expected, parts[1])) return null;
 
   var claims;
   try {
     claims = JSON.parse(Utilities.newBlob(uclhApp_b64urlDecode(parts[0])).getDataAsString('UTF-8'));
   } catch (err) {
-    return bad;
+    return null;
   }
-  if (!claims || typeof claims.exp !== 'number' || claims.exp < nowSeconds) return bad;
-  if (claims.kind !== 'wl' && claims.kind !== 'committee') return bad;
-  if (typeof claims.sub !== 'string' || typeof claims.email !== 'string' || typeof claims.jti !== 'string') return bad;
-  if (typeof claims.name !== 'string') claims.name = '';
-  return { ok: true, claims: claims };
+  if (!claims || typeof claims !== 'object' || typeof claims.exp !== 'number' || claims.exp < nowSeconds) return null;
+  return claims;
 }
 
 /** Compare without stopping at the first difference. */
@@ -320,4 +332,104 @@ function uclhApp_checkSetup() {
   Logger.log(secret ? 'UCLH_APP_SECRET is set (' + secret.length + ' characters).' : 'UCLH_APP_SECRET is missing.');
   Logger.log('Receipts go to: ' + uclhApp_folder().getName());
   Logger.log('Claims go to the tabs: ' + uclhApp_sheet('wl').getName() + ', ' + uclhApp_sheet('committee').getName());
+  Logger.log('My walks reads walk-leader claims from: ' +
+    uclhApp_wlClaimTabs(SpreadsheetApp.getActiveSpreadsheet()).map(function (s) { return s.getName(); }).join(', '));
+}
+
+// ---------------------------------------------------------------------------
+// Which walks have walk-leader claims, for the app's My walks page.
+//
+// Only the app's server can ask: its token says scope "wl-claims", which the
+// tokens handed to members' browsers never carry. The answer is each claim's
+// walk date, names and emails: no bank details, amounts or receipts.
+
+var UCLH_APP_READ_SCOPE = 'wl-claims';
+
+function uclhApp_wlClaims(body, secret, nowSeconds, book) {
+  var claims = uclhApp_signedClaims(body && body.token, secret, nowSeconds);
+  if (!claims || claims.scope !== UCLH_APP_READ_SCOPE) return { ok: false, error: 'Not allowed.' };
+  var since = typeof body.since === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(body.since) ? body.since : '';
+  var zone = book.getSpreadsheetTimeZone();
+  var out = [];
+  uclhApp_wlClaimTabs(book).forEach(function (sheet) {
+    var values = sheet.getDataRange().getValues();
+    out = out.concat(uclhApp_wlClaimRows(values, zone, since));
+  });
+  return { ok: true, claims: out };
+}
+
+/**
+ * The tabs holding walk-leader claims: those named in the script property
+ * UCLH_WL_CLAIM_TABS (comma-separated), else every tab laid out like the WL
+ * form's responses (Timestamp in A1 and a "Date of the walk/hike" column).
+ * That finds the form's own tab and the app's, old ones included.
+ */
+function uclhApp_wlClaimTabs(book) {
+  var named = PropertiesService.getScriptProperties().getProperty('UCLH_WL_CLAIM_TABS');
+  if (named) {
+    return named.split(',').map(function (n) { return book.getSheetByName(n.trim()); }).filter(function (s) { return s; });
+  }
+  return book.getSheets().filter(function (sheet) {
+    var width = sheet.getLastColumn();
+    if (!width || sheet.getLastRow() < 1) return false;
+    return uclhApp_isWlClaimHeader(sheet.getRange(1, 1, 1, width).getValues()[0]);
+  });
+}
+
+function uclhApp_headerText(h) {
+  return String(h == null ? '' : h).trim().toLowerCase();
+}
+
+function uclhApp_isWlClaimHeader(header) {
+  return uclhApp_headerText(header[0]) === 'timestamp' &&
+    header.some(function (h) { return uclhApp_headerText(h).indexOf('date of the walk') === 0; });
+}
+
+/** Rows of a WL claims tab (header first) as { date, name, preferred, emails }, walks on or after `since`. */
+function uclhApp_wlClaimRows(values, zone, since) {
+  var header = (values[0] || []).map(uclhApp_headerText);
+  var col = function (prefix) {
+    for (var i = 0; i < header.length; i++) if (header[i].indexOf(prefix) === 0) return i;
+    return -1;
+  };
+  var dateCol = col('date of the walk');
+  if (dateCol === -1) return [];
+  var nameCol = col('full name (as on ucl id)');
+  var preferredCol = col('preferred name');
+  var emailCols = [];
+  header.forEach(function (h, i) { if (h.indexOf('email') !== -1) emailCols.push(i); });
+
+  var out = [];
+  for (var r = 1; r < values.length; r++) {
+    var row = values[r] || [];
+    var date = uclhApp_isoDay(row[dateCol], zone);
+    if (!date || (since && date < since)) continue;
+    var emails = [];
+    emailCols.forEach(function (i) {
+      var e = String(row[i] == null ? '' : row[i]).trim().toLowerCase();
+      if (/^[^\s@]+@[^\s@]+$/.test(e) && emails.indexOf(e) === -1) emails.push(e);
+    });
+    out.push({
+      date: date,
+      name: nameCol === -1 ? '' : String(row[nameCol] == null ? '' : row[nameCol]).trim().slice(0, 100),
+      preferred: preferredCol === -1 ? '' : String(row[preferredCol] == null ? '' : row[preferredCol]).trim().slice(0, 100),
+      emails: emails,
+    });
+  }
+  return out;
+}
+
+/** A date cell as "2026-10-18": a Sheets date, or text typed as 18/10/2026 or 2026-10-18. */
+function uclhApp_isoDay(cell, zone) {
+  if (Object.prototype.toString.call(cell) === '[object Date]') {
+    return isNaN(cell.getTime()) ? '' : Utilities.formatDate(cell, zone, 'yyyy-MM-dd');
+  }
+  var text = String(cell == null ? '' : cell).trim();
+  var m = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+  m = text.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})/);
+  if (!m) return '';
+  var year = Number(m[3]) < 100 ? 2000 + Number(m[3]) : Number(m[3]);
+  if (Number(m[2]) < 1 || Number(m[2]) > 12 || Number(m[1]) < 1 || Number(m[1]) > 31) return '';
+  return year + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
 }

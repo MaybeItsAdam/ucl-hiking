@@ -58,9 +58,24 @@ function base64Of(blob: Blob): Promise<string> {
  * who is claiming; it never sees the amount, the receipt or the bank details,
  * and nothing is kept in the browser either.
  */
-export function ExpenseClaimForm({ kinds, name, email }: { kinds: ClaimKind[]; name: string; email: string }) {
-  const [kind, setKind] = useState<ClaimKind>(kinds[0]);
-  const [fields, setFields] = useState<ClaimFields>(() => blank(email));
+export function ExpenseClaimForm({
+  kinds,
+  name,
+  email,
+  initial,
+}: {
+  kinds: ClaimKind[];
+  name: string;
+  email: string;
+  /** Prefill, as from My walks' "Claim" on a walk: the claim type, walk date and calendar name. */
+  initial?: { kind?: ClaimKind; date?: string; nickname?: string };
+}) {
+  const [kind, setKind] = useState<ClaimKind>(initial?.kind && kinds.includes(initial.kind) ? initial.kind : kinds[0]);
+  const [fields, setFields] = useState<ClaimFields>(() => ({
+    ...blank(email),
+    ...(initial?.date ? { date: initial.date } : {}),
+    ...(initial?.nickname ? { nickname: initial.nickname } : {}),
+  }));
   const [receipts, setReceipts] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);

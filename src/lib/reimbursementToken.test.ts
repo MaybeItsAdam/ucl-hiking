@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
-import { CLAIM_TOKEN_TTL_SECONDS, signClaimToken } from "./reimbursementToken";
+import { CLAIM_TOKEN_TTL_SECONDS, signClaimToken, signReadToken } from "./reimbursementToken";
 
 /**
  * The Apps Script that receives claims, run here against stand-ins for the
@@ -23,10 +23,12 @@ const Utilities = {
     return signed(Buffer.from(text.replace(/-/g, "+").replace(/_/g, "/"), "base64"));
   },
   newBlob: (bytes: number[]) => ({ getDataAsString: () => unsigned(bytes).toString("utf8") }),
+  formatDate: (d: Date) => d.toISOString().slice(0, 10),
 };
+const PropertiesService = { getScriptProperties: () => ({ getProperty: () => null }) };
 
 const script = readFileSync(join(__dirname, "../../apps-script/reimbursements/Code.gs"), "utf8");
-const gs: Record<string, unknown> = { Utilities };
+const gs: Record<string, unknown> = { Utilities, PropertiesService };
 runInNewContext(script, gs);
 type Verify = (token: unknown, secret: string, now: number) => { ok: boolean; claims?: Record<string, unknown>; error?: string };
 type Parse = (claim: unknown, kind?: string) => { ok: boolean; value?: Record<string, unknown>; error?: string };
@@ -103,5 +105,46 @@ describe("the Apps Script's claim check", () => {
     expect(parsed.ok).toBe(true);
     expect(parsed.value).toMatchObject({ bankOnFile: true, accountName: "", sortCode: "", accountNumber: "", phone: "" });
     expect(parseClaim({ ...wl, bankOnFile: undefined }, "wl").ok).toBe(false);
+  });
+});
+
+describe("the Apps Script's walk-leader claims read", () => {
+  type Read = (body: unknown, secret: string, now: number, book: unknown) => { ok: boolean; claims?: unknown[]; error?: string };
+  const read = gs.uclhApp_wlClaims as Read;
+  const tab = (values: unknown[][]) => ({
+    getLastColumn: () => values[0]?.length ?? 0,
+    getLastRow: () => values.length,
+    getRange: () => ({ getValues: () => [values[0]] }),
+    getDataRange: () => ({ getValues: () => values }),
+  });
+  const formTab = tab([
+    ["Timestamp", "Full Name (as on UCL ID)", "Date of the walk/hike:", "Receipt:", "UCL Email (name.name.year@ucl.ac.uk):", "Account Number:", "Preferred Name"],
+    [new Date("2026-10-05T10:00:00Z"), "Valentino Walker", new Date("2026-10-04T12:00:00Z"), "", "V.Walker.24@ucl.ac.uk ", "12345678", "Val"],
+    ["", "Typed date", "18/9/2026", "", "", "", ""],
+    ["", "Too old", new Date("2026-01-04T12:00:00Z"), "", "", "", ""],
+  ]);
+  const otherTab = tab([["Name", "Amount"], ["x", 1]]);
+  const book = { getSpreadsheetTimeZone: () => "Europe/London", getSheets: () => [formTab, otherTab] };
+
+  it("answers the server's read pass with dates, names and emails only", () => {
+    const res = read({ token: signReadToken(SECRET, NOW), since: "2026-07-01" }, SECRET, NOW + 5, book);
+    expect(res).toEqual({
+      ok: true,
+      claims: [
+        { date: "2026-10-04", name: "Valentino Walker", preferred: "Val", emails: ["v.walker.24@ucl.ac.uk"] },
+        { date: "2026-09-18", name: "Typed date", preferred: "", emails: [] },
+      ],
+    });
+    expect(JSON.stringify(res)).not.toContain("12345678");
+  });
+
+  it("refuses a member's claim token, an expired pass or the wrong secret", () => {
+    expect(read({ token: signClaimToken(who, SECRET, NOW) }, SECRET, NOW, book).ok).toBe(false);
+    expect(read({ token: signReadToken(SECRET, NOW) }, SECRET, NOW + 120, book).ok).toBe(false);
+    expect(read({ token: signReadToken("other", NOW) }, SECRET, NOW, book).ok).toBe(false);
+  });
+
+  it("and the read pass can't be used to send a claim", () => {
+    expect(verify(signReadToken(SECRET, NOW), SECRET, NOW).ok).toBe(false);
   });
 });

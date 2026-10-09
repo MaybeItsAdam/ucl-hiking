@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { Check, ChevronRight, Footprints } from "lucide-react";
 import { EventFacts } from "@/components/EventFacts";
 import { EventsSubnav } from "@/components/EventsSubnav";
 import { HikeMap } from "@/components/HikeMap";
+import { WalkClaims } from "@/components/WalkClaims";
 import { can, profileOf } from "@/lib/access";
 import { getMemberAttendance } from "@/lib/attendees";
 import { eventDetails, formatAscent, formatKm } from "@/lib/eventDetails";
@@ -19,6 +21,7 @@ export const metadata: Metadata = { title: "My walks | UCL Hiking Club" };
 /**
  * The walks you're on and the ones you've done: from your SU tickets and the
  * leaders' registers. This year's totals and a map of where you've been.
+ * Walk leaders also see the walks they've led and which still need a claim.
  */
 export default async function MyWalksPage() {
   const member = await getCurrentMember();
@@ -43,6 +46,13 @@ export default async function MyWalksPage() {
   return (
     <article className="events-page">
       <EventsSubnav active="mine" showRota={showRota} showProgramme={can(profileOf(member), "manage_walks")} />
+
+      {showRota ? (
+        // Reads the reimbursement spreadsheet, which can take a few seconds: the rest of the page doesn't wait.
+        <Suspense fallback={null}>
+          <WalkClaims member={member} />
+        </Suspense>
+      ) : null}
 
       {events.length ? (
         <>
