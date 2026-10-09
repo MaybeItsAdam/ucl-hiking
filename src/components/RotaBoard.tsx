@@ -5,41 +5,57 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { Sheet } from "@/components/Sheet";
-import { AVAILABILITY, AVAILABILITY_LABELS, type Availability } from "@/lib/rota";
+import { ROTA_FIELDS, ROTA_LABELS, ROTA_LISTS, ROTA_SLOTS, type RotaField } from "@/lib/rota";
 
 export interface RotaWalk {
-  id: string;
-  suuId: string;
+  /** Stable React key: the sheet walk's id, or `su:<id>` for an SU walk the WL calendar lacks. */
+  key: string;
+  /** sheet_walks id; null when the WL calendar has no row for it. */
+  walkId: string | null;
+  /** The app's event id, for "Walk details". */
+  eventId: string | null;
   name: string;
   when: string;
   weekday: string;
   day: string;
   month: string;
-  leaderId: string | null;
-  leaderName: string | null;
-  backmarkerId: string | null;
-  backmarkerName: string | null;
-  mine: Availability | null;
-  offers: { memberId: string; name: string; status: Availability }[];
+  /** False when the WL calendar has no sign-up row (or the cells are formulas). */
+  editable: boolean;
+  /** Each rota cell as the sheet has it. */
+  values: Record<RotaField, string>;
+  /** An app edit the sheet had moved on from, waiting for someone to pick. */
+  conflicts: Partial<Record<RotaField, { sheet: string; app: string }>>;
+  /** Changes whenever the walk is saved or re-read, so the form starts again from the sheet. */
+  version: string;
+  /** For the list: names in the six slots, and how many additional / shadowing. */
+  leaders: string[];
+  extra: number;
+  shadowing: number;
 }
 
-export interface RotaPerson {
-  id: string;
-  name: string;
-}
+/** A list cell ("A, B, C") as the text area shows it: one name a line. */
+const asLines = (cell: string) =>
+  cell
+    .split(/,(?![^()]*\))/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join("\n");
+
+const isList = (field: RotaField) => (ROTA_LISTS as readonly string[]).includes(field);
 
 /**
- * Upcoming walks by month, like the programme: tap one to say whether you
- * can lead it, see who else has, and (committee) pick its leader and
- * backmarker.
+ * Upcoming walks by month, like the programme: tap one to fill in its walk
+ * leaders. The slots are the WL calendar's cells, so it doesn't matter
+ * whether a name goes in here or on the sheet.
  */
-export function RotaBoard({ walks, people, canAssign }: { walks: RotaWalk[]; people: RotaPerson[]; canAssign: boolean }) {
+export function RotaBoard({ walks }: { walks: RotaWalk[] }) {
   const router = useRouter();
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // By id, so the open sheet shows the refreshed walk after each save.
-  const [openId, setOpenId] = useState<string | null>(null);
-  const open = walks.find((w) => w.suuId === openId) ?? null;
+  const [notice, setNotice] = useState<string | null>(null);
+  // By key, so the open sheet shows the refreshed walk after each save.
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const open = walks.find((w) => w.key === openKey) ?? null;
 
   const months = useMemo(() => {
     const out: { month: string; walks: RotaWalk[] }[] = [];
@@ -51,18 +67,20 @@ export function RotaBoard({ walks, people, canAssign }: { walks: RotaWalk[]; peo
     return out;
   }, [walks]);
 
-  async function send(key: string, url: string, method: string, body: unknown) {
-    setBusy(key);
+  async function send(body: Record<string, unknown>, done: string) {
+    setBusy(true);
     setError(null);
+    setNotice(null);
     try {
-      const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      const json = await res.json();
+      const res = await fetch("/api/rota", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? "That wasn't saved.");
+      setNotice(json.conflicts?.length ? "Someone changed the WL calendar while you were typing. Pick which to keep below." : done);
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "That wasn't saved.");
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   }
 
@@ -75,10 +93,19 @@ export function RotaBoard({ walks, people, canAssign }: { walks: RotaWalk[]; peo
           <h2 className="events-month">{month}</h2>
           <ul className="programme-list rota-rows">
             {rows.map((walk) => {
-              const offered = walk.offers.filter((o) => o.status !== "unavailable").length;
+              const filled = walk.leaders.length;
+              const extras = [walk.extra ? `+${walk.extra} additional` : "", walk.shadowing ? `${walk.shadowing} shadowing` : ""].filter(Boolean).join(" · ");
               return (
-                <li key={walk.suuId} className={walk.leaderId ? undefined : "needs-leader"}>
-                  <button type="button" className="rota-row" onClick={() => (setError(null), setOpenId(walk.suuId))}>
+                <li key={walk.key} className={filled ? undefined : "needs-leader"}>
+                  <button
+                    type="button"
+                    className="rota-row"
+                    onClick={() => {
+                      setError(null);
+                      setNotice(null);
+                      setOpenKey(walk.key);
+                    }}
+                  >
                     <span className="event-date">
                       <span>{walk.weekday}</span>
                       <strong>{walk.day}</strong>
@@ -86,14 +113,17 @@ export function RotaBoard({ walks, people, canAssign }: { walks: RotaWalk[]; peo
                     <span className="programme-body">
                       <span className="rota-title">
                         {walk.name}
-                        {!walk.leaderId ? <span className="event-status">Needs a leader</span> : null}
+                        {!filled && walk.editable ? <span className="event-status">Needs leaders</span> : null}
                       </span>
                       <span className="event-meta">
-                        {walk.leaderName ? `Led by ${walk.leaderName}` : "No leader yet"}
-                        {walk.backmarkerName ? ` · backmarker ${walk.backmarkerName}` : ""}
-                        {offered ? ` · ${offered} offered` : ""}
+                        {filled ? walk.leaders.join(", ") : walk.editable ? "No walk leaders yet" : "Not on the WL calendar yet"}
+                        {extras ? ` · ${extras}` : ""}
                       </span>
-                      {walk.mine ? <span className={`rota-mine-tag is-${walk.mine}`}>You: {AVAILABILITY_LABELS[walk.mine]}</span> : null}
+                      {walk.editable ? (
+                        <span className={`rota-fill-tag${filled >= ROTA_SLOTS.length ? " is-full" : ""}`}>
+                          {filled}/{ROTA_SLOTS.length} WLs
+                        </span>
+                      ) : null}
                     </span>
                     <ChevronRight size={18} aria-hidden="true" className="rota-chevron" />
                   </button>
@@ -105,114 +135,145 @@ export function RotaBoard({ walks, people, canAssign }: { walks: RotaWalk[]; peo
       ))}
 
       {open ? (
-        <RotaSheet walk={open} people={people} canAssign={canAssign} busy={busy} error={error} send={send} onClose={() => setOpenId(null)} />
+        <Sheet onClose={() => setOpenKey(null)} labelledBy="rota-sheet-title">
+          <RotaForm key={`${open.key}:${open.version}`} walk={open} busy={busy} error={error} notice={notice} send={send} onClose={() => setOpenKey(null)} />
+        </Sheet>
       ) : null}
     </>
   );
 }
 
-function RotaSheet({
+function RotaForm({
   walk,
-  people,
-  canAssign,
   busy,
   error,
+  notice,
   send,
   onClose,
 }: {
   walk: RotaWalk;
-  people: RotaPerson[];
-  canAssign: boolean;
-  busy: string | null;
+  busy: boolean;
   error: string | null;
-  send: (key: string, url: string, method: string, body: unknown) => Promise<void>;
+  notice: string | null;
+  send: (body: Record<string, unknown>, done: string) => Promise<void>;
   onClose: () => void;
 }) {
-  const offered = walk.offers.filter((o) => o.status !== "unavailable");
-  const offeredIds = new Set(offered.map((o) => o.memberId));
-  const options = [...offered.map((o) => ({ id: o.memberId, name: `${o.name} · ${AVAILABILITY_LABELS[o.status]}` })), ...people.filter((p) => !offeredIds.has(p.id))];
+  // What the sheet said when the form opened: the text areas show lists one name a line.
+  const initial = useMemo(
+    () => Object.fromEntries(ROTA_FIELDS.map((k) => [k, isList(k) ? asLines(walk.values[k]) : walk.values[k]])) as Record<RotaField, string>,
+    [walk],
+  );
+  const [draft, setDraft] = useState(initial);
+  const changed = ROTA_FIELDS.filter((k) => draft[k].trim() !== initial[k].trim());
+  const disabled = !walk.editable || busy;
+
+  function save() {
+    if (!walk.walkId || !changed.length) return;
+    send(
+      {
+        walk_id: walk.walkId,
+        edits: Object.fromEntries(changed.map((k) => [k, draft[k]])),
+        from: Object.fromEntries(changed.map((k) => [k, walk.values[k]])),
+      },
+      "Saved to the WL calendar.",
+    );
+  }
+
+  const field = (k: RotaField) => {
+    const conflict = walk.conflicts[k];
+    return (
+      <div key={k} className="rota-field">
+        <label className="kit-field">
+          <span className="rota-label">{ROTA_LABELS[k]}</span>
+          {isList(k) ? (
+            <textarea
+              rows={2}
+              value={draft[k]}
+              disabled={disabled}
+              placeholder="One name a line"
+              onChange={(e) => setDraft({ ...draft, [k]: e.target.value })}
+            />
+          ) : (
+            <input
+              type="text"
+              value={draft[k]}
+              disabled={disabled}
+              autoComplete="off"
+              autoCapitalize="words"
+              enterKeyHint="done"
+              placeholder="Name"
+              onChange={(e) => setDraft({ ...draft, [k]: e.target.value })}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  save();
+                }
+              }}
+            />
+          )}
+        </label>
+        {conflict && walk.walkId ? (
+          <div className="rota-conflict" role="status">
+            <p>
+              The WL calendar says <strong>{conflict.sheet || "nothing"}</strong>; the app had <strong>{conflict.app || "nothing"}</strong>.
+            </p>
+            <div className="rota-conflict-actions">
+              <button type="button" className="kit-btn" disabled={busy} onClick={() => send({ walk_id: walk.walkId, resolve: { field: k, keep: "sheet" } }, "Kept the WL calendar's.")}>
+                Keep calendar
+              </button>
+              <button type="button" className="kit-btn" disabled={busy} onClick={() => send({ walk_id: walk.walkId, resolve: { field: k, keep: "app" } }, "Saved to the WL calendar.")}>
+                Use app&apos;s
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  };
 
   return (
-    <Sheet onClose={onClose} labelledBy="rota-sheet-title">
+    <form
+      className="rota-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        save();
+      }}
+    >
       <h3 id="rota-sheet-title">{walk.name}</h3>
       <p>
-        {walk.when} · <Link href={`/portal/events/${walk.id}`}>Walk details</Link>
+        {walk.when}
+        {walk.eventId ? (
+          <>
+            {" · "}
+            <Link href={`/portal/events/${walk.eventId}`}>Walk details</Link>
+          </>
+        ) : null}
       </p>
-
-      <section className="rota-sheet-section">
-        <p className="event-eyebrow">Leading</p>
-        <p className="rota-who">
-          {walk.leaderName ? `Led by ${walk.leaderName}` : "No leader yet"}
-          {walk.backmarkerName ? ` · backmarker ${walk.backmarkerName}` : ""}
+      {!walk.editable ? (
+        <p className="day-note">
+          {walk.walkId ? "This walk has no sign-up row on the WL calendar the app can write to, so fill it in on the sheet." : "This walk isn't on the WL calendar yet. Once it's added there, its slots show up here."}
         </p>
-        {offered.length ? (
-          <ul className="rota-offers">
-            {offered.map((o) => (
-              <li key={o.memberId}>
-                <span>{o.name}</span>
-                <span className={`rota-mine-tag is-${o.status}`}>{AVAILABILITY_LABELS[o.status]}</span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="day-note">Nobody has offered yet.</p>
-        )}
-      </section>
-
-      {canAssign ? (
-        <section className="rota-sheet-section">
-          <p className="event-eyebrow">Pick</p>
-          <div className="kit-form-row rota-assign">
-            {(["leader", "backmarker"] as const).map((role) => {
-              const field = role === "leader" ? "leader_member_id" : "backmarker_member_id";
-              const value = role === "leader" ? walk.leaderId : walk.backmarkerId;
-              return (
-                <label key={role} className="kit-field">
-                  <span>{role === "leader" ? "Leader" : "Backmarker"}</span>
-                  <select
-                    value={value ?? ""}
-                    disabled={busy === `${walk.suuId}:${role}`}
-                    onChange={(e) => send(`${walk.suuId}:${role}`, `/api/events/${walk.id}/plan`, "PATCH", { [field]: e.target.value || null })}
-                  >
-                    <option value="">Not set</option>
-                    {options.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              );
-            })}
-          </div>
-        </section>
       ) : null}
 
       <section className="rota-sheet-section">
-        <p className="event-eyebrow">Can you lead it?</p>
-        <div className="rota-mine" role="group" aria-label={`Your availability for ${walk.name}`}>
-          {AVAILABILITY.map((status) => (
-            <button
-              key={status}
-              type="button"
-              className={walk.mine === status ? "active" : undefined}
-              aria-pressed={walk.mine === status}
-              disabled={busy === walk.suuId}
-              onClick={() => send(walk.suuId, "/api/rota", "PUT", { event_suu_id: walk.suuId, status: walk.mine === status ? null : status })}
-            >
-              {AVAILABILITY_LABELS[status]}
-            </button>
-          ))}
-        </div>
-        {walk.mine ? <p className="day-note">Tap your answer again to take your name off.</p> : null}
+        <p className="event-eyebrow">Walk leaders</p>
+        <div className="rota-slots">{ROTA_SLOTS.map(field)}</div>
+      </section>
+      <section className="rota-sheet-section">
+        <div className="rota-lists">{ROTA_LISTS.map(field)}</div>
       </section>
 
-      {error ? <p className="kit-form-error">{error}</p> : null}
+      {error ? <p className="kit-form-error">{error}</p> : notice ? <p className="day-note">{notice}</p> : null}
       <div className="modal-actions">
         <button type="button" className="kit-btn" onClick={onClose}>
-          Done
+          {changed.length ? "Cancel" : "Done"}
         </button>
+        {walk.editable ? (
+          <button type="submit" className="kit-btn primary" disabled={busy || !changed.length}>
+            {busy ? "Saving…" : "Save"}
+          </button>
+        ) : null}
       </div>
-    </Sheet>
+    </form>
   );
 }

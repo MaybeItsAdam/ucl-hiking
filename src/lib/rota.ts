@@ -1,25 +1,46 @@
 import { eventDetails } from "@/lib/eventDetails";
-import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import type { SUEvent } from "@/lib/types";
 
-export const AVAILABILITY = ["available", "maybe", "unavailable"] as const;
-export type Availability = (typeof AVAILABILITY)[number];
+/**
+ * The rota is the WL calendar's sign-up columns ("Walk/Hike Calendar" tab):
+ * six single-name walk leader slots, then two cells that take any number of
+ * names. Keys are the sheet fields in walkSheet.ts, so an edit here goes
+ * straight back to the same cell through editWalk.
+ */
+export const ROTA_SLOTS = ["leader1", "leader2", "leader3", "leader4", "leader5", "leader6"] as const;
+export const ROTA_LISTS = ["extraLeaders", "shadowing"] as const;
+export const ROTA_FIELDS = [...ROTA_SLOTS, ...ROTA_LISTS] as const;
+export type RotaField = (typeof ROTA_FIELDS)[number];
 
-export const AVAILABILITY_LABELS: Record<Availability, string> = {
-  available: "Can lead",
-  maybe: "Maybe",
-  unavailable: "Can't",
+export const ROTA_LABELS: Record<RotaField, string> = {
+  leader1: "Primary WL",
+  leader2: "WL 2",
+  leader3: "WL 3",
+  leader4: "WL 4",
+  leader5: "WL 5",
+  leader6: "WL 6",
+  extraLeaders: "Additional walk leaders",
+  shadowing: "Shadowing WLs",
 };
 
-export interface AvailabilityRow {
-  event_suu_id: string;
-  member_id: string;
-  status: Availability;
-  member?: { full_name: string | null } | null;
+export function isRotaField(value: unknown): value is RotaField {
+  return typeof value === "string" && (ROTA_FIELDS as readonly string[]).includes(value);
 }
 
-export function isAvailability(value: unknown): value is Availability {
-  return typeof value === "string" && AVAILABILITY.includes(value as Availability);
+/**
+ * What goes in the cell. A slot holds one name on one line; a list is typed
+ * one name per line (or with commas) and stored the sheet's way, "A, B, C".
+ */
+export function rotaCellText(field: RotaField, raw: unknown): string {
+  const text = typeof raw === "string" ? raw : "";
+  if ((ROTA_LISTS as readonly string[]).includes(field)) {
+    return text
+      .split(/\n/)
+      .map((line) => line.replace(/\s+/g, " ").trim().replace(/^,+|,+$/g, "").trim())
+      .filter(Boolean)
+      .join(", ");
+  }
+  return text.replace(/\s+/g, " ").trim();
 }
 
 /** Walks, not socials: the rota is for events someone has to lead on a hill. */
@@ -33,21 +54,4 @@ export function needsLeader(event: SUEvent): boolean {
 export function rotaWalks(events: SUEvent[], days = 60, now = new Date()): SUEvent[] {
   const until = now.getTime() + days * 24 * 60 * 60 * 1000;
   return events.filter((e) => needsLeader(e) && e.starts_at && new Date(e.starts_at).getTime() < until);
-}
-
-/** Availability for many walks, grouped by SU id. A missing table reads as none. */
-export async function getAvailability(eventSuuIds: string[]): Promise<Map<string, AvailabilityRow[]>> {
-  const out = new Map<string, AvailabilityRow[]>();
-  if (!eventSuuIds.length || !isSupabaseConfigured()) return out;
-  const { data, error } = await getSupabaseAdmin()
-    .from("leader_availability")
-    .select("event_suu_id, member_id, status, member:member_id (full_name)")
-    .in("event_suu_id", eventSuuIds);
-  if (error) return out;
-  for (const row of (data ?? []) as unknown as AvailabilityRow[]) {
-    const list = out.get(row.event_suu_id) ?? [];
-    list.push(row);
-    out.set(row.event_suu_id, list);
-  }
-  return out;
 }

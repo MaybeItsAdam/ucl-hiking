@@ -104,6 +104,19 @@ body { margin: 0; color: var(--ink); background: var(--paper); font-family: var(
 a { color: inherit; text-decoration: none; }
 button, input { font: inherit; }
 
+/* iOS Safari gives a native date field an intrinsic width (its own picker
+   chrome plus the longest formatted date) and lets it ignore width: 100%, so
+   in a narrow column it pokes past its box or over the field beside it. Drop
+   the native appearance, let it shrink, and keep the value left-aligned (iOS
+   centres it once the appearance is gone). Borders, radius and padding still
+   come from whichever form styles the field. */
+input[type="date"], input[type="datetime-local"] {
+  -webkit-appearance: none; appearance: none;
+  display: block; min-width: 0; max-width: 100%;
+}
+input[type="date"]::-webkit-date-and-time-value,
+input[type="datetime-local"]::-webkit-date-and-time-value { margin: 0; text-align: left; }
+
 .sr-only {
   position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
   overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
@@ -2219,12 +2232,6 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
   .club-subnav a { flex: 0 0 auto; padding: 0 12px; }
 }
 
-/* ===== Rota ===== */
-.rota-mine { display: flex; gap: 6px; }
-.rota-mine button { flex: 1; min-height: 40px; border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--ink); font: 700 13px var(--font-body); cursor: pointer; }
-.rota-mine button.active { border-color: var(--ink); background: var(--ink-fill); color: var(--on-accent); }
-.rota-who { margin: 0; font-size: 13px; color: var(--muted); }
-.rota-assign { margin: 0; }
 
 /* ===== On the day ===== */
 .day-head { margin: 4px 0 16px; }
@@ -2588,8 +2595,15 @@ button.kit-item-main { cursor: pointer; }
 
 /* Forms inside the sheets. */
 .kit-form { display: flex; flex-direction: column; gap: 12px; }
-.kit-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.kit-form-row.is-wide-first { grid-template-columns: 3fr 2fr; }
+/* minmax(0, …): a bare fr track won't shrink below its content's min width,
+   so one wide field (a native date picker) would push the row off screen. */
+.kit-form-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.kit-form-row.is-wide-first { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); }
+.kit-form-row > * { min-width: 0; }
+/* Half a phone is too narrow to read a date in; stack rows that hold one. */
+@media (max-width: 480px) {
+  .kit-form-row:has(input[type="date"], input[type="datetime-local"]) { grid-template-columns: minmax(0, 1fr); }
+}
 .kit-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .kit-field > span { font-size: 13px; font-weight: 700; }
 .kit-field-hint { font-size: 12px; line-height: 1.4; color: var(--muted); }
@@ -2923,14 +2937,18 @@ button.kit-item-main { cursor: pointer; }
 .rota-title .event-status { margin-left: 0; }
 .rota-row .event-meta { margin: 0; }
 .rota-chevron { color: var(--muted); }
-.rota-mine-tag { display: inline-flex; align-items: center; padding: 1px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; font-weight: 700; white-space: nowrap; }
-.rota-mine-tag.is-available { border-color: var(--ok-line); color: var(--ok-fg); }
-.rota-mine-tag.is-maybe { border-color: var(--warn-line); color: var(--warn-fg); }
-.rota-mine-tag.is-unavailable { color: var(--muted); }
+.rota-fill-tag { display: inline-flex; align-items: center; padding: 1px 8px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font: 700 12px var(--font-body); white-space: nowrap; }
+.rota-fill-tag.is-full { border-color: var(--ok-line); color: var(--ok-fg); }
 .rota-sheet-section { display: grid; gap: 8px; margin: 18px 0 0; }
 .rota-sheet-section .event-eyebrow { margin: 0; }
-.rota-offers { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 8px; }
-.rota-offers li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; }
-.rota-offers li + li { border-top: 1px solid var(--line); }
-@media (pointer: coarse) { .rota-mine button { min-height: 44px; } }
+.rota-slots { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.rota-lists { display: grid; gap: 12px; }
+.rota-field { display: grid; gap: 6px; min-width: 0; }
+.kit-field > span.rota-label { font: 700 10px/1.3 var(--font-body); letter-spacing: .15em; text-transform: uppercase; color: var(--muted); }
+.rota-field textarea { min-height: 64px; }
+.rota-conflict { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--warn-line); border-radius: 6px; background: var(--warn-bg); color: var(--warn-fg); font-size: 13px; }
+.rota-conflict p { margin: 0; overflow-wrap: anywhere; }
+.rota-conflict-actions { display: flex; gap: 8px; }
+.rota-conflict-actions .kit-btn { flex: 1; min-height: 44px; }
+@media (max-width: 380px) { .rota-slots { grid-template-columns: minmax(0, 1fr); } }
 @media (prefers-reduced-motion: reduce) { .rota-row { transition-duration: .01s; } }
