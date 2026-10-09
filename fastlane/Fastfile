@@ -179,6 +179,8 @@ platform :ios do
       skip_screenshots: true,
       skip_metadata: true,
       force: true,
+      # No in-app purchases, and an API key can't read them anyway.
+      precheck_include_in_app_purchases: false,
     )
   end
 end
@@ -206,11 +208,19 @@ platform :android do
   lane :release do
     prepare_android_build
     gradle(project_dir: "android", task: "bundleRelease")
-    upload_to_play_store(
+    production = {
       track: "production",
-      rollout: "0.1",
       aab: "android/app/build/outputs/bundle/release/app-release.aab",
       json_key: ENV["PLAY_JSON_KEY_FILE"],
-    )
+    }
+    begin
+      upload_to_play_store(**production, rollout: "0.1")
+    rescue => e
+      raise unless e.message.include?("draft app")
+      # Until the first production release is published, Play only takes
+      # draft releases: it's sent for review from the Play Console.
+      UI.important("App not published yet: uploading the production release as a draft.")
+      upload_to_play_store(**production, release_status: "draft")
+    end
   end
 end
