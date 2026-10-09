@@ -84,18 +84,19 @@ export async function POST(request: Request) {
   const supabase = getSupabaseAdmin();
   const eventId = data.suuEventId || data.id;
 
+  // Field-by-field rules (merge, not replace; which kinds are skipped) live in
+  // toolboxEventRow, shared with the daily reconcile in /api/sync/toolbox-events.
+  const mapped = toolboxEventRow(data, new Date().toISOString());
+
   // `event.superseded` is Toolbox's duplicate resolution: this event lost to
   // another row and the survivor is delivered separately. Downstream that means
   // the same thing as a deletion — keeping it would show the reader both halves
-  // of a duplicate.
-  if (eventType === "event.deleted" || eventType === "event.superseded" || data.supersededById) {
+  // of a duplicate. So does an update that retires it (see withdrawnReason).
+  if (eventType === "event.deleted" || eventType === "event.superseded" || (!mapped.ok && mapped.skip && mapped.withdrawn)) {
     await supabase.from("events").delete().eq("suu_event_id", eventId);
     return NextResponse.json({ received: true, action: "deleted" });
   }
 
-  // Field-by-field rules (merge, not replace; which kinds are skipped) live in
-  // toolboxEventRow, shared with the daily reconcile in /api/sync/toolbox-events.
-  const mapped = toolboxEventRow(data, new Date().toISOString());
   if (!mapped.ok) {
     if (mapped.skip) {
       // A 2xx, so Toolbox does not keep retrying something we will never store.

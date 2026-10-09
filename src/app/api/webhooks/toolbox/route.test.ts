@@ -260,6 +260,45 @@ describe("POST /api/webhooks/toolbox", () => {
     expect(db.upserted).toBeNull();
   });
 
+  it("removes a listing Toolbox has retired, such as a placeholder the SU relisted", async () => {
+    const req = new Request("http://localhost:3001/api/webhooks/toolbox", {
+      method: "POST",
+      body: JSON.stringify({
+        type: "event.updated",
+        data: {
+          kind: "adhoc",
+          id: "evt_8",
+          title: "Pizza Social - Placeholder",
+          startTime: "2026-10-14T17:00:00.000Z",
+          source: "whatson",
+          finished: true,
+        },
+      }),
+    });
+
+    const res = await POST(req);
+    expect((await res.json()).action).toBe("deleted");
+    expect(db.upserted).toBeNull();
+  });
+
+  it("removes an Instagram post's date-only copy of an event, but keeps the SU's all-day walks", async () => {
+    const post = (data: Record<string, unknown>) =>
+      POST(
+        new Request("http://localhost:3001/api/webhooks/toolbox", {
+          method: "POST",
+          body: JSON.stringify({ type: "event.created", data: { kind: "adhoc", startTime: "2026-10-17T23:00:00.000Z", timeKnown: false, ...data } }),
+        }),
+      );
+
+    const copy = await post({ id: "evt_9", title: "Seven Sisters Hike #2 (22km)", source: "instagram", isAllDay: null });
+    expect((await copy.json()).action).toBe("deleted");
+    expect(db.upserted).toBeNull();
+
+    const walk = await post({ id: "evt_10", title: "🌳 Taster Hike (8 of 8): Seven Sisters #2 (22km)", source: "whatson", isAllDay: true });
+    expect((await walk.json()).action).toBe("upserted");
+    expect(db.upserted).toMatchObject({ suu_event_id: "evt_10", is_all_day: true });
+  });
+
   it("rejects an upsert with no title instead of inventing one", async () => {
     // events.title is NOT NULL with no default.
     const req = new Request("http://localhost:3001/api/webhooks/toolbox", {

@@ -19,6 +19,12 @@ export interface ToolboxEventData {
   locationUrl?: string | null;
   imageUrl?: string | null;
   supersededById?: string | null;
+  /** The pipeline retired the listing: it vanished, or the SU relisted it under a new title. */
+  finished?: boolean;
+  /** "whatson" (the SU's own listing), "instagram" or "manual". */
+  source?: string | null;
+  /** False when only a date was found; null on rows older than the distinction. */
+  timeKnown?: boolean | null;
   status?: string;
   capacity?: number;
   ticketsSold?: number;
@@ -31,7 +37,8 @@ const STATUSES = ["upcoming", "sold_out", "cancelled", "completed", "draft"];
 
 export type ToolboxEventMapping =
   | { ok: true; id: string; row: Record<string, unknown> }
-  | { ok: false; id?: string; skip: true; reason: string }
+  /** `withdrawn`: Toolbox no longer shows it, so a stored copy must go too. */
+  | { ok: false; id?: string; skip: true; withdrawn: boolean; reason: string }
   | { ok: false; id?: string; skip: false; reason: string };
 
 /** http(s) only: these land in an href on the Events tab. */
@@ -46,6 +53,29 @@ function safeUrl(value: unknown): string | null {
 }
 
 /**
+ * Why Toolbox's own calendar would not show this event, or null if it would.
+ *
+ * Toolbox keeps rows it has stopped showing so its decisions can be audited and
+ * undone, and its API lists them all. Storing them put both halves of a
+ * duplicate on the Events tab: "Pizza Social - Placeholder" beside the "Primrose
+ * Pizza Social" the SU relisted it as, and an Instagram post's date-only copy of
+ * a walk or social at a made-up midnight beside the SU listing. Two events on a
+ * day also stop the committee calendar linking either, so the copy took the
+ * real one's visibility rules away with it.
+ *
+ * Toolbox hides every time-unknown row; the SU's own listings are kept, since
+ * the walks are time-unknown there too and they are the ones the club runs on.
+ */
+export function withdrawnReason(data: ToolboxEventData): string | null {
+  if (data.supersededById) return "superseded by another event";
+  if (data.finished === true) return "retired by Toolbox";
+  if (data.source === "instagram" && data.timeKnown === false && data.isAllDay !== true) {
+    return "an Instagram post with only a date";
+  }
+  return null;
+}
+
+/**
  * The `events` row for one Toolbox event, carrying only the fields the payload
  * actually had. It is an upsert merge: capacity, tickets and price belong to the
  * SU sync job, and Toolbox never sends them, so writing them unconditionally
@@ -53,13 +83,16 @@ function safeUrl(value: unknown): string | null {
  *
  * Skipped rather than failed: weekly `timetable` events (their `startTime` is
  * "HH:MM", not a date, and would be refused by the timestamptz column) and rows
- * Toolbox has marked as a duplicate of another.
+ * Toolbox no longer shows (see `withdrawnReason`).
  */
 export function toolboxEventRow(data: ToolboxEventData, syncedAt: string): ToolboxEventMapping {
   const id = data.suuEventId || data.id;
   if (!id) return { ok: false, skip: false, reason: "id is required" };
-  if (data.kind && data.kind !== "adhoc") return { ok: false, id, skip: true, reason: `${data.kind} events are not shown` };
-  if (data.supersededById) return { ok: false, id, skip: true, reason: "superseded by another event" };
+  if (data.kind && data.kind !== "adhoc") {
+    return { ok: false, id, skip: true, withdrawn: false, reason: `${data.kind} events are not shown` };
+  }
+  const withdrawn = withdrawnReason(data);
+  if (withdrawn) return { ok: false, id, skip: true, withdrawn: true, reason: withdrawn };
   // `events.title` is `not null` with no default. Toolbox's own schema requires a
   // title, so an absent one is a bug at the sender, and saying so beats inventing one.
   if (!data.title) return { ok: false, id, skip: false, reason: "title is required" };
