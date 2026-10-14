@@ -245,7 +245,9 @@ Any governance role sees **Club**; principals and admins also see Money and Inci
 - **Money**: ticket income per trip is `price × tickets sold` from the SU numbers. The treasurer adds
   costs and other income lines. `/api/club/finance/csv` exports the year.
 - **Handbook**: Markdown pages in `club_docs`, rendered by `lib/markdown.ts` as React elements
-  and never as HTML. Three empty pages are seeded. Only principals can delete a page.
+  and never as HTML. Three empty pages are seeded. Only principals can delete a page. Each page
+  is read by the committee only, walk leaders too, or all members (`club_docs.visibility`); anyone
+  outside the committee with something shared gets a read-only Handbook tab. Only the committee edit.
 - **Incidents**: the reports leaders file from the day-of page. Principals only, because they can
   describe injuries.
 

@@ -5,6 +5,7 @@ import { ChevronLeft } from "lucide-react";
 import { HandbookEditor } from "@/components/club/HandbookEditor";
 import { Markdown } from "@/components/club/Markdown";
 import { requireClub } from "@/lib/clubPage";
+import { HANDBOOK_VISIBILITY_LABELS, type HandbookVisibility } from "@/lib/handbook";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 
 export const metadata: Metadata = { title: "Handbook | UCL Hiking Club" };
@@ -13,8 +14,9 @@ export default async function HandbookDocPage({ params }: { params: Promise<{ sl
   const { principal } = await requireClub();
   const { slug } = await params;
   if (!isSupabaseConfigured() || !/^[a-z0-9-]{1,60}$/.test(slug)) notFound();
-  const { data: doc } = await getSupabaseAdmin().from("club_docs").select("slug, title, body").eq("slug", slug).maybeSingle();
+  const { data: doc } = await getSupabaseAdmin().from("club_docs").select("slug, title, body, visibility").eq("slug", slug).maybeSingle();
   if (!doc) notFound();
+  const visibility = doc.visibility as HandbookVisibility;
   return (
     <article className="event-page">
       <Link href="/portal/club/handbook" className="event-back">
@@ -24,9 +26,10 @@ export default async function HandbookDocPage({ params }: { params: Promise<{ sl
       <header className="day-head">
         <span className="event-eyebrow">Committee handbook</span>
         <h2>{doc.title}</h2>
+        <p className="day-note">Read by: {HANDBOOK_VISIBILITY_LABELS[visibility]}</p>
       </header>
       {doc.body.trim() ? <Markdown source={doc.body} /> : <p className="day-note">Nothing here yet.</p>}
-      <HandbookEditor slug={doc.slug} title={doc.title} body={doc.body} canDelete={principal} />
+      <HandbookEditor slug={doc.slug} title={doc.title} body={doc.body} visibility={visibility} canDelete={principal} />
     </article>
   );
 }

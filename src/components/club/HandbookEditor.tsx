@@ -2,13 +2,27 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { HANDBOOK_VISIBILITIES, HANDBOOK_VISIBILITY_LABELS, type HandbookVisibility } from "@/lib/handbook";
 
 /** Edit a handbook page in place. `slug` null means a new page. */
-export function HandbookEditor({ slug, title, body, canDelete }: { slug: string | null; title: string; body: string; canDelete: boolean }) {
+export function HandbookEditor({
+  slug,
+  title,
+  body,
+  visibility,
+  canDelete,
+}: {
+  slug: string | null;
+  title: string;
+  body: string;
+  visibility: HandbookVisibility;
+  canDelete: boolean;
+}) {
   const router = useRouter();
   const [editing, setEditing] = useState(slug === null);
   const [draftTitle, setDraftTitle] = useState(title);
   const [draftBody, setDraftBody] = useState(body);
+  const [draftVisibility, setDraftVisibility] = useState(visibility);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,7 +35,7 @@ export function HandbookEditor({ slug, title, body, canDelete }: { slug: string 
       const res = await fetch(`/api/club/docs/${target}`, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: method === "PUT" ? JSON.stringify({ title: draftTitle, body: draftBody }) : undefined,
+        body: method === "PUT" ? JSON.stringify({ title: draftTitle, body: draftBody, visibility: draftVisibility }) : undefined,
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "That wasn't saved.");
@@ -64,6 +78,16 @@ export function HandbookEditor({ slug, title, body, canDelete }: { slug: string 
       <label className="kit-field">
         <span>Title</span>
         <input value={draftTitle} onChange={(e) => setDraftTitle(e.target.value)} maxLength={120} required />
+      </label>
+      <label className="kit-field">
+        <span>Who can read it</span>
+        <select value={draftVisibility} onChange={(e) => setDraftVisibility(e.target.value as HandbookVisibility)}>
+          {HANDBOOK_VISIBILITIES.map((v) => (
+            <option key={v} value={v}>
+              {HANDBOOK_VISIBILITY_LABELS[v]}
+            </option>
+          ))}
+        </select>
       </label>
       <label className="kit-field">
         <span>Page</span>
