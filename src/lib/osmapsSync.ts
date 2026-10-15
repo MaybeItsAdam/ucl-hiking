@@ -1,4 +1,5 @@
 import { prepareRoute, type StoredRoute, type TrackPoint, type Waypoint } from "@/lib/gpx";
+import { withHeights } from "@/lib/elevation";
 import { eventDetails } from "@/lib/eventDetails";
 import { getEventsInClubYear } from "@/lib/events";
 import { osmapsDetails, osmapsGpx, osmapsRouteId, OsmapsError, stampOf, type OsmapsDetails } from "@/lib/osmaps";
@@ -162,6 +163,7 @@ export async function importOsmapsRoute(
     if (err instanceof OsmapsError) throw err;
     throw new OsmapsError("OS Maps sent a route with no track to draw.");
   }
+  route = await withHeights(route);
   const row: OsmapsRouteRow = { ...routeRow(details, route), present: true };
   const { error } = await getSupabaseAdmin()
     .from("osmaps_routes")

@@ -5,6 +5,7 @@ import { eventDetails } from "@/lib/eventDetails";
 import { canEditPlan } from "@/lib/eventPlans";
 import { deleteEventRoute, getEventRoute, routeFileName, saveEventRoute } from "@/lib/eventRoutes";
 import { getEvent } from "@/lib/events";
+import { withHeights } from "@/lib/elevation";
 import { GPX_MAX_BYTES, prepareRoute, toGpx } from "@/lib/gpx";
 import { fetchGpx, GpxFetchError } from "@/lib/gpxFetch";
 import { osmapsRouteId, OsmapsError } from "@/lib/osmaps";
@@ -87,6 +88,7 @@ export async function POST(request: Request, { params }: Params) {
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "That GPX file couldn't be read." }, { status: 422 });
   }
+  route = await withHeights(route);
 
   const { data, error } = await saveEventRoute(ctx.suuId, route, source, ctx.member.id);
   if (error) return NextResponse.json({ error: "The route wasn't saved. Try again." }, { status: 500 });
