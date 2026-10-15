@@ -1,0 +1,74 @@
+name: Tramline · iOS
+
+# Triggered by Tramline. Same build path as ios-testflight.yml (Capacitor shell
+# around https://ucl-hiking.vercel.app; capacitor-dist is committed, so no web build), but the
+# version comes from Tramline: version_name -> CFBundleShortVersionString,
+# version_code -> CFBundleVersion. Uploads to TestFlight for internal testers
+# only; Tramline takes it from there.
+on:
+  workflow_dispatch:
+    inputs:
+      tramline-input:
+        description: "JSON from Tramline (version_name, version_code, commit_ref, build_notes)"
+        required: false
+        default: "{}"
+
+concurrency:
+  group: tramline-ios-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      # Checks out commit_ref itself, so no separate checkout.
+      - name: Configure Tramline
+        id: tramline
+        uses: tramlinehq/deploy-action@v0.1.7
+        with:
+          input: ${{ github.event.inputs.tramline-input }}
+
+      - name: Require Tramline version
+        env:
+          VERSION_NAME: ${{ steps.tramline.outputs.version_name }}
+          VERSION_CODE: ${{ steps.tramline.outputs.version_code }}
+        run: |
+          if [ -z "$VERSION_NAME" ] || [ -z "$VERSION_CODE" ]; then
+            echo "::error::No version_name/version_code in tramline-input — this workflow is meant to be triggered by Tramline."; exit 1
+          fi
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Load match-certs SSH key
+        uses: webfactory/ssh-agent@v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.MATCH_GIT_SSH_KEY }}
+
+      - run: npm ci
+
+      # Copies the web shell and plugins in and runs pod install.
+      - name: Sync Capacitor iOS shell
+        run: npx cap sync ios
+
+      - name: Build & upload to TestFlight
+        run: bundle exec fastlane ios tramline version_name:"$VERSION_NAME" version_code:"$VERSION_CODE"
+        env:
+          VERSION_NAME: ${{ steps.tramline.outputs.version_name }}
+          VERSION_CODE: ${{ steps.tramline.outputs.version_code }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ISSUER_ID }}
+          ASC_KEY_CONTENT: ${{ secrets.APP_STORE_CONNECT_API_KEY_CONTENT }}
