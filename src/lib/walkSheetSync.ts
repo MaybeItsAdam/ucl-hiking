@@ -15,6 +15,7 @@ import {
   type CellWrite,
 } from "@/lib/googleSheets";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { historyAsOf, leaderCells, leaderChanges, MASS_CHANGE_WALKS, sameLeaders, type HistoryRow, type LeaderChange } from "@/lib/leaderHistory";
 import {
   cellText,
   FIELD_BY_KEY,
@@ -366,14 +367,98 @@ export async function pullWalkSheet(trigger: string): Promise<PullResult> {
       throw e;
     });
 
+    const signups = await recordLeaderHistory(snapshot.walks).catch((e) => {
+      console.error(`[sheet-sync] leader history not recorded: ${e instanceof Error ? e.message : e}`);
+      return 0;
+    });
+    const warning =
+      signups >= MASS_CHANGE_WALKS
+        ? `Sign-ups changed on ${signups} walks at once. If nobody did that, someone restored an old version of the WL calendar: put the names back from the leader history.`
+        : null;
+
     const result = { walksSeen: snapshot.walks.length, walksChanged: changed, conflicts, rosterAdded: roster.added, leadersUpdated: roster.updated };
-    await finish({ ok: true, walks_seen: result.walksSeen, walks_changed: changed, conflicts, error: "error" in roster ? roster.error : null });
+    await finish({ ok: true, walks_seen: result.walksSeen, walks_changed: changed, conflicts, error: ("error" in roster ? roster.error : null) ?? warning });
     return result;
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     await finish({ ok: false, error: message.slice(0, 2000) });
     throw e;
   }
+}
+
+/**
+ * Keep a record of each walk's sign-up cells whenever they change, so a bad
+ * restore of the WL calendar can be undone from here. Returns how many walks
+ * already on record changed (the first sight of a walk isn't a change).
+ */
+async function recordLeaderHistory(walks: Snapshot["walks"]): Promise<number> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase.from("sheet_leader_history").select("row_key, cells, seen_at").order("seen_at", { ascending: false }).limit(20000);
+  if (error) throw new Error(error.message);
+  const latest = new Map<string, HistoryRow>();
+  for (const r of (data ?? []) as HistoryRow[]) if (!latest.has(r.row_key)) latest.set(r.row_key, r);
+
+  const rows: { row_key: string; starts_on: string | null; title: string; cells: ReturnType<typeof leaderCells> }[] = [];
+  let changed = 0;
+  for (const w of walks) {
+    if (!w.key || w.values.leader1 === undefined) continue;
+    const cells = leaderCells(w.values);
+    const prev = latest.get(w.key);
+    if (prev && sameLeaders(prev.cells, cells)) continue;
+    if (prev) changed++;
+    rows.push({ row_key: w.key, starts_on: w.date, title: w.title, cells });
+  }
+  for (let i = 0; i < rows.length; i += 200) {
+    const { error: insertError } = await supabase.from("sheet_leader_history").insert(rows.slice(i, i + 200));
+    if (insertError) throw new Error(insertError.message);
+  }
+  return changed;
+}
+
+export interface LeaderRestorePlan {
+  walkId: string;
+  rowKey: string;
+  title: string;
+  startsOn: string | null;
+  changes: LeaderChange[];
+}
+
+/**
+ * What putting the WL calendar's sign-ups back to how they were at `asOf`
+ * would change, for walks on or after `from` (default: today). With `apply`,
+ * writes it through editWalk, which overwrites the cell even if it has moved on.
+ */
+export async function restoreLeaders(
+  asOf: string,
+  opts: { from?: string; apply?: boolean; editorId?: string } = {},
+): Promise<{ plan: LeaderRestorePlan[]; written: number; errors: string[] }> {
+  const from = opts.from ?? new Date().toISOString().slice(0, 10);
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase.from("sheet_leader_history").select("row_key, cells, seen_at").lte("seen_at", asOf).order("seen_at", { ascending: false }).limit(20000);
+  if (error) throw new Error(error.message);
+  const then = historyAsOf((data ?? []) as HistoryRow[], asOf);
+
+  const stored = await storedWalks();
+  const snapshot = await readSheets(stored, { tag: false });
+  const plan: LeaderRestorePlan[] = [];
+  for (const w of snapshot.walks) {
+    const record = w.key ? then.get(w.key) : undefined;
+    const target = w.key ? stored.find((s) => s.row_key === w.key && s.present) : undefined;
+    if (!record || !target || !w.date || w.date < from || w.values.leader1 === undefined) continue;
+    const changes = leaderChanges(leaderCells(w.values), record.cells);
+    if (changes.length) plan.push({ walkId: target.id, rowKey: w.key!, title: w.title, startsOn: w.date, changes });
+  }
+
+  let written = 0;
+  const errors: string[] = [];
+  if (opts.apply && opts.editorId) {
+    for (const p of plan) {
+      const result = await editWalk(p.walkId, Object.fromEntries(p.changes.map((c) => [c.field, c.then])), {}, opts.editorId, { force: true });
+      if ("error" in result) errors.push(`${p.title}: ${result.error}`);
+      else written += result.written.length;
+    }
+  }
+  return { plan, written, errors };
 }
 
 /** The last sync, for "synced 3 minutes ago". */
