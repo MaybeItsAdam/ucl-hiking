@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { joinMultiDayEvents } from "@/lib/eventList";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import type { SUEvent } from "@/lib/types";
@@ -25,5 +26,5 @@ export async function GET() {
   }
 
   // Same rules as the Events tab: unpublished walks stay with the committee.
-  return NextResponse.json({ events: await visibleEvents(data as SUEvent[], viewerOf(await getCurrentMember())) });
+  return NextResponse.json({ events: joinMultiDayEvents(await visibleEvents(data as SUEvent[], viewerOf(await getCurrentMember()))) });
 }

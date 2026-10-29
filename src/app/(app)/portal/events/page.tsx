@@ -7,7 +7,7 @@ import { EventFacts, routeLabel } from "@/components/EventFacts";
 import { EventsSubnav } from "@/components/EventsSubnav";
 import { can, profileOf } from "@/lib/access";
 import { eventDetails, formatKm, KIND_LABELS } from "@/lib/eventDetails";
-import { countdown, eventWhen, groupEventsByMonth, longDate } from "@/lib/eventList";
+import { countdown, eventWhen, groupEventsByMonth, joinMultiDayEvents, longDate } from "@/lib/eventList";
 import { getEventsInClubYear, getUpcomingEvents } from "@/lib/events";
 import { clubYear, clubYearLabel, mapHikes, yearStats } from "@/lib/hikeMap";
 import { getCurrentMember } from "@/lib/session";
@@ -80,7 +80,7 @@ export default async function EventsPage() {
   // this page is sent, pull the sheet if nobody has in the last ten minutes.
   after(() => pullIfStale(10 * 60_000));
   const viewer = viewerOf(member);
-  const [upcoming, thisYear] = await Promise.all([visibleEvents(allUpcoming, viewer), visibleEvents(allThisYear, viewer)]);
+  const [upcoming, thisYear] = (await Promise.all([visibleEvents(allUpcoming, viewer), visibleEvents(allThisYear, viewer)])).map(joinMultiDayEvents);
   // The committee sees everything; say which ones members can't.
   const rules = viewer.isCommittee ? await walkRules(upcoming.map((e) => e.suu_event_id)) : new Map();
   const hidden = (event: SUEvent) => {

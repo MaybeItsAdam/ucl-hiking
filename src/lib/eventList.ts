@@ -70,6 +70,33 @@ export function countdown(
   return { label: -days < 14 ? `${-days} days ago` : -days < 60 ? `${Math.round(-days / 7)} weeks ago` : "Done", past: true };
 }
 
+/**
+ * One event per trip. Toolbox splits a multi-day SU listing into a row per day
+ * ("Club Trip #1" Sun 8 – Wed 11 Nov came through as four 07:00–18:00 rows), so
+ * same-titled events on consecutive London days are shown as one spanning them
+ * all. The rows stay apart in the database: walk links and attendees hang off
+ * each day's id, and the joined event keeps the first day's.
+ *
+ * Expects start order; another event between the days doesn't break the run.
+ */
+export function joinMultiDayEvents<T extends SUEvent>(events: T[]): T[] {
+  const joined: T[] = [];
+  const lastByTitle = new Map<string, T>();
+  for (const event of events) {
+    const key = event.title.trim();
+    const prev = lastByTitle.get(key);
+    const prevEnd = prev?.ends_at ?? prev?.starts_at;
+    if (prev && prevEnd && event.starts_at && londonDayNumber(new Date(event.starts_at)) - londonDayNumber(new Date(prevEnd)) === 1) {
+      prev.ends_at = event.ends_at ?? event.starts_at;
+      continue;
+    }
+    const copy = { ...event };
+    joined.push(copy);
+    lastByTitle.set(key, copy);
+  }
+  return joined;
+}
+
 /** Events in start order, grouped under a heading per month. */
 export function groupEventsByMonth(events: SUEvent[]): EventMonth[] {
   const months: EventMonth[] = [];

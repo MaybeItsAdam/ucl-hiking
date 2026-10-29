@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countdown, eventWhen, groupEventsByMonth } from "./eventList";
+import { countdown, eventWhen, groupEventsByMonth, joinMultiDayEvents } from "./eventList";
 import type { SUEvent } from "./types";
 
 function event(overrides: Partial<SUEvent>): SUEvent {
@@ -57,5 +57,33 @@ describe("countdown", () => {
     expect(
       countdown(event({ starts_at: "2026-10-02T08:00:00Z", ends_at: "2026-10-04T18:00:00Z" }), now)?.label,
     ).toBe("Happening now");
+  });
+});
+
+describe("joinMultiDayEvents", () => {
+  const trip = "🧭 Club Trip #1: Lake District ⛰️🗺️";
+  const day = (id: string, date: string) =>
+    event({ id, suu_event_id: id, title: trip, starts_at: `${date}T07:00:00+00:00`, ends_at: `${date}T18:00:00+00:00` });
+
+  it("shows Toolbox's per-day rows of a trip as one event", () => {
+    const joined = joinMultiDayEvents([day("a", "2026-11-08"), day("b", "2026-11-09"), day("c", "2026-11-10"), day("d", "2026-11-11")]);
+    expect(joined).toHaveLength(1);
+    expect(joined[0]).toMatchObject({ id: "a", starts_at: "2026-11-08T07:00:00+00:00", ends_at: "2026-11-11T18:00:00+00:00" });
+    expect(eventWhen(joined[0])).toBe("Sun 8 Nov, 07:00 – Wed 11 Nov, 18:00");
+  });
+
+  it("joins across another event on one of the days", () => {
+    const social = event({ id: "s", title: "Pub social", starts_at: "2026-11-09T19:00:00Z" });
+    expect(joinMultiDayEvents([day("a", "2026-11-08"), day("b", "2026-11-09"), social]).map((e) => e.id)).toEqual(["a", "s"]);
+  });
+
+  it("keeps a repeat of the same title a week later apart", () => {
+    expect(joinMultiDayEvents([day("a", "2026-11-08"), day("b", "2026-11-15")])).toHaveLength(2);
+  });
+
+  it("leaves the rows it was given alone", () => {
+    const first = day("a", "2026-11-08");
+    joinMultiDayEvents([first, day("b", "2026-11-09")]);
+    expect(first.ends_at).toBe("2026-11-08T18:00:00+00:00");
   });
 });
