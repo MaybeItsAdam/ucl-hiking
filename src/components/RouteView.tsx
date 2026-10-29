@@ -18,6 +18,9 @@ const HikeMap3D = dynamic(() => import("@/components/HikeMap3D"), {
 
 const THREE_D_KEY = "hike-map-3d";
 
+/** The 3D view is parked for now; flip this to bring the toggle back. */
+const THREE_D_ENABLED = false;
+
 /** Same-tab writes don't fire `storage`, so the toggle sets its own state too. */
 function subscribe(onChange: () => void) {
   window.addEventListener("storage", onChange);
@@ -53,7 +56,7 @@ export function RouteView({
   // Off on the server and for first paint, then the member's last choice.
   const remembered = useSyncExternalStore(subscribe, saved3D, () => false);
   const [chosen, setChosen] = useState<boolean | null>(null);
-  const show3D = Boolean(route) && (chosen ?? remembered);
+  const show3D = THREE_D_ENABLED && Boolean(route) && (chosen ?? remembered);
   /** km along the walk as the elevation strip measures it, or null. */
   const [along, setAlong] = useState<number | null>(null);
 
@@ -78,7 +81,7 @@ export function RouteView({
   return (
     <>
       <HikeMap hikes={hikes} route={route} label={label} />
-      {route ? (
+      {route && THREE_D_ENABLED ? (
         <>
           <div className="route-view-bar">
             <button type="button" className="kit-btn route-view-3d" aria-pressed={show3D} onClick={toggle}>
