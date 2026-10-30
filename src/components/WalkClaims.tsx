@@ -55,3 +55,31 @@ export async function WalkClaims({ member }: { member: Member }) {
     </section>
   );
 }
+
+/**
+ * What a walk leader sees while the spreadsheet is read: the section's heading
+ * and a few rows in its shape, so the list doesn't pop in under a page that
+ * looked finished. Only rendered for leaders, who are the ones that get it.
+ */
+export function WalkClaimsSkeleton() {
+  return (
+    <section aria-labelledby="walk-claims-title" aria-busy="true">
+      <h2 id="walk-claims-title" className="events-month">
+        Walks you led
+      </h2>
+      <p className="sr-only" role="status">Loading the walks you led…</p>
+      <span className={`skeleton ${styles.summarySkeleton}`} aria-hidden="true" />
+      <ul className="skeleton-list" aria-hidden="true">
+        {Array.from({ length: 3 }, (_, i) => (
+          <li key={i}>
+            <span className="skeleton-lines">
+              <span className="skeleton" />
+              <span className="skeleton" />
+            </span>
+            <span className="skeleton skeleton-trailing" />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}

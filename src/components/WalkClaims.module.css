@@ -1,5 +1,7 @@
 /* My walks › Walks you led. Kept here, not in globals.css, as it's only this list. */
 .summary { margin: 0 0 10px; }
+/* The summary line's stand-in while the list loads: one line of event-meta text. */
+.summarySkeleton { display: block; width: 46%; height: 11px; margin: 4px 0 13px; }
 
 .row {
   display: grid;
