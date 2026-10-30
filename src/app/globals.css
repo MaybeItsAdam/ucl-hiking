@@ -2488,6 +2488,9 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 .hike-popup-date { font: 800 10px var(--font-body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .hike-popup-facts { color: var(--muted); }
 .hike-popup a[data-nav] { display: inline-flex; align-items: center; min-height: 32px; color: var(--link); font-weight: 800; }
+/* A pin shared by walks from one start: each walk's card, ruled apart. */
+.hike-popup + .hike-popup { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.hike-pin.is-shared { font-size: 11px; letter-spacing: -.02em; }
 
 @media (max-width: 768px) {
   /* The month is the one piece of context a long list loses as it scrolls, so

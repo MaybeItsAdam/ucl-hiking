@@ -8,6 +8,7 @@ import type { CircleMarker, Circle, Control, Map as LeafletMap, Marker, TileLaye
 import { DIFFICULTY_LABELS, formatKm } from "@/lib/eventDetails";
 import type { MapRoute } from "@/lib/eventRoutes";
 import type { MapHike } from "@/lib/hikeMap";
+import { pinGroups } from "@/lib/pinGroups";
 
 /**
  * Two free base maps, neither needing a key:
@@ -235,20 +236,15 @@ export function HikeMap({
           }
         }
 
+        // The year map's numbered pins are drawn below, shared by walks from one start.
+        if (interactive) continue;
         const pin = L.marker(start, {
-          icon: L.divIcon({
-            className: "",
-            html: `<span class="hike-pin ${tone}">${interactive ? hike.n : ""}</span>`,
-            iconSize: interactive ? [28, 28] : [18, 18],
-            iconAnchor: interactive ? [14, 14] : [9, 9],
-          }),
-          title: interactive ? `${hike.n}. ${hike.name}` : undefined,
-          keyboard: interactive,
-          interactive,
+          icon: L.divIcon({ className: "", html: `<span class="hike-pin ${tone}"></span>`, iconSize: [18, 18], iconAnchor: [9, 9] }),
+          keyboard: false,
+          interactive: false,
           riseOnHover: true,
         }).addTo(map);
-        if (interactive) pin.bindPopup(popup(hike), { closeButton: false, maxWidth: 260, offset: [0, -8] });
-        else if (hike.startName) {
+        if (hike.startName) {
           if (route && !meetPin) meetPin = { marker: pin, name: hike.startName };
           const left = finish && finish[1] > start[1];
           // With a route, the station's label sits on the same side as Start's, so the two merge (below) rather than collide.
@@ -260,6 +256,28 @@ export function HikeMap({
               ? { direction: up ? "top" : "bottom", offset: [0, up ? -10 : 10] as [number, number] }
               : { direction: left ? "left" : "right", offset: (left ? [-10, 0] : [10, 0]) as [number, number] }),
           });
+        }
+      }
+
+      if (interactive) {
+        for (const group of pinGroups(hikes)) {
+          const tone = `is-${group.difficulty ?? "none"}${group.upcoming ? " is-upcoming" : ""}`;
+          const shared = group.hikes.length > 1;
+          // Wide enough for "12·19"; a single number keeps the round pin.
+          const width = Math.max(28, 10 + group.label.length * 7);
+          L.marker(group.at, {
+            icon: L.divIcon({
+              className: "",
+              html: `<span class="hike-pin ${tone}${shared ? " is-shared" : ""}">${group.label}</span>`,
+              iconSize: [width, 28],
+              iconAnchor: [width / 2, 14],
+            }),
+            title: group.hikes.map((h) => `${h.n}. ${h.name}`).join("; "),
+            keyboard: true,
+            riseOnHover: true,
+          })
+            .addTo(map)
+            .bindPopup(group.hikes.map(popup).join(""), { closeButton: false, maxWidth: 260, offset: [0, -8] });
         }
       }
 
