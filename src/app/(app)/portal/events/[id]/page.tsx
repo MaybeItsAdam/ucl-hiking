@@ -225,7 +225,7 @@ function ForecastPlaceholder() {
   );
 }
 
-export default async function EventPage({ params }: Params) {
+export default async function EventPage({ params, searchParams }: Params & { searchParams?: Promise<{ from?: string; walk?: string }> }) {
   const [member, event] = await Promise.all([getCurrentMember(), params.then(({ id }) => getEvent(id))]);
   if (!member) redirect("/auth/signin");
   if (!event || !(await canSeeEvent(event, viewerOf(member)))) notFound();
@@ -290,11 +290,18 @@ export default async function EventPage({ params }: Params) {
 
   const hasFactSheet = details.more.some(isHeading);
 
+  // Opened from a walk's sign-up sheet on the rota: the back link returns to that sheet.
+  const query = searchParams ? await searchParams : undefined;
+  const fromRota = query?.from === "rota";
+  const backHref = fromRota
+    ? `/portal/events/rota${query?.walk ? `?${new URLSearchParams({ open: query.walk })}` : ""}`
+    : "/portal/events";
+
   return (
     <article className={`event-page kind-${details.kind}${event.status === "cancelled" ? " is-cancelled" : ""}`}>
-      <Link href="/portal/events" className="event-back">
+      <Link href={backHref} className="event-back">
         <ChevronLeft size={18} aria-hidden="true" />
-        Events
+        {fromRota ? "Back to sign-up" : "Events"}
       </Link>
 
       {event.image_url ? (

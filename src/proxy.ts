@@ -7,8 +7,9 @@ const APP_USER_AGENT = "UCLHikingApp";
 /**
  * Opening the phone app starts at the club homepage, which is the website's
  * front door. A signed-in member opening the app wants their portal instead, so
- * send the app's cold launch there. Only a launch: a tap on the brand link
- * inside the app carries a Referer and still reaches the homepage.
+ * send the app's cold launch there. Only a launch: any other link to the
+ * homepage carries a Referer and still reaches it (a signed-in member's brand
+ * link points into the app instead; see AppShell).
  */
 export async function proxy(request: NextRequest) {
   if (!request.headers.get("user-agent")?.includes(APP_USER_AGENT)) return;

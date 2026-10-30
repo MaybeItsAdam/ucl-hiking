@@ -7,7 +7,7 @@ import { AppTitleBar } from "@/components/AppTitleBar";
 import { InboxBell } from "@/components/InboxBell";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { TabSwipe } from "@/components/TabSwipe";
-import { availablePages } from "@/lib/app-pages";
+import { APP_PAGE_HREFS, availablePages } from "@/lib/app-pages";
 import { sharedWith } from "@/lib/handbook";
 import { getCurrentMember, getRolePreviewState } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
@@ -45,11 +45,15 @@ export async function AppShell({ children }: { children: ReactNode }) {
     member && !member.governance_role ? await hasSharedHandbook(member.is_walk_leader) : false,
   );
 
+  // The homepage is the website's front door and asks you to sign in, so a
+  // signed-in member's brand link stays in the app, on their first tab.
+  const homeHref = member && pages.length > 0 ? APP_PAGE_HREFS[pages[0]] : "/";
+
   return (
     <AppNavProvider pages={pages}>
       <div className={`app-shell${pages.length > 1 ? " has-tabs" : ""}`}>
         <header className="app-bar">
-          <Link className="app-brand" href="/" aria-label="UCL Hiking Club home">
+          <Link className="app-brand" href={homeHref} aria-label="UCL Hiking Club home">
             <ClubMark size={30} />
             <span>UCL Hiking</span>
           </Link>
