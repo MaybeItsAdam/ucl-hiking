@@ -84,7 +84,9 @@ export interface RoleActor {
  * Committee members who may also make and remove walk leaders, by sign-in
  * email. Principals and admins always can; the rest of the committee can't.
  */
-export const LEADER_APPROVER_EMAILS: readonly string[] = [];
+export const LEADER_APPROVER_EMAILS: readonly string[] = [
+  "niha.gudena.25@ucl.ac.uk",
+];
 
 /** Who may make, remove or approve walk leaders. */
 export function canApproveLeaders(actor: Pick<RoleActor, "governanceRole" | "email">): boolean {
