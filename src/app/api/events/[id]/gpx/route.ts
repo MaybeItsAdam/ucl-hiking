@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { profileOf } from "@/lib/access";
 import { audit } from "@/lib/audit";
 import { eventDetails } from "@/lib/eventDetails";
-import { canEditPlan } from "@/lib/eventPlans";
+import { canEditEventPlan } from "@/lib/eventPlans";
 import { deleteEventRoute, getEventRoute, routeFileName, saveEventRoute } from "@/lib/eventRoutes";
 import { getEvent } from "@/lib/events";
 import { withHeights } from "@/lib/elevation";
@@ -37,12 +36,12 @@ export async function GET(_request: Request, { params }: Params) {
 async function editableEvent(params: Params["params"]) {
   const member = await getCurrentMember();
   if (!member) return { error: NextResponse.json({ error: "Sign in first." }, { status: 401 }) };
-  if (!canEditPlan(profileOf(member))) {
-    return { error: NextResponse.json({ error: "Only walk leaders and committee attach routes." }, { status: 403 }) };
-  }
   if (!isSupabaseConfigured()) return { error: NextResponse.json({ error: "Routes need the database." }, { status: 503 }) };
   const event = await getEvent((await params).id);
   if (!event?.suu_event_id) return { error: NextResponse.json({ error: "No such event." }, { status: 404 }) };
+  if (!(await canEditEventPlan(member, event))) {
+    return { error: NextResponse.json({ error: "Only this walk's leaders and committee change its route." }, { status: 403 }) };
+  }
   return { member, event, suuId: event.suu_event_id };
 }
 

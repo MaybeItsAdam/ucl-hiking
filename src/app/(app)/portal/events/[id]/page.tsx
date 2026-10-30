@@ -34,10 +34,9 @@ import { EventPlanEditor } from "@/components/EventPlanEditor";
 import { KitChecklist } from "@/components/KitChecklist";
 import { OpenExternal } from "@/components/OpenExternal";
 import { RouteView } from "@/components/RouteView";
-import { profileOf } from "@/lib/access";
 import { DIFFICULTY_LABELS, eventDetails, formatAscent, formatKm, isHeading, KIND_LABELS } from "@/lib/eventDetails";
 import { countdown, eventWhen, longDate } from "@/lib/eventList";
-import { canEditPlan, getEventPlan } from "@/lib/eventPlans";
+import { canEditEventPlan, getEventPlan } from "@/lib/eventPlans";
 import { getEventRoute, mapRouteOf } from "@/lib/eventRoutes";
 import { getEvent } from "@/lib/events";
 import { mapHikes } from "@/lib/hikeMap";
@@ -247,7 +246,7 @@ export default async function EventPage({ params }: Params) {
   // Streamed in behind the rest of the page, so a slow forecast never holds it up.
   const forecastSpot = pinned?.start ?? mapRoute?.start ?? pinned?.finish ?? null;
   const forecastAt = walking && event.status !== "cancelled" && inForecastWindow(event.starts_at) ? forecastSpot : null;
-  const editable = Boolean(event.suu_event_id) && canEditPlan(profileOf(member));
+  const editable = Boolean(event.suu_event_id) && (await canEditEventPlan(member, event, plan));
   const planMeet = plan?.meet_at || plan?.meet_point
     ? [plan.meet_at ? clock.format(new Date(plan.meet_at)) : null, plan.meet_point].filter(Boolean).join(" · ")
     : null;

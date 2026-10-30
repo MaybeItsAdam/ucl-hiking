@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BoardWalk } from "./leaderboard";
 import type { RosterEntry } from "./walkSheet";
-import { calendarWalksLed, claimedWalks, identityOf, isClaimRow, isTheirs, type ClaimRow, type LedWalk } from "./walkClaims";
+import { calendarWalksLed, claimedWalks, identityOf, isClaimRow, isTheirs, leadsWalk, type ClaimRow, type LedWalk } from "./walkClaims";
 
 const roster: RosterEntry[] = [
   { row: 2, name: "Val", email: "v.walker.24@ucl.ac.uk", aliases: ["Valentino"], firstAid: true, firstAidUntil: null, active: true },
@@ -54,6 +54,18 @@ describe("claimedWalks", () => {
 
   it("ignores other leaders' claims", () => {
     expect(claimedWalks([walk("a", "2026-10-04")], [claim("2026-10-04", { preferred: "Gigi" })], val).size).toBe(0);
+  });
+});
+
+describe("leadsWalk", () => {
+  it("counts a named leader by any of their names, from the sign-ups or the calendar", () => {
+    expect(leadsWalk({ sheet_values: { leader2: "Valentino (+)" }, shown: {} }, val)).toBe(true);
+    expect(leadsWalk({ sheet_values: {}, shown: { firstAider: "Val" } }, val)).toBe(true);
+  });
+  it("doesn't count a shadow, a TBC, or someone else", () => {
+    expect(leadsWalk({ sheet_values: { leader1: "Gigi", shadowing: "Val" }, shown: {} }, val)).toBe(false);
+    expect(leadsWalk({ sheet_values: { leader1: "Val?" }, shown: {} }, val)).toBe(false);
+    expect(leadsWalk({ sheet_values: { leader1: "Gigi" }, shown: {} }, val)).toBe(false);
   });
 });
 

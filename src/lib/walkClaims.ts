@@ -98,6 +98,11 @@ export function isTheirs(row: ClaimRow, who: Identity): boolean {
   });
 }
 
+/** Whether the calendar names them as a leader on this walk; shadows and anyone marked TBC aren't. */
+export function leadsWalk(walk: Pick<BoardWalk, "sheet_values" | "shown">, who: Identity): boolean {
+  return walkLeaders(walk.sheet_values, walk.shown).leaders.some((m) => who.leaderNames.has(nameKey(m.name)));
+}
+
 /** The calendar walks they led that have happened and weren't cancelled, from `since`. */
 export function calendarWalksLed(
   walks: (BoardWalk & { row_key: string; event_suu_id: string | null })[],
@@ -108,8 +113,8 @@ export function calendarWalksLed(
   const out: (LedWalk & { eventSuuId: string | null })[] = [];
   for (const walk of walks) {
     if (!walk.starts_on || walk.starts_on < since || countsForBoard(walk, today) === null) continue;
-    // Every named leader, as the leaderboard counts them; shadows and anyone marked TBC aren't.
-    if (!walkLeaders(walk.sheet_values, walk.shown).leaders.some((m) => who.leaderNames.has(nameKey(m.name)))) continue;
+    // Every named leader, as the leaderboard counts them.
+    if (!leadsWalk(walk, who)) continue;
     out.push({
       key: `sheet:${walk.row_key}`,
       date: walk.starts_on,
