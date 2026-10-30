@@ -7,6 +7,7 @@ import { DeleteAccountForm } from "@/components/DeleteAccountForm";
 import { NotificationPrefs } from "@/components/NotificationPrefs";
 import { SafetyDetailsForm } from "@/components/SafetyDetailsForm";
 import { ThemeSetting } from "@/components/ThemeSetting";
+import { WalkLeaderRequestForm } from "@/components/WalkLeaderRequestForm";
 import { GOVERNANCE_LABELS, MEMBERSHIP_LABELS } from "@/lib/access";
 import { getDeletionBlock } from "@/lib/accountDeletion";
 import { KIT_COOL_OFF_DAYS } from "@/lib/kitLoans";
@@ -90,6 +91,16 @@ export default async function AccountPage() {
             Delete them here at any time. See the <Link href="/privacy#safety">privacy policy</Link>.
           </p>
           <SafetyDetailsForm />
+        </section>
+      ) : null}
+
+      {member && !member.is_walk_leader && !member.governance_role ? (
+        <section aria-labelledby="walk-leader">
+          <h2 id="walk-leader">Walk leading</h2>
+          <p className="account-note">
+            Trained as a walk leader? Ask for access to the rota and leader-only walks. The committee approves it.
+          </p>
+          <WalkLeaderRequestForm />
         </section>
       ) : null}
 

@@ -1560,6 +1560,16 @@ select:focus {
   text-decoration: underline;
 }
 
+/* ── Walk leader requests (Members page) ── */
+.wl-requests { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.wl-requests h2 { margin: 0; }
+.wl-requests ul { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 12px; }
+.wl-requests li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; }
+.wl-requests li + li { border-top: 1px solid var(--line); }
+.wl-request-who { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: 14px; }
+.wl-request-who span { font-size: 13px; color: var(--muted); }
+.wl-request-who p { margin: 4px 0 0; font-size: 13px; }
+
 /* ── Membership list ── */
 .roster-panel { display: flex; flex-direction: column; gap: 12px; }
 .roster-summary { font-size: 13px; color: var(--ink); opacity: .75; }

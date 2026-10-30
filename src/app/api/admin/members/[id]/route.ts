@@ -3,7 +3,7 @@ import { can, canChangeRole, isGovernanceRole, profileOf, type RoleChange } from
 import { audit } from "@/lib/audit";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
-import { setRosterLeader } from "@/lib/walkSheetSync";
+import { syncRosterLeader } from "@/lib/walkLeaderRequests";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TARGET_COLUMNS = "id, full_name, email, governance_role, is_walk_leader, governance_role_locked, walk_leader_locked";
@@ -125,13 +125,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   // The WL roster in the WL calendar is the list of leaders: keep it in step.
   let rosterWarning: string | null = null;
   if ("change" in parsed && parsed.change.field === "is_walk_leader") {
-    const leader = parsed.change.value;
     try {
-      const { data: row } = await supabase.from("members").select("email, full_name, wl_name").eq("id", id).single();
-      if (row?.email) {
-        const name = await setRosterLeader(row as { email: string; full_name: string | null; wl_name: string | null }, leader);
-        await supabase.from("members").update({ wl_name: leader ? name : null }).eq("id", id);
-      }
+      await syncRosterLeader(id, parsed.change.value);
     } catch {
       rosterWarning = "Saved here, but the WL roster sheet couldn't be updated. Change it there too.";
     }

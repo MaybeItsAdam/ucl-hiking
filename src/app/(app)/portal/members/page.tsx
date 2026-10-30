@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { MemberAdminPortal } from "@/components/MemberAdminPortal";
+import { WalkLeaderRequests } from "@/components/WalkLeaderRequests";
 import { can, profileOf } from "@/lib/access";
 import { getCurrentMember } from "@/lib/session";
 
@@ -13,5 +14,10 @@ export default async function MembersPage() {
   if (!member) redirect("/auth/signin");
   if (!can(profileOf(member), "manage_members")) redirect("/portal");
 
-  return <MemberAdminPortal viewer={{ id: member.id, governanceRole: member.governance_role }} />;
+  return (
+    <>
+      <WalkLeaderRequests viewerId={member.id} />
+      <MemberAdminPortal viewer={{ id: member.id, governanceRole: member.governance_role }} />
+    </>
+  );
 }
