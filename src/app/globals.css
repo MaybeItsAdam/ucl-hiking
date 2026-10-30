@@ -2587,6 +2587,21 @@ button.kit-item-main { cursor: pointer; }
 .kit-item-name { font-size: 15px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
 .kit-item-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13px; color: var(--muted); }
 .kit-item-desc { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kit-item-main.is-expandable { padding: 0; gap: 0; }
+/* Members tap the row to unfold the full description; the Borrow button stays separate. */
+.kit-item-toggle {
+  position: relative; display: flex; flex-direction: column; gap: 2px; width: 100%; min-height: 44px;
+  padding: 12px 24px 12px 14px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.kit-item-toggle:focus-visible { outline: 2px solid var(--forest); outline-offset: -2px; }
+.kit-item:has(button.kit-item-toggle):hover { background: var(--surface-2); }
+.kit-item-toggle-icon { position: absolute; top: 50%; right: 2px; translate: 0 -50%; color: var(--muted); transition: rotate 0.15s ease; }
+.kit-item-toggle[aria-expanded="true"] .kit-item-toggle-icon { rotate: 180deg; }
+.kit-item-details { display: flex; flex-direction: column; gap: 6px; padding: 0 24px 12px 14px; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.kit-item-details[hidden] { display: none; }
+.kit-item-details p { margin: 0; overflow-wrap: anywhere; white-space: pre-line; }
+.kit-item-condition strong { color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .kit-item-toggle-icon { transition-duration: 0.01ms; } }
 .kit-stock { flex-shrink: 0; min-width: 44px; text-align: right; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .kit-stock strong { font-size: 17px; color: var(--ok-fg); }
 .kit-stock.is-low strong { color: var(--warn-fg); }
@@ -2672,6 +2687,9 @@ button.kit-item-main { cursor: pointer; }
   /* 36px painted, 44px to the finger. */
   .kit-item .kit-btn::after { content: ""; position: absolute; inset: -4px -2px; }
   .kit-item:has(button.kit-item-main):active { background: var(--surface-2); }
+  .kit-item-toggle { padding: 11px 24px 11px 12px; }
+  .kit-item-details { padding: 0 24px 11px 12px; }
+  .kit-item:has(button.kit-item-toggle):active { background: var(--surface-2); }
   /* The actions drop under the request and split its width, so the
      thumb-sized buttons never squeeze the text beside them. */
   .kit-request { grid-template-columns: 1fr; padding: 12px; }
