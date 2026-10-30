@@ -47,7 +47,24 @@ describe("reminders", () => {
 
   it("puts meet, kit and weather in one line", () => {
     const plan = { meet_at: "2026-10-18T07:40:00Z", meet_point: "Victoria", kit_list: ["Waterproof", "Lunch", "Water", "Map"] } as Parameters<typeof reminderMessage>[1];
-    const forecast = { date: "2026-10-18", summary: "Showers", tempMin: 9, tempMax: 13, rainChance: 60, windMaxKmh: 20, gustMaxKmh: 30, sunrise: null, sunset: null };
+    const forecast = {
+      date: "2026-10-18",
+      code: 80,
+      summary: "Showers",
+      tempMin: 9,
+      tempMax: 13,
+      feelsMin: null,
+      feelsMax: null,
+      rainChance: 60,
+      rainMm: null,
+      windMaxKmh: 20,
+      gustMaxKmh: 30,
+      windFrom: null,
+      uvMax: null,
+      sunrise: null,
+      sunset: null,
+      hours: [],
+    };
     expect(reminderMessage(event, plan, forecast)).toEqual({
       title: "Tomorrow: Seven Sisters",
       body: "Meet 08:40 at Victoria · bring waterproof, lunch, water… · Showers, 9–13°C, 60% rain",

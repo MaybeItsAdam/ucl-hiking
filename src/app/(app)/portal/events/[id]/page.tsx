@@ -4,18 +4,27 @@ import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import {
   CalendarPlus,
+  ChevronDown,
   ChevronLeft,
   Clock,
+  Cloud,
+  CloudDrizzle,
+  CloudFog,
+  CloudLightning,
+  CloudMoon,
+  CloudRain,
+  CloudSnow,
   CloudSun,
   Download,
   ExternalLink,
   Flag,
   Map as MapIcon,
   MapPin,
+  Moon,
   Navigation,
   Route,
+  Sun,
   Ticket,
-  ClipboardCheck,
   TrainFront,
   UserRound,
   Users,
@@ -26,7 +35,6 @@ import { KitChecklist } from "@/components/KitChecklist";
 import { OpenExternal } from "@/components/OpenExternal";
 import { RouteView } from "@/components/RouteView";
 import { profileOf } from "@/lib/access";
-import { walkRole } from "@/lib/attendees";
 import { DIFFICULTY_LABELS, eventDetails, formatAscent, formatKm, isHeading, KIND_LABELS } from "@/lib/eventDetails";
 import { countdown, eventWhen, longDate } from "@/lib/eventList";
 import { canEditPlan, getEventPlan } from "@/lib/eventPlans";
@@ -35,8 +43,9 @@ import { getEvent } from "@/lib/events";
 import { mapHikes } from "@/lib/hikeMap";
 import { loadPlaces, type LatLng } from "@/lib/places";
 import { getCurrentMember } from "@/lib/session";
+import type { SUEvent } from "@/lib/types";
 import { canSeeEvent, viewerOf } from "@/lib/walkVisibility";
-import { getWalkForecast, inForecastWindow } from "@/lib/weather";
+import { getWalkForecast, inForecastWindow, walkHours } from "@/lib/weather";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -72,46 +81,134 @@ function routeLinkLabel(href: string): string {
   return "Route";
 }
 
-/** The day's forecast at the start, or nothing when Open-Meteo has none to give. */
-async function WalkForecast({ at, startsAt }: { at: LatLng; startsAt: string | null }) {
-  const forecast = await getWalkForecast(at, startsAt);
+/** A WMO weather code as a picture, by night as well as by day. */
+function WeatherIcon({ code, isDay = true, size }: { code: number | null; isDay?: boolean; size: number }) {
+  const Icon =
+    code === null ? CloudSun
+    : code === 0 ? (isDay ? Sun : Moon)
+    : code <= 2 ? (isDay ? CloudSun : CloudMoon)
+    : code === 3 ? Cloud
+    : code <= 48 ? CloudFog
+    : code <= 57 ? CloudDrizzle
+    : code <= 67 || (code >= 80 && code <= 82) ? CloudRain
+    : code <= 86 ? CloudSnow
+    : CloudLightning;
+  return <Icon size={size} aria-hidden="true" />;
+}
+
+const hhmm = (time: string | null) => (time ? time.slice(11, 16) : null);
+const pad = (hour: number) => `${String(hour).padStart(2, "0")}:00`;
+
+/** "23 km/h SW", or "23–49 km/h SW" when the gusts are worth knowing about. */
+function windText(speed: number, gust: number | null, from: string | null, unit = true): string {
+  const gusty = gust !== null && gust > speed + 10 ? `–${gust}` : "";
+  return `${speed}${gusty}${unit ? " km/h" : ""}${from ? ` ${from}` : ""}`;
+}
+
+/**
+ * The day's forecast at the start, or nothing when Open-Meteo has none to give.
+ * The day at a glance, then hour by hour behind a fold, with the walk's own
+ * hours marked.
+ */
+async function WalkForecast({ at, event }: { at: LatLng; event: Pick<SUEvent, "starts_at" | "ends_at" | "is_all_day"> }) {
+  const forecast = await getWalkForecast(at, event.starts_at);
   if (!forecast) return null;
+  // An all-day event has no hours of its own to mark: it is taken as sunrise to dark.
+  const hours = event.is_all_day ? walkHours(forecast, null, null) : walkHours(forecast, event.starts_at, event.ends_at);
+  const feels = forecast.feelsMin !== null && forecast.feelsMax !== null && (forecast.feelsMin < forecast.tempMin - 1 || forecast.feelsMax < forecast.tempMax - 1)
+    ? `feels ${forecast.feelsMin}° to ${forecast.feelsMax}°`
+    : null;
+  const sunrise = hhmm(forecast.sunrise);
+  const sunset = hhmm(forecast.sunset);
   return (
     <section className="event-section" aria-labelledby="event-weather">
       <h3 id="event-weather" className="event-section-title">
         Forecast
       </h3>
       <div className="event-forecast">
-        <CloudSun size={22} aria-hidden="true" />
-        <div className="event-forecast-main">
-          <strong>{forecast.summary}</strong>
-          <span>
-            {forecast.tempMin}° to {forecast.tempMax}°C
-          </span>
+        <div className="event-forecast-head">
+          <WeatherIcon code={forecast.code} size={22} />
+          <div className="event-forecast-main">
+            <strong>{forecast.summary}</strong>
+            <span>
+              {forecast.tempMin}° to {forecast.tempMax}°C
+              {feels ? ` · ${feels}` : ""}
+              {forecast.uvMax !== null && forecast.uvMax >= 3 ? ` · UV ${forecast.uvMax}` : ""}
+            </span>
+          </div>
         </div>
         <dl>
-          {forecast.rainChance !== null ? (
-            <div>
-              <dt>Rain</dt>
-              <dd>{forecast.rainChance}%</dd>
-            </div>
-          ) : null}
-          {forecast.windMaxKmh !== null ? (
-            <div>
-              <dt>Wind</dt>
-              <dd>
-                {forecast.windMaxKmh}
-                {forecast.gustMaxKmh !== null && forecast.gustMaxKmh > forecast.windMaxKmh + 10 ? `–${forecast.gustMaxKmh}` : ""} km/h
-              </dd>
-            </div>
-          ) : null}
-          {forecast.sunset ? (
-            <div>
-              <dt>Sunset</dt>
-              <dd>{forecast.sunset.slice(11, 16)}</dd>
-            </div>
-          ) : null}
+          <div>
+            <dt>Rain</dt>
+            <dd>
+              {forecast.rainChance !== null ? `${forecast.rainChance}%` : "–"}
+              {forecast.rainMm ? <small>{forecast.rainMm} mm</small> : null}
+            </dd>
+          </div>
+          <div>
+            <dt>Wind</dt>
+            <dd>
+              {forecast.windMaxKmh !== null ? windText(forecast.windMaxKmh, forecast.gustMaxKmh, null) : "–"}
+              {forecast.windFrom ? <small>from the {forecast.windFrom}</small> : null}
+            </dd>
+          </div>
+          <div>
+            <dt>Sunrise</dt>
+            <dd>{sunrise ?? "–"}</dd>
+          </div>
+          <div>
+            <dt>Sunset</dt>
+            <dd>{sunset ?? "–"}</dd>
+          </div>
         </dl>
+        {hours.length ? (
+          <details className="event-forecast-hours">
+            <summary>
+              Hour by hour
+              <ChevronDown size={16} aria-hidden="true" />
+            </summary>
+            <table>
+              <caption className="sr-only">Hourly forecast. Hours during the walk are marked.</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Time</th>
+                  <th scope="col">
+                    <span className="sr-only">Sky</span>
+                  </th>
+                  <th scope="col">Temp</th>
+                  <th scope="col">Rain</th>
+                  <th scope="col">Wind km/h</th>
+                </tr>
+              </thead>
+              <tbody>
+                {hours.map((h) => (
+                  <tr key={h.hour} className={`${h.walk ? "is-walk" : ""}${h.isDay ? "" : " is-night"}`}>
+                    <th scope="row">
+                      {pad(h.hour)}
+                      {h.walk ? <span className="sr-only"> (walking)</span> : null}
+                    </th>
+                    <td className="event-forecast-sky" title={h.summary}>
+                      <WeatherIcon code={h.code} isDay={h.isDay} size={16} />
+                      <span className="sr-only">{h.summary}</span>
+                    </td>
+                    <td>
+                      {h.temp}°
+                      {h.feelsLike !== null && h.feelsLike < h.temp - 1 ? <small>feels {h.feelsLike}°</small> : null}
+                    </td>
+                    <td>
+                      {h.rainChance !== null ? `${h.rainChance}%` : "–"}
+                      {h.rainMm ? <small>{h.rainMm} mm</small> : null}
+                    </td>
+                    <td>{h.windKmh !== null ? windText(h.windKmh, h.gustKmh, h.windFrom, false) : "–"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="event-forecast-key">
+              <span aria-hidden="true" /> During the walk
+            </p>
+          </details>
+        ) : null}
       </div>
     </section>
   );
@@ -151,7 +248,6 @@ export default async function EventPage({ params }: Params) {
   const forecastSpot = pinned?.start ?? mapRoute?.start ?? pinned?.finish ?? null;
   const forecastAt = walking && event.status !== "cancelled" && inForecastWindow(event.starts_at) ? forecastSpot : null;
   const editable = Boolean(event.suu_event_id) && canEditPlan(profileOf(member));
-  const running = Boolean(event.suu_event_id) && walkRole({ id: member.id, ...profileOf(member) }, plan) !== null;
   const planMeet = plan?.meet_at || plan?.meet_point
     ? [plan.meet_at ? clock.format(new Date(plan.meet_at)) : null, plan.meet_point].filter(Boolean).join(" · ")
     : null;
@@ -254,18 +350,12 @@ export default async function EventPage({ params }: Params) {
             Add to calendar
           </a>
         ) : null}
-        {running && walking ? (
-          <Link className="kit-btn" href={`/portal/events/${event.id}/day`}>
-            <ClipboardCheck size={15} aria-hidden="true" />
-            On the day
-          </Link>
-        ) : null}
         {editable ? <EventPlanEditor eventId={event.id} startsAt={event.starts_at} /> : null}
       </div>
 
       {forecastAt ? (
         <Suspense fallback={<ForecastPlaceholder />}>
-          <WalkForecast at={forecastAt} startsAt={event.starts_at} />
+          <WalkForecast at={forecastAt} event={event} />
         </Suspense>
       ) : null}
 

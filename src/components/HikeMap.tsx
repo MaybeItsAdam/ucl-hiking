@@ -20,7 +20,8 @@ import type { MapHike } from "@/lib/hikeMap";
  *   as long as the server isn't hammered; it only draws to zoom 17.
  *
  * CSS quietens the street map to sit on the page and inverts both for the
- * dark theme (see .hike-map in globals.css).
+ * dark theme (see .hike-map in globals.css). The pick is a class on the
+ * wrapper, never on the map element Leaflet owns.
  */
 const BASES = {
   topo: {
@@ -85,8 +86,9 @@ function savedBase(): Base | null {
  *
  * A walk with a route is a real map: zoom buttons, pinch, and your own
  * position on it. On a phone one finger still scrolls the page (two move the
- * map, as in Google Maps), so a thumb heading down the page isn't caught.
- * Without a route it stays a still picture until opened full screen.
+ * map, as in Google Maps), so a thumb heading down the page isn't caught; the
+ * year map works the same way, and its pins still open with a tap. Without a
+ * route a walk's map stays a still picture until tapped open full screen.
  */
 export function HikeMap({
   hikes,
@@ -114,6 +116,8 @@ export function HikeMap({
   const [locating, setLocating] = useState<"off" | "finding" | "on" | "denied">("off");
   const meRef = useRef<{ dot: CircleMarker; ring: Circle } | null>(null);
   const walkMap = !interactive && Boolean(route);
+  // Maps you can move on the page; the rest are pictures until opened.
+  const movable = interactive || walkMap;
 
   useEffect(() => {
     const el = container.current;
@@ -160,15 +164,20 @@ export function HikeMap({
           points.push(...seg);
         }
         // Unnamed waypoints are a route planner's clicks, not places: skip them.
+        // A small dot in a thumb-sized target; its name shows on a tap.
+        const waypoints: Marker[] = [];
         for (const w of route.waypoints) {
           if (!w.name?.trim()) continue;
-          L.marker(w.at, {
-            icon: L.divIcon({ className: "", html: '<span class="hike-waypoint"></span>', iconSize: [10, 10], iconAnchor: [5, 5] }),
+          const marker = L.marker(w.at, {
+            icon: L.divIcon({ className: "hike-waypoint-hit", html: '<span class="hike-waypoint"></span>', iconSize: [32, 32], iconAnchor: [16, 16] }),
             keyboard: false,
           })
             .addTo(map)
             .bindTooltip(escape(w.name), { direction: "top", offset: [0, -6], className: "hike-tip" });
+          waypoints.push(marker);
         }
+        // A touch has no mouseout, so a tapped name would stay up for good: a tap elsewhere puts it away.
+        map.on("click", () => waypoints.forEach((m) => m.closeTooltip()));
         const loop = near(route.start, route.finish);
         // End labels sit above or below their marker, on the side away from the
         // rest of the walk, so they neither cross the line nor run off the edge.
@@ -280,6 +289,9 @@ export function HikeMap({
       el.removeEventListener("click", onClick);
       map?.remove();
       mapRef.current = null;
+      // The dot belonged to the map just removed; a new map starts without it.
+      meRef.current = null;
+      setLocating("off");
       setReady(false);
     };
   }, [hikes, interactive, route, router]);
@@ -297,50 +309,91 @@ export function HikeMap({
     if (map.getZoom() > max) map.setZoom(max);
   }, [base, ready]);
 
-  // Full screen, everything moves the map. On the page a route map pans with a
-  // mouse and pinches with two fingers; one finger is left to scroll the page.
+  // Full screen, everything moves the map. On the page a movable map pans with
+  // a mouse and pinches with two fingers; one finger is left to scroll the page.
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !ready || interactive) return;
+    if (!map || !ready) return;
     const fine = window.matchMedia("(pointer: fine)").matches;
-    const drag = expanded || (walkMap && fine);
-    for (const handler of [map.dragging, map.doubleClickZoom, map.keyboard]) {
-      if (drag || (walkMap && handler !== map.dragging)) handler.enable();
+    const drag = expanded || (movable && fine);
+    if (drag) map.dragging.enable();
+    else map.dragging.disable();
+    for (const handler of [map.doubleClickZoom, map.keyboard, map.touchZoom]) {
+      if (expanded || movable) handler.enable();
       else handler.disable();
     }
-    if (expanded || walkMap) map.touchZoom.enable();
-    else map.touchZoom.disable();
     if (expanded) map.scrollWheelZoom.enable();
     else map.scrollWheelZoom.disable();
     const zoom = zoomRef.current;
     if (zoom) {
-      if (drag || walkMap) zoom.addTo(map);
+      if (expanded || movable) zoom.addTo(map);
       else zoom.remove();
     }
     map.invalidateSize();
     if (!expanded) return;
+    // The page underneath stays put while the map has the screen.
+    const root = document.documentElement;
+    const overflow = root.style.overflow;
+    root.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && setExpanded(false);
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [expanded, ready, interactive, route, walkMap]);
+    return () => {
+      root.style.overflow = overflow;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [expanded, ready, movable]);
 
-  // One finger dragging a route map on the page: say how to move it.
+  // One finger dragging a movable map on the page: say how to move it. Not
+  // while a pinch is landing, whose first finger arrives a moment before the second.
   useEffect(() => {
     const el = container.current;
-    if (!el || !walkMap || expanded) return;
+    if (!el || !movable || expanded) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const onMove = (e: TouchEvent) => {
-      if (e.touches.length !== 1) return setHint(false);
-      setHint(true);
-      clearTimeout(timer);
-      timer = setTimeout(() => setHint(false), 1400);
+    let pinching = false;
+    const onStart = (e: TouchEvent) => {
+      if (e.touches.length > 1) {
+        pinching = true;
+        clearTimeout(timer);
+        setHint(false);
+      }
     };
+    const onEnd = (e: TouchEvent) => {
+      if (e.touches.length === 0) pinching = false;
+    };
+    const onMove = (e: TouchEvent) => {
+      if (pinching || e.touches.length !== 1) return setHint(false);
+      clearTimeout(timer);
+      // Only a finger still dragging after a beat is trying to move the map.
+      timer = setTimeout(() => {
+        if (pinching) return;
+        setHint(true);
+        timer = setTimeout(() => setHint(false), 1400);
+      }, 120);
+    };
+    el.addEventListener("touchstart", onStart, { passive: true });
+    el.addEventListener("touchend", onEnd, { passive: true });
+    el.addEventListener("touchcancel", onEnd, { passive: true });
     el.addEventListener("touchmove", onMove, { passive: true });
     return () => {
       clearTimeout(timer);
+      el.removeEventListener("touchstart", onStart);
+      el.removeEventListener("touchend", onEnd);
+      el.removeEventListener("touchcancel", onEnd);
       el.removeEventListener("touchmove", onMove);
     };
-  }, [walkMap, expanded]);
+  }, [movable, expanded]);
+
+  // A still map is a picture of the walk: a tap on it opens it full screen.
+  useEffect(() => {
+    const el = container.current;
+    if (!el || movable || expanded) return;
+    const onClick = (e: MouseEvent) => {
+      if ((e.target as Element).closest(".leaflet-control")) return;
+      setExpanded(true);
+    };
+    el.addEventListener("click", onClick);
+    return () => el.removeEventListener("click", onClick);
+  }, [movable, expanded]);
 
   // Your own position, while the button is on. Nothing is sent anywhere.
   const watching = locating === "finding" || locating === "on";
@@ -398,10 +451,14 @@ export function HikeMap({
   }
 
   return (
-    <div className={`hike-map-wrap${interactive ? " is-interactive" : ""}${walkMap ? " has-route" : ""}${expanded ? " is-expanded" : ""}`}>
+    <div
+      className={`hike-map-wrap is-${base}${interactive ? " is-interactive" : ""}${walkMap ? " has-route" : ""}${!movable && !expanded ? " is-still" : ""}${expanded ? " is-expanded" : ""}`}
+    >
       <div
         ref={container}
-        className={`hike-map is-${base}${interactive ? " is-interactive" : ""}`}
+        // Fixed for the map's life: Leaflet keeps its own classes on this element,
+        // and React rewriting the attribute (a base-map pick did) wipes them.
+        className={`hike-map${interactive ? " is-interactive" : ""}`}
         role="region"
         aria-label={label}
         // Panning the map is not a swipe to the next tab or a pull to refresh.
@@ -436,17 +493,15 @@ export function HikeMap({
             <LocateFixed size={16} aria-hidden="true" />
           </button>
         ) : null}
-        {!interactive ? (
-          <button
-            type="button"
-            className="hike-map-expand"
-            aria-pressed={expanded}
-            aria-label={expanded ? "Close full-screen map" : "Open map full screen"}
-            onClick={() => setExpanded((e) => !e)}
-          >
-            {expanded ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}
-          </button>
-        ) : null}
+        <button
+          type="button"
+          className="hike-map-expand"
+          aria-pressed={expanded}
+          aria-label={expanded ? "Close full-screen map" : "Open map full screen"}
+          onClick={() => setExpanded((e) => !e)}
+        >
+          {expanded ? <Minimize2 size={16} aria-hidden="true" /> : <Maximize2 size={16} aria-hidden="true" />}
+        </button>
       </div>
     </div>
   );
