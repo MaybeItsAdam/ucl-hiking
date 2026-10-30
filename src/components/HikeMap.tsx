@@ -8,6 +8,7 @@ import type { CircleMarker, Circle, Control, Map as LeafletMap, Marker, TileLaye
 import { DIFFICULTY_LABELS, formatKm } from "@/lib/eventDetails";
 import type { MapRoute } from "@/lib/eventRoutes";
 import type { MapHike } from "@/lib/hikeMap";
+import { pinGroups } from "@/lib/pinGroups";
 
 /**
  * Two free base maps, neither needing a key:
@@ -111,7 +112,13 @@ export function HikeMap({
   const [chosen, setChosen] = useState<Base | null>(null);
   const base = chosen ?? defaultBase;
   const [expanded, setExpanded] = useState(false);
-  const [ready, setReady] = useState(false);
+  // Which map is built, 0 for none. A count rather than a flag: when the page
+  // refreshes (pull to refresh, saving the plan) the map is rebuilt, and the old
+  // one's `false` and the new one's `true` land in one render. A flag would read
+  // unchanged, so the effects below would never put tiles on the new map: a
+  // blank grey box with pins on it.
+  const [ready, setReady] = useState(0);
+  const builds = useRef(0);
   const [hint, setHint] = useState(false);
   const [locating, setLocating] = useState<"off" | "finding" | "on" | "denied">("off");
   const meRef = useRef<{ dot: CircleMarker; ring: Circle } | null>(null);
@@ -229,20 +236,15 @@ export function HikeMap({
           }
         }
 
+        // The year map's numbered pins are drawn below, shared by walks from one start.
+        if (interactive) continue;
         const pin = L.marker(start, {
-          icon: L.divIcon({
-            className: "",
-            html: `<span class="hike-pin ${tone}">${interactive ? hike.n : ""}</span>`,
-            iconSize: interactive ? [28, 28] : [18, 18],
-            iconAnchor: interactive ? [14, 14] : [9, 9],
-          }),
-          title: interactive ? `${hike.n}. ${hike.name}` : undefined,
-          keyboard: interactive,
-          interactive,
+          icon: L.divIcon({ className: "", html: `<span class="hike-pin ${tone}"></span>`, iconSize: [18, 18], iconAnchor: [9, 9] }),
+          keyboard: false,
+          interactive: false,
           riseOnHover: true,
         }).addTo(map);
-        if (interactive) pin.bindPopup(popup(hike), { closeButton: false, maxWidth: 260, offset: [0, -8] });
-        else if (hike.startName) {
+        if (hike.startName) {
           if (route && !meetPin) meetPin = { marker: pin, name: hike.startName };
           const left = finish && finish[1] > start[1];
           // With a route, the station's label sits on the same side as Start's, so the two merge (below) rather than collide.
@@ -254,6 +256,28 @@ export function HikeMap({
               ? { direction: up ? "top" : "bottom", offset: [0, up ? -10 : 10] as [number, number] }
               : { direction: left ? "left" : "right", offset: (left ? [-10, 0] : [10, 0]) as [number, number] }),
           });
+        }
+      }
+
+      if (interactive) {
+        for (const group of pinGroups(hikes)) {
+          const tone = `is-${group.difficulty ?? "none"}${group.upcoming ? " is-upcoming" : ""}`;
+          const shared = group.hikes.length > 1;
+          // Wide enough for "12·19"; a single number keeps the round pin.
+          const width = Math.max(28, 10 + group.label.length * 7);
+          L.marker(group.at, {
+            icon: L.divIcon({
+              className: "",
+              html: `<span class="hike-pin ${tone}${shared ? " is-shared" : ""}">${group.label}</span>`,
+              iconSize: [width, 28],
+              iconAnchor: [width / 2, 14],
+            }),
+            title: group.hikes.map((h) => `${h.n}. ${h.name}`).join("; "),
+            keyboard: true,
+            riseOnHover: true,
+          })
+            .addTo(map)
+            .bindPopup(group.hikes.map(popup).join(""), { closeButton: false, maxWidth: 260, offset: [0, -8] });
         }
       }
 
@@ -272,7 +296,7 @@ export function HikeMap({
           startMarker.setTooltipContent(escape(`${ends} · meet at ${meetPin.name}`));
         }
       }
-      setReady(true);
+      setReady(++builds.current);
     });
 
     // Popup links are HTML Leaflet draws, so route them through the app ourselves.
@@ -292,7 +316,7 @@ export function HikeMap({
       // The dot belonged to the map just removed; a new map starts without it.
       meRef.current = null;
       setLocating("off");
-      setReady(false);
+      setReady(0);
     };
   }, [hikes, interactive, route, router]);
 
