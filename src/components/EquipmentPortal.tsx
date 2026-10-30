@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   AlertCircle,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Loader2,
   Package,
@@ -41,6 +42,14 @@ const CONDITION_LABELS: Record<EquipmentCondition, string> = {
   good: "Good",
   fair: "Fair",
   needs_repair: "Needs repair",
+};
+
+/** What each condition grade means to someone deciding whether to borrow. */
+const CONDITION_HINTS: Record<EquipmentCondition, string> = {
+  excellent: "As new, no visible wear.",
+  good: "Some light wear, works as it should.",
+  fair: "Noticeably worn but still safe to use. Check it over before you go.",
+  needs_repair: "Damaged and can't be lent until it's fixed.",
 };
 
 const STATUS_LABELS: Record<EquipmentRequestStatus, string> = {
@@ -1057,27 +1066,59 @@ function ItemRow({
   onBorrow: () => void;
   onEdit: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const detailsId = useId();
   const ratio = item.available_quantity / Math.max(1, item.total_quantity);
   const level = item.available_quantity === 0 ? "is-out" : ratio < 0.4 ? "is-low" : "";
   const flagged = item.condition === "fair" || item.condition === "needs_repair";
+  const conditionLabel = `Condition: ${CONDITION_LABELS[item.condition]}`;
+  // Members tap the row to read the whole description and what the condition
+  // grade means; principals tap it to edit, where both are in full.
+  const expandable = !isPrincipal && (Boolean(item.description) || flagged);
+  const open = expandable && expanded;
 
   const summary = (
     <>
       <span className="kit-item-name">{item.name}</span>
       <span className="kit-item-meta">
         {item.category}
-        {flagged && <span className={`kit-tag is-${item.condition}`}>{CONDITION_LABELS[item.condition]}</span>}
+        {flagged && (
+          <span className={`kit-tag is-${item.condition}`} title={CONDITION_HINTS[item.condition]}>
+            {conditionLabel}
+          </span>
+        )}
       </span>
-      {item.description && <span className="kit-item-desc">{item.description}</span>}
+      {item.description && !open && <span className="kit-item-desc">{item.description}</span>}
     </>
   );
 
   return (
-    <li className="kit-item">
+    <li className={`kit-item${open ? " is-open" : ""}`}>
       {isPrincipal ? (
         <button type="button" className="kit-item-main" onClick={onEdit} aria-label={`Edit ${item.name}`}>
           {summary}
         </button>
+      ) : expandable ? (
+        <div className="kit-item-main is-expandable">
+          <button
+            type="button"
+            className="kit-item-toggle"
+            aria-expanded={open}
+            aria-controls={detailsId}
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {summary}
+            <ChevronDown className="kit-item-toggle-icon" size={16} aria-hidden="true" />
+          </button>
+          <div id={detailsId} className="kit-item-details" hidden={!open}>
+            {item.description && <p className="kit-item-desc-full">{item.description}</p>}
+            {flagged && (
+              <p className="kit-item-condition">
+                <strong>{conditionLabel}.</strong> {CONDITION_HINTS[item.condition]}
+              </p>
+            )}
+          </div>
+        </div>
       ) : (
         <div className="kit-item-main">{summary}</div>
       )}
