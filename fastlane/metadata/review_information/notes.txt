@@ -1,0 +1,22 @@
+This app is owned by MaybeItsSoftware for UCL Hiking Club. An internet
+connection is required. Member access uses UCL sign-in through Adam's Campus
+Toolbox and depends on club membership and role. The supplied account has
+Hiking admin access.
+
+Reviewers do not have UCL accounts, so do not use “Continue with UCL Sign-In”.
+Instead: open the app, tap “Sign in with UCL” at the top of the home screen,
+then on the sign-in page tap the small line “UCL Hiking Club × Adam's Campus
+Toolbox” seven times. A reviewer sign-in form appears below the button. Enter
+the supplied email and password and tap “Reviewer sign-in”.
+
+After sign-in, the committee inventory and membership tools are available.
+Use “Preview Member Perspective” to see the equipment catalogue and member
+loan request experience. Regular members can browse equipment, request kit
+and check My Borrow Requests. Officers can manage inventory and review loans.
+
+Account deletion: in the member portal, tap “Account settings” at the bottom,
+then “Delete my account”, then confirm. This deletes the app account and signs you out. The reviewer
+account can sign in again afterwards, and a new, empty account is created.
+
+Support: support@uclhiking.org
+Privacy: privacy@uclhiking.org

@@ -1,0 +1,26 @@
+The UCL Hiking Club app puts the whole club in your pocket: every walk on the programme, the routes, your club kit and your own hiking year, signed in with your UCL account.
+
+EVERY WALK, PROPERLY BRIEFED
+Each walk has its own page with the distance, total ascent, difficulty grade, train and fare, meeting point and time, and who's leading and backmarking. The route sits on an Ordnance Survey map, and a 3D view with an elevation profile lets you scrub along the day's climbs before you commit.
+
+YOUR HIKING YEAR
+My Walks shows the trips you're signed up for and the ones you've done, with this year's distance and climbing totals and a map of everywhere you've been. The club walk map shows the whole year's routes, including the longest day and the biggest climb.
+
+NEVER MISS A WALK
+Subscribe to the club calendar so new walks appear in your phone's calendar app. Turn on notifications to hear about announcements and changes, and catch up on anything you missed in your inbox.
+
+BORROW CLUB KIT
+Browse the equipment store, from rucksacks and tents to waterproofs, with live stock and condition. Request a loan for your dates and trip, then follow the request from pending to on loan to returned.
+
+FOR WALK LEADERS
+Claim walk slots on the leader rota, see which walks still need a leader, and keep the walk-day register, emergency details and booked kit on your phone, even when signal drops. Read the leader handbook, file expense claims, and see how many walks and kilometres each leader has covered.
+
+FOR THE COMMITTEE
+Manage the inventory and loans, the membership roster, the walk programme, incident reports, announcements and club money, all from your phone. What you see depends on your club role.
+
+SIGN IN WITH UCL
+Sign in with your UCL account through Adam's Campus Toolbox. Your access follows your Students' Union membership of the club. If you aren't a member yet, the app shows you how to join.
+
+An internet connection is required for most features.
+
+Owned and maintained by MaybeItsSoftware for UCL Hiking Club.

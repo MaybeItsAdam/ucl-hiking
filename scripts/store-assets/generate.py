@@ -8,6 +8,7 @@ import base64
 import html
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import zipfile
@@ -155,6 +156,93 @@ def archive():
             bundle.write(file, 'ucl-hiking-store-assets/' + str(file.relative_to(STORE)))
 
 
+def sync_fastlane():
+    fastlane = ROOT / 'fastlane'
+    if not fastlane.exists():
+        return
+
+    copy_dir = STORE / 'copy'
+
+    # 1. iOS App Store Metadata (Deliver)
+    meta = fastlane / 'metadata'
+    en_gb = meta / 'en-GB'
+    review = meta / 'review_information'
+    en_gb.mkdir(parents=True, exist_ok=True)
+    review.mkdir(parents=True, exist_ok=True)
+
+    if (copy_dir / 'copyright.txt').exists():
+        (meta / 'copyright.txt').write_text((copy_dir / 'copyright.txt').read_text().strip())
+    (meta / 'primary_category.txt').write_text('Sports')
+    (meta / 'secondary_category.txt').write_text('Lifestyle')
+
+    field_map = {
+        'name.txt': 'app-name.txt',
+        'subtitle.txt': 'apple-subtitle.txt',
+        'description.txt': 'description.txt',
+        'keywords.txt': 'apple-keywords.txt',
+        'promotional_text.txt': 'apple-promotional-text.txt',
+        'release_notes.txt': 'first-release-notes.txt',
+        'support_url.txt': 'support-url.txt',
+        'marketing_url.txt': 'marketing-url.txt',
+        'privacy_url.txt': 'privacy-policy-url.txt',
+    }
+    for target_name, source_name in field_map.items():
+        src = copy_dir / source_name
+        if src.exists():
+            (en_gb / target_name).write_text(src.read_text().strip())
+
+    reviewer_notes_file = copy_dir / 'reviewer-notes.md'
+    if reviewer_notes_file.exists():
+        reviewer_text = reviewer_notes_file.read_text()
+        notes_match = re.search(r'## Notes to paste.*?\n(.*?)(?=^## |\Z)', reviewer_text, re.MULTILINE | re.DOTALL)
+        if notes_match:
+            (review / 'notes.txt').write_text(notes_match.group(1).strip())
+    (review / 'demo_user.txt').write_text('apple@adamscampustoolbox.org.uk')
+
+    # 2. iOS Screenshots (Deliver)
+    screenshots_dir = fastlane / 'screenshots' / 'en-GB'
+    screenshots_dir.mkdir(parents=True, exist_ok=True)
+    for old_img in screenshots_dir.glob('*.png'):
+        old_img.unlink()
+
+    for device, prefix in [('iphone-6.9', 'iphone_6.9'), ('ipad-13', 'ipad_13')]:
+        dev_screens = STORE / 'ios' / device / 'screenshots'
+        if dev_screens.exists():
+            for i, p in enumerate(sorted(dev_screens.glob('*.png')), 1):
+                shutil.copyfile(p, screenshots_dir / f'{i}_{prefix}_{p.name}')
+
+    # 3. Android Metadata & Graphics (Supply)
+    android_meta = fastlane / 'metadata' / 'android' / 'en-GB'
+    android_meta.mkdir(parents=True, exist_ok=True)
+    if (copy_dir / 'app-name.txt').exists():
+        (android_meta / 'title.txt').write_text((copy_dir / 'app-name.txt').read_text().strip())
+    if (copy_dir / 'google-short-description.txt').exists():
+        (android_meta / 'short_description.txt').write_text((copy_dir / 'google-short-description.txt').read_text().strip())
+    if (copy_dir / 'description.txt').exists():
+        (android_meta / 'full_description.txt').write_text((copy_dir / 'description.txt').read_text().strip())
+
+    images_dir = android_meta / 'images'
+    images_dir.mkdir(parents=True, exist_ok=True)
+    if (STORE / 'android/app-icon.png').exists():
+        shutil.copyfile(STORE / 'android/app-icon.png', images_dir / 'icon.png')
+    if (STORE / 'android/feature-graphic.png').exists():
+        shutil.copyfile(STORE / 'android/feature-graphic.png', images_dir / 'featureGraphic.png')
+
+    for store_folder, supply_folder in [
+        ('phone', 'phoneScreenshots'),
+        ('tablet-7', 'sevenInchScreenshots'),
+        ('tablet-10', 'tenInchScreenshots')
+    ]:
+        target_dir = images_dir / supply_folder
+        target_dir.mkdir(parents=True, exist_ok=True)
+        for old in target_dir.glob('*.png'):
+            old.unlink()
+        source_dir = STORE / 'android' / store_folder / 'screenshots'
+        if source_dir.exists():
+            for i, p in enumerate(sorted(source_dir.glob('*.png')), 1):
+                shutil.copyfile(p, target_dir / f'{i}_{p.name}')
+
+
 if __name__ == '__main__':
     feature()
     for source, destination, size in [('apple-app-icon.png', 'ios/app-icon.png', 1024), ('google-play-icon.png', 'android/app-icon.png', 512)]:
@@ -168,4 +256,5 @@ if __name__ == '__main__':
     gallery()
     (STORE / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     archive()
-    print(f'Generated {sum(a["status"] == "ready" for a in manifest)} ready assets and {sum(a["status"] == "template" for a in manifest)} templates. Open assets/store/preview.html.')
+    sync_fastlane()
+    print(f'Generated {sum(a["status"] == "ready" for a in manifest)} ready assets and {sum(a["status"] == "template" for a in manifest)} templates. Synced to fastlane. Open assets/store/preview.html.')
