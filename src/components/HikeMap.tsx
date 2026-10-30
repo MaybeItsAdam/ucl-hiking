@@ -111,7 +111,13 @@ export function HikeMap({
   const [chosen, setChosen] = useState<Base | null>(null);
   const base = chosen ?? defaultBase;
   const [expanded, setExpanded] = useState(false);
-  const [ready, setReady] = useState(false);
+  // Which map is built, 0 for none. A count rather than a flag: when the page
+  // refreshes (pull to refresh, saving the plan) the map is rebuilt, and the old
+  // one's `false` and the new one's `true` land in one render. A flag would read
+  // unchanged, so the effects below would never put tiles on the new map: a
+  // blank grey box with pins on it.
+  const [ready, setReady] = useState(0);
+  const builds = useRef(0);
   const [hint, setHint] = useState(false);
   const [locating, setLocating] = useState<"off" | "finding" | "on" | "denied">("off");
   const meRef = useRef<{ dot: CircleMarker; ring: Circle } | null>(null);
@@ -272,7 +278,7 @@ export function HikeMap({
           startMarker.setTooltipContent(escape(`${ends} · meet at ${meetPin.name}`));
         }
       }
-      setReady(true);
+      setReady(++builds.current);
     });
 
     // Popup links are HTML Leaflet draws, so route them through the app ourselves.
@@ -292,7 +298,7 @@ export function HikeMap({
       // The dot belonged to the map just removed; a new map starts without it.
       meRef.current = null;
       setLocating("off");
-      setReady(false);
+      setReady(0);
     };
   }, [hikes, interactive, route, router]);
 
