@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   accessSummary,
   can,
+  canApproveLeaders,
   canChangeRole,
+  LEADER_APPROVER_EMAILS,
   canPreviewAs,
   canPreviewRoles,
   isGovernanceRole,
@@ -64,10 +66,21 @@ describe("canChangeRole", () => {
   const makeCommittee = { field: "governance_role" as const, value: "committee" as const };
   const removeRole = { field: "governance_role" as const, value: null };
 
-  it("lets any governance role toggle walk leader, but not ordinary members", () => {
-    expect(canChangeRole(committee, member, leaderOn)).toBe(true);
+  it("lets principals, admins and named committee members toggle walk leader", () => {
     expect(canChangeRole(principal, member, leaderOn)).toBe(true);
+    expect(canChangeRole(admin, member, leaderOn)).toBe(true);
+    expect(canChangeRole(committee, member, leaderOn)).toBe(false);
+    expect(canChangeRole({ ...committee, email: "someone@ucl.ac.uk" }, member, leaderOn)).toBe(false);
     expect(canChangeRole(member, { id: "x", governanceRole: null }, leaderOn)).toBe(false);
+  });
+
+  it("lets a committee member on the approver list toggle walk leader, by email", () => {
+    for (const email of LEADER_APPROVER_EMAILS) {
+      expect(canApproveLeaders({ governanceRole: "committee", email: email.toUpperCase() })).toBe(true);
+      // The list never lifts an ordinary member: they need a committee seat too.
+      expect(canApproveLeaders({ governanceRole: null, email })).toBe(false);
+    }
+    expect(canApproveLeaders({ governanceRole: "committee", email: null })).toBe(false);
   });
 
   it("lets only a principal (or admin) grant or remove committee", () => {

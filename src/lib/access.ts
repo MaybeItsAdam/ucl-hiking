@@ -76,6 +76,21 @@ export type RoleChange =
 export interface RoleActor {
   id: string;
   governanceRole: GovernanceRole | null;
+  /** Sign-in email, for the committee members named in LEADER_APPROVER_EMAILS. */
+  email?: string | null;
+}
+
+/**
+ * Committee members who may also make and remove walk leaders, by sign-in
+ * email. Principals and admins always can; the rest of the committee can't.
+ */
+export const LEADER_APPROVER_EMAILS: readonly string[] = [];
+
+/** Who may make, remove or approve walk leaders. */
+export function canApproveLeaders(actor: Pick<RoleActor, "governanceRole" | "email">): boolean {
+  if (actor.governanceRole === "principal" || actor.governanceRole === "admin") return true;
+  if (actor.governanceRole !== "committee" || !actor.email) return false;
+  return LEADER_APPROVER_EMAILS.includes(actor.email.toLowerCase());
 }
 
 export interface RoleTarget {
@@ -84,13 +99,13 @@ export interface RoleTarget {
 }
 
 /**
- * Who may change whom from the Members page. Walk leadership is any
- * governance role's call; committee seats are a principal's. Principal and
+ * Who may change whom from the Members page. Walk leadership is for
+ * `canApproveLeaders`; committee seats are a principal's. Principal and
  * admin come from the Toolbox and are never granted or removed in the app.
  */
 export function canChangeRole(actor: RoleActor, target: RoleTarget, change: RoleChange): boolean {
   if (actor.governanceRole === null || actor.id === target.id) return false;
-  if (change.field === "is_walk_leader") return true;
+  if (change.field === "is_walk_leader") return canApproveLeaders(actor);
   if (actor.governanceRole !== "principal" && actor.governanceRole !== "admin") return false;
   // Only ever between "no role" and "committee".
   return target.governanceRole === null || target.governanceRole === "committee";

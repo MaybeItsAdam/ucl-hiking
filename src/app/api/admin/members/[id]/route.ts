@@ -89,7 +89,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         ? { field, value: target.is_walk_leader }
         : { field: "governance_role", value: null };
   const allowed = canChangeRole(
-    { id: actor.id, governanceRole: actor.governance_role },
+    { id: actor.id, governanceRole: actor.governance_role, email: actor.email },
     { id: target.id, governanceRole: target.governance_role },
     judged,
   );
@@ -99,7 +99,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         error:
           field === "governance_role"
             ? "Only a principal can change committee seats, and never their own."
-            : "Only committee can change walk leaders, and never their own.",
+            : "Only principals, admins and named committee members can change walk leaders, and never their own.",
       },
       { status: 403 },
     );

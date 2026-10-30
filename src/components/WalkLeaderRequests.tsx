@@ -7,8 +7,12 @@ type Row = WalkLeaderRequest & { member: { full_name: string | null; email: stri
 
 const dateFormat = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
 
-/** Open walk leader requests, for the committee to approve or decline. Hidden when there are none. */
-export function WalkLeaderRequests({ viewerId }: { viewerId: string }) {
+/**
+ * Open walk leader requests. Principals, admins and the named committee
+ * members approve or decline them; the rest of the committee only sees them.
+ * Hidden when there are none.
+ */
+export function WalkLeaderRequests({ viewerId, canApprove }: { viewerId: string; canApprove: boolean }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: "ok" | "bad"; text: string } | null>(null);
@@ -66,6 +70,8 @@ export function WalkLeaderRequests({ viewerId }: { viewerId: string }) {
               </div>
               {row.member_id === viewerId ? (
                 <span className="account-note">Your own request</span>
+              ) : !canApprove ? (
+                <span className="account-note">A principal approves this</span>
               ) : (
                 <div className="calendar-feed-actions">
                   <button type="button" className="kit-btn primary" disabled={busy !== null} onClick={() => decide(row, "approve")}>

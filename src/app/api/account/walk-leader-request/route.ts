@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { canApproveLeaders, type GovernanceRole } from "@/lib/access";
 import { audit } from "@/lib/audit";
 import { notify } from "@/lib/notify";
 import { getRealMember } from "@/lib/session";
@@ -64,9 +65,16 @@ export async function POST(request: Request) {
   if (error || !data) return NextResponse.json({ error: "Your request wasn't sent. Try again." }, { status: 500 });
 
   await audit(member.id, "walk_leader_request.create", "walk_leader_request", data.id, { wl_name: wlName });
-  const { data: committee } = await supabase.from("members").select("id").not("governance_role", "is", null).is("revoked_at", null);
+  // Only the people who can approve it hear about it.
+  const { data: committee } = await supabase
+    .from("members")
+    .select("id, email, governance_role")
+    .not("governance_role", "is", null)
+    .is("revoked_at", null);
   await notify(
-    (committee ?? []).map((m) => m.id as string),
+    (committee ?? [])
+      .filter((m) => canApproveLeaders({ governanceRole: m.governance_role as GovernanceRole, email: m.email as string }))
+      .map((m) => m.id as string),
     {
       kind: "leader",
       title: `${member.full_name || member.email} asked for walk leader access`,

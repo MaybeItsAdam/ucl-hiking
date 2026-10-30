@@ -39,11 +39,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Member not found" }, { status: 404 });
   }
   const allowed = canChangeRole(
-    { id: actor.id, governanceRole: actor.governance_role },
+    { id: actor.id, governanceRole: actor.governance_role, email: actor.email },
     { id: target.id, governanceRole: target.governance_role },
     { field: "is_walk_leader", value: true },
   );
-  if (!allowed) return NextResponse.json({ error: "Only committee can approve walk leaders, and never their own request." }, { status: 403 });
+  if (!allowed) return NextResponse.json({ error: "Only principals, admins and named committee members can approve walk leaders, and never their own request." }, { status: 403 });
 
   let rosterWarning: string | null = null;
   if (decision === "approve") {

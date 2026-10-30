@@ -110,6 +110,7 @@ type RosterCache = { members: Member[]; syncedAt: string | null; loadedAt: numbe
 export interface RosterViewer {
   id: string;
   governanceRole: GovernanceRole | null;
+  email: string;
 }
 
 export function MemberAdminPortal({ viewer }: { viewer: RosterViewer }) {
