@@ -3,7 +3,7 @@
 import { useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Send } from "lucide-react";
 import { OpenExternal } from "@/components/OpenExternal";
-import { CLAIM_FORMS, CLAIM_KIND_LABELS, claimProblem, isUclEmail, isWalkLeaderClaim, type ClaimFields } from "@/lib/expenseClaims";
+import { CLAIM_FORMS, CLAIM_KIND_LABELS, ROUTE_FEEDBACK_FORM, claimProblem, isUclEmail, isWalkLeaderClaim, type ClaimFields } from "@/lib/expenseClaims";
 import type { ClaimKind } from "@/lib/reimbursementToken";
 
 const MAX_RECEIPT_BYTES = 5 * 1024 * 1024;
@@ -206,7 +206,12 @@ export function ExpenseClaimForm({
                 Yes
               </label>
             </div>
-            <small className="kit-field-hint">It takes about a minute, and the claim isn&apos;t processed without it.</small>
+            <small className="kit-field-hint">
+              <OpenExternal className="expense-question-link" href={ROUTE_FEEDBACK_FORM}>
+                Open the Route Feedback Form
+              </OpenExternal>
+              . It takes about a minute, and the claim isn&apos;t processed without it.
+            </small>
           </fieldset>
         </>
       ) : (
