@@ -191,15 +191,19 @@ export async function syncOsmapsRoutes(fetchers: OsmapsFetchers = LIVE, now = ne
 
   const [{ data: plans }, { data: known }] = await Promise.all([
     supabase.from("event_plans").select("event_suu_id, route_url").not("route_url", "is", null),
-    supabase.from("osmaps_routes").select("id, remote_updated_at, present"),
+    supabase.from("osmaps_routes").select("id, remote_updated_at, present, private"),
   ]);
   const linked = new Map<string, string>(); // walk → OS Maps route id
   for (const p of plans ?? []) {
     const id = osmapsRouteId(p.route_url as string);
     if (id) linked.set(p.event_suu_id as string, id);
   }
-  const stamps = new Map((known ?? []).map((r) => [r.id as string, r as { remote_updated_at: string | null; present: boolean }]));
-  const ids = new Set([...stamps.keys(), ...linked.values()]);
+  const stamps = new Map(
+    (known ?? []).map((r) => [r.id as string, r as { remote_updated_at: string | null; present: boolean; private: boolean }]),
+  );
+  const linkedIds = new Set(linked.values());
+  // A private route only answers when signed in: keep it as imported, unless a plan links it.
+  const ids = new Set([...[...stamps].filter(([id, r]) => !r.private || linkedIds.has(id)).map(([id]) => id), ...linkedIds]);
 
   const failures: SyncResult["failures"] = [];
   const refreshed = new Map<string, OsmapsRouteRow>();
@@ -211,7 +215,8 @@ export async function syncOsmapsRoutes(fetchers: OsmapsFetchers = LIVE, now = ne
     } catch (err) {
       failures.push({ id, error: err instanceof Error ? err.message : String(err) });
       // No longer shared, or deleted: stop offering it. Walks keep the copy they have.
-      if (err instanceof OsmapsError && have?.present && /won't show/.test(err.message)) {
+      // A private route always says so when signed out; that isn't news.
+      if (err instanceof OsmapsError && have?.present && !have.private && /won't show/.test(err.message)) {
         await supabase.from("osmaps_routes").update({ present: false }).eq("id", id);
       }
     }
