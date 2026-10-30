@@ -45,7 +45,7 @@ function summary(values: Record<string, string>) {
  * with its six walk leader slots, additional leaders and shadowing WLs, read
  * from the sheet (pulled when it's a few minutes old) and written back to it.
  */
-export default async function RotaPage() {
+export default async function RotaPage(props: { searchParams?: Promise<{ open?: string }> }) {
   const member = await getCurrentMember();
   if (!member) redirect("/auth/signin");
   const profile = profileOf(member);
@@ -126,12 +126,14 @@ export default async function RotaPage() {
     }));
 
   const walks: RotaWalk[] = [...fromSheet, ...orphans].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+  // ?open=<walk key>: back from a walk's details, with its sign-up sheet open again.
+  const open = (props.searchParams ? await props.searchParams : undefined)?.open ?? null;
 
   return (
     <article className="events-page">
       <EventsSubnav active="rota" showRota showProgramme={canAssign} />
       <p className="day-note">Tap a walk to put names in its slots. It&apos;s the WL calendar: what you type here goes on the sheet, and what&apos;s typed there shows here.</p>
-      <RotaBoard walks={walks} />
+      <RotaBoard walks={walks} initialOpen={open && walks.some((w) => w.key === open) ? open : null} />
     </article>
   );
 }

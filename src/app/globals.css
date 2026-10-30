@@ -2136,7 +2136,8 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 .event-day-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--line); }
 .event-day-actions:empty { display: none; }
 
-.event-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 22px; }
+/* The stats and lead above end flush, so the buttons bring their own gap. */
+.event-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 22px; }
 .event-actions:empty { display: none; }
 .event-actions .kit-btn { display: inline-flex; align-items: center; gap: 6px; }
 
@@ -2225,7 +2226,13 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 /* ===== Club ===== */
 .club-page { max-width: 880px; }
 .club-page > .event-eyebrow { margin: 0 0 8px; }
-.club-subnav { overflow-x: auto; }
+/* Scrolls sideways when the sections outrun the width, but never down: the
+   tabs' underline used to hang 2px into the strip's border, which counted as
+   vertical overflow and drew a scrollbar with arrows on desktop browsers. The
+   underline now sits on the line instead, and the scrollbar stays hidden. */
+.club-subnav { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.club-subnav::-webkit-scrollbar { display: none; }
+.club-subnav a { margin-bottom: 0; }
 .club-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 22px; }
 .club-tiles dd.club-tile-note { margin: 2px 0 0; font: 400 12px var(--font-body); color: var(--muted); }
 .club-bars { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 2px; align-items: end; height: 160px; padding: 12px 12px 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
@@ -2977,6 +2984,13 @@ button.kit-item-main { cursor: pointer; }
 .rota-chevron { color: var(--muted); }
 .rota-fill-tag { display: inline-flex; align-items: center; padding: 1px 8px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font: 700 12px var(--font-body); white-space: nowrap; }
 .rota-fill-tag.is-full { border-color: var(--ok-line); color: var(--ok-fg); }
+/* "Walk details" in the sheet's meta line: link-coloured so it reads as one,
+   with its tap area grown past the text without moving the line. The line
+   drops .modal-card p's fade (which greyed the link with it) for muted text. */
+.modal-card .rota-sheet-meta { opacity: 1; color: var(--muted); }
+.rota-walk-link { position: relative; display: inline-flex; align-items: center; gap: 1px; color: var(--link); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.rota-walk-link::after { content: ""; position: absolute; inset: -12px -6px; }
+.rota-walk-link:hover { color: var(--ink); }
 .rota-sheet-section { display: grid; gap: 8px; margin: 18px 0 0; }
 .rota-sheet-section .event-eyebrow { margin: 0; }
 .rota-slots { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }

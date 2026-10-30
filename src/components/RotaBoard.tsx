@@ -48,13 +48,14 @@ const isList = (field: RotaField) => (ROTA_LISTS as readonly string[]).includes(
  * leaders. The slots are the WL calendar's cells, so it doesn't matter
  * whether a name goes in here or on the sheet.
  */
-export function RotaBoard({ walks }: { walks: RotaWalk[] }) {
+export function RotaBoard({ walks, initialOpen = null }: { walks: RotaWalk[]; initialOpen?: string | null }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   // By key, so the open sheet shows the refreshed walk after each save.
-  const [openKey, setOpenKey] = useState<string | null>(null);
+  // initialOpen: coming back from "Walk details" reopens that walk's sheet.
+  const [openKey, setOpenKey] = useState<string | null>(initialOpen);
   const open = walks.find((w) => w.key === openKey) ?? null;
 
   const months = useMemo(() => {
@@ -240,12 +241,16 @@ function RotaForm({
       }}
     >
       <h3 id="rota-sheet-title">{walk.name}</h3>
-      <p>
+      <p className="rota-sheet-meta">
         {walk.when}
         {walk.eventId ? (
           <>
             {" · "}
-            <Link href={`/portal/events/${walk.eventId}`}>Walk details</Link>
+            {/* Carries the walk along, so the event page can offer the way back to this sheet. */}
+            <Link className="rota-walk-link" href={`/portal/events/${walk.eventId}?${new URLSearchParams({ from: "rota", walk: walk.key })}`}>
+              Walk details
+              <ChevronRight size={14} aria-hidden="true" />
+            </Link>
           </>
         ) : null}
       </p>
