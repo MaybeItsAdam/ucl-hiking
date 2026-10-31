@@ -20,7 +20,7 @@ async function devEvents(): Promise<SUEvent[]> {
  * then drops what has finished.
  */
 export async function getUpcomingEvents(now = new Date()): Promise<SUEvent[]> {
-  if (!isSupabaseConfigured()) return devEvents();
+  if (!isSupabaseConfigured()) return (await devEvents()).filter((e) => e.status !== "draft" && isEventCurrent(e, now));
   const today = startOfLondonDay(now).toISOString();
   const { data } = await getSupabaseAdmin()
     .from("events")

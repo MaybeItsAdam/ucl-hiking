@@ -2125,7 +2125,12 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 .event-section-title { margin: 0 0 10px; font: 800 12px var(--font-body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .event-day { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); overflow: hidden; }
 .event-day-rows { margin: 0; padding: 0; list-style: none; }
-.event-day-rows li { display: grid; grid-template-columns: 18px 72px 1fr; gap: 10px; align-items: baseline; padding: 12px 14px; font-size: 15px; }
+/* The label column fits the longest label ("Backmarker"), shared by every row so the values line up. */
+.event-day-rows li { display: grid; grid-template-columns: 18px 96px minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 12px 14px; font-size: 15px; }
+@supports (grid-template-columns: subgrid) {
+  /* The icon track is auto, not 18px: a subgrid row's padding is added to its edge tracks, and a fixed one would absorb it. */
+  .event-day-rows { display: grid; grid-template-columns: auto max-content minmax(0, 1fr); column-gap: 10px; }  .event-day-rows li { grid-column: 1 / -1; grid-template-columns: subgrid; column-gap: inherit; }
+}
 .event-day-rows li + li { border-top: 1px solid var(--line); }
 .event-day-rows svg { align-self: center; color: var(--forest); }
 .event-day-label { font: 800 10.5px var(--font-body); letter-spacing: .13em; text-transform: uppercase; color: var(--muted); }

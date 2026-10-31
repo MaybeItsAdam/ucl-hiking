@@ -101,7 +101,16 @@ export function overviewLine(segments: TrackPoint[][] | null | undefined): [numb
 export async function getRouteLines(eventSuuIds: (string | null | undefined)[]): Promise<Map<string, [number, number][][]>> {
   const lines = new Map<string, [number, number][][]>();
   const ids = [...new Set(eventSuuIds.filter((id): id is string => Boolean(id)))];
-  if (!ids.length || !isSupabaseConfigured()) return lines;
+  if (!ids.length) return lines;
+  if (!isSupabaseConfigured()) {
+    if (process.env.NODE_ENV === "production") return lines;
+    const { getDevRoute } = await import("@/lib/dev-store");
+    for (const id of ids) {
+      const line = overviewLine(getDevRoute(id)?.segments);
+      if (line.length) lines.set(id, line);
+    }
+    return lines;
+  }
   const supabase = getSupabaseAdmin();
   for (let i = 0; i < ids.length; i += 100) {
     const { data, error } = await supabase.from("event_routes").select("event_suu_id, segments").in("event_suu_id", ids.slice(i, i + 100));
@@ -116,7 +125,11 @@ export async function getRouteLines(eventSuuIds: (string | null | undefined)[]):
 
 /** The route for an event, or null. A missing table reads as no route, as with plans. */
 export async function getEventRoute(eventSuuId: string | null): Promise<EventRoute | null> {
-  if (!eventSuuId || !isSupabaseConfigured()) return null;
+  if (!eventSuuId) return null;
+  if (!isSupabaseConfigured()) {
+    if (process.env.NODE_ENV === "production") return null;
+    return (await import("@/lib/dev-store")).getDevRoute(eventSuuId);
+  }
   const { data, error } = await getSupabaseAdmin().from("event_routes").select("*").eq("event_suu_id", eventSuuId).maybeSingle();
   if (error) return null;
   return (data as EventRoute | null) ?? null;

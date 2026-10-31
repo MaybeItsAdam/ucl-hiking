@@ -8,20 +8,22 @@ labelled **TEMPLATE — DO NOT UPLOAD** and are kept outside the finished assets
 
 | Store / device | Folder | Assets |
 | --- | --- | --- |
-| Apple iPhone 6.9-inch | `ios/iphone-6.9/screenshots/` | 3 public screenshots, 1320 × 2868 |
-| Apple iPad 13-inch | `ios/ipad-13/screenshots/` | 3 public screenshots, 2064 × 2752 |
-| Google Play phone | `android/phone/screenshots/` | 3 public screenshots, 1080 × 1920 |
-| Google Play 7-inch tablet | `android/tablet-7/screenshots/` | 3 public screenshots, 1200 × 1920 |
-| Google Play 10-inch tablet | `android/tablet-10/screenshots/` | 3 public screenshots, 1600 × 2560 |
+| Apple iPhone 6.9-inch | `ios/iphone-6.9/screenshots/` | 5 screenshots, 1320 × 2868 |
+| Apple iPad 13-inch | `ios/ipad-13/screenshots/` | 5 screenshots, 2064 × 2752 |
+| Google Play phone | `android/phone/screenshots/` | 5 screenshots, 1080 × 1920 |
+| Google Play 7-inch tablet | `android/tablet-7/screenshots/` | 5 screenshots, 1200 × 1920 |
+| Google Play 10-inch tablet | `android/tablet-10/screenshots/` | 5 screenshots, 1600 × 2560 |
 | Apple icon | `ios/app-icon.png` | 1024 × 1024, opaque RGB |
 | Google Play icon | `android/app-icon.png` | 512 × 512, 32-bit PNG |
 | Google feature graphic | `android/feature-graphic.png` | 1024 × 500, opaque RGB |
 
-The screenshots contain actual captures of the existing native app displaying
-`https://ucl-hiking.vercel.app`: the home screen, public join section, and sign-in
-page. Their original PNGs are in `captures/`. Native capture builds opened the
-existing `/#join` and `/auth/signin` routes directly; the website UI was not
-recreated or edited. No signed-in member records were captured.
+The screenshots are captures of the real app: the events list, a walk's page
+with its route map and The day, the year map, kit hire and The Navigator. They
+were taken by `scripts/store-assets/capture.mjs`, which runs `next dev` locally
+with every Supabase variable blanked and seeds the in-memory dev store
+(`DEV_FIXTURES`, see `src/lib/dev-store.ts`) with invented walks, a route, a
+walk plan and kit. No database is read or written, and no real member appears.
+The raw captures are in `captures/`.
 
 iOS supports iPhone **and** iPad (`TARGETED_DEVICE_FAMILY = 1,2`), so the iPad
 set is included. These sizes follow [Apple screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications)
@@ -30,31 +32,20 @@ checked 16 September 2026. Upload PNGs; the adjacent SVGs are editable sources.
 A preview video is optional and is not included because authenticated screen
 recordings are not available.
 
-## Member screenshot templates
-
-Each device has three templates under `templates/`: equipment catalogue,
-borrowing request form, and My Borrow Requests. They contain capture slots,
-not fabricated member interfaces. After signing in, capture the actual native
-screens without exposing private member information, and save them as:
-
-- `captures/ios/04-kit-catalogue.png`, `05-kit-request.png`, `06-my-requests.png`
-- `captures/ipad/04-kit-catalogue.png`, `05-kit-request.png`, `06-my-requests.png`
-- `captures/android/04-kit-catalogue.png`, `05-kit-request.png`, `06-my-requests.png`
-
-Keep the capture at the same device dimensions shown in the table. Run:
+## Regenerating the screenshots
 
 ```bash
-python3 scripts/store-assets/generate.py
+node scripts/store-assets/capture.mjs     # real screens on demo data -> captures/
+python3 scripts/store-assets/generate.py  # frames, feature graphic, fastlane copies
 ```
 
-The generator fills each layout using its real capture, moves the result into
-the finished screenshot folder, removes its placeholder template, and refreshes
-`preview.html` and `manifest.json`. It rejects captures of the wrong device size
-rather than stretching the UI. Once filled, upload in this order: catalogue,
-request form, request history, UCL sign-in, home, join invitation. Google
-recommends at least four screenshots for promotional recommendation formats;
-three public screenshots are ready now, with the member captures still needed
-for the complete six-image set.
+The capture script needs Google Chrome, network access for the map tiles and
+fonts, and refuses to run if a local `.env` file sets database credentials.
+Pass device folder names (`ios`, `ipad`, `android`, `android-tablet-7`,
+`android-tablet-10`) to capture only those. Headlines and sublines live in
+`SCREENS` in `generate.py`; the generator rejects captures of the wrong size,
+deletes screenshots no longer listed, and syncs fastlane. Upload order is the
+file order: events, walk, year map, kit, Navigator.
 
 The source icon is `branding/app_icons/app-icon.svg`. Run
 `scripts/generate-app-icons.sh` and then the store generator when it changes.
@@ -68,8 +59,8 @@ Dependencies: Python 3, `rsvg-convert`, and ImageMagick (`magick`).
 `listing.json` with the same values and character counts.
 
 - Name: **UCL Hiking Club**
-- Apple subtitle: **Club equipment and kit loans**
-- Google short description: **Browse UCL Hiking Club kit, request equipment and track your loans**
+- Apple subtitle: **Walks, routes, kit & magazine** (29 of 30)
+- Google short description: **Club walks with route maps, kit hire and The Navigator magazine, in one app** (75 of 80)
 - Support: **support@uclhiking.org**
 - Support URL: `https://ucl-hiking.vercel.app/support`
 - Privacy URL: `https://ucl-hiking.vercel.app/privacy`

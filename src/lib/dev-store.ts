@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import type { EventPlanView } from "./eventPlans";
+import type { EventRoute } from "./eventRoutes";
+import type { LatLng } from "./places";
 import type {
   Equipment,
   EquipmentRequest,
@@ -10,6 +14,49 @@ const devEquipment: Equipment[] = [];
 const devRequests: EquipmentRequest[] = [];
 const devEvents: SUEvent[] = [];
 const devMembers: Member[] = [];
+const devRoutes = new Map<string, EventRoute>();
+const devPlans = new Map<string, EventPlanView>();
+const devPlaces = new Map<string, LatLng>();
+
+/**
+ * Demo content for local dev without a database, read once from the JSON file
+ * DEV_FIXTURES names. scripts/store-assets/capture.mjs writes one to render the
+ * store screenshots; nothing sets it otherwise, and production never reads it.
+ */
+interface DevFixtures {
+  events?: SUEvent[];
+  equipment?: Equipment[];
+  requests?: EquipmentRequest[];
+  members?: Member[];
+  routes?: EventRoute[];
+  plans?: EventPlanView[];
+  places?: Record<string, LatLng>;
+}
+
+(function seedFromFixtures() {
+  const file = process.env.DEV_FIXTURES;
+  if (!file || process.env.NODE_ENV === "production") return;
+  const data = JSON.parse(readFileSync(file, "utf8")) as DevFixtures;
+  devEvents.push(...(data.events ?? []));
+  devEquipment.push(...(data.equipment ?? []));
+  devRequests.push(...(data.requests ?? []));
+  devMembers.push(...(data.members ?? []));
+  for (const route of data.routes ?? []) devRoutes.set(route.event_suu_id, route);
+  for (const plan of data.plans ?? []) devPlans.set(plan.event_suu_id, plan);
+  for (const [place, at] of Object.entries(data.places ?? {})) devPlaces.set(place, at);
+})();
+
+export function getDevRoute(eventSuuId: string): EventRoute | null {
+  return devRoutes.get(eventSuuId) ?? null;
+}
+
+export function getDevPlan(eventSuuId: string): EventPlanView | null {
+  return devPlans.get(eventSuuId) ?? null;
+}
+
+export function getDevPlaces(keys: string[]): Map<string, LatLng> {
+  return new Map(keys.flatMap((key) => (devPlaces.has(key) ? [[key, devPlaces.get(key)!] as const] : [])));
+}
 
 export function getDevEquipment(): Equipment[] {
   return devEquipment;

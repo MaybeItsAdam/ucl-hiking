@@ -5,7 +5,7 @@
     "kind": "feature-graphic",
     "width": 1024,
     "height": 500,
-    "alt": "UCL Hiking Club: Ready for the next adventure. Your club equipment, in one place. A mountain range and dotted trail."
+    "alt": "UCL Hiking Club: Your hiking club, in your pocket. Walks, routes, kit hire and the club magazine. Snow-capped peaks with a lime dashed trail, as on the app icon."
   },
   {
     "file": "ios/app-icon.png",
@@ -22,273 +22,228 @@
     "height": 512
   },
   {
-    "file": "ios/iphone-6.9/screenshots/01-home.png",
+    "file": "ios/iphone-6.9/screenshots/01-events.png",
     "status": "ready",
     "kind": "screenshot",
     "width": 1320,
     "height": 2868,
     "platform": "ios/iphone-6.9",
-    "capture": "captures/ios/01-home.png"
+    "capture": "captures/ios/01-events.png"
   },
   {
-    "file": "ios/iphone-6.9/screenshots/02-join.png",
+    "file": "ios/iphone-6.9/screenshots/02-walk.png",
     "status": "ready",
     "kind": "screenshot",
     "width": 1320,
     "height": 2868,
     "platform": "ios/iphone-6.9",
-    "capture": "captures/ios/02-join.png"
+    "capture": "captures/ios/02-walk.png"
   },
   {
-    "file": "ios/iphone-6.9/screenshots/03-signin.png",
+    "file": "ios/iphone-6.9/screenshots/03-year-map.png",
     "status": "ready",
     "kind": "screenshot",
     "width": 1320,
     "height": 2868,
     "platform": "ios/iphone-6.9",
-    "capture": "captures/ios/03-signin.png"
+    "capture": "captures/ios/03-year-map.png"
   },
   {
-    "file": "templates/ios/iphone-6.9/04-kit-catalogue.png",
-    "status": "template",
+    "file": "ios/iphone-6.9/screenshots/04-kit.png",
+    "status": "ready",
     "kind": "screenshot",
     "width": 1320,
     "height": 2868,
     "platform": "ios/iphone-6.9",
-    "capture": null
+    "capture": "captures/ios/04-kit.png"
   },
   {
-    "file": "templates/ios/iphone-6.9/05-kit-request.png",
-    "status": "template",
+    "file": "ios/iphone-6.9/screenshots/05-navigator.png",
+    "status": "ready",
     "kind": "screenshot",
     "width": 1320,
     "height": 2868,
     "platform": "ios/iphone-6.9",
-    "capture": null
+    "capture": "captures/ios/05-navigator.png"
   },
   {
-    "file": "templates/ios/iphone-6.9/06-my-requests.png",
-    "status": "template",
-    "kind": "screenshot",
-    "width": 1320,
-    "height": 2868,
-    "platform": "ios/iphone-6.9",
-    "capture": null
-  },
-  {
-    "file": "ios/ipad-13/screenshots/01-home.png",
+    "file": "ios/ipad-13/screenshots/01-events.png",
     "status": "ready",
     "kind": "screenshot",
     "width": 2064,
     "height": 2752,
     "platform": "ios/ipad-13",
-    "capture": "captures/ipad/01-home.png"
+    "capture": "captures/ipad/01-events.png"
   },
   {
-    "file": "ios/ipad-13/screenshots/02-join.png",
+    "file": "ios/ipad-13/screenshots/02-walk.png",
     "status": "ready",
     "kind": "screenshot",
     "width": 2064,
     "height": 2752,
     "platform": "ios/ipad-13",
-    "capture": "captures/ipad/02-join.png"
+    "capture": "captures/ipad/02-walk.png"
   },
   {
-    "file": "ios/ipad-13/screenshots/03-signin.png",
+    "file": "ios/ipad-13/screenshots/03-year-map.png",
     "status": "ready",
     "kind": "screenshot",
     "width": 2064,
     "height": 2752,
     "platform": "ios/ipad-13",
-    "capture": "captures/ipad/03-signin.png"
+    "capture": "captures/ipad/03-year-map.png"
   },
   {
-    "file": "templates/ios/ipad-13/04-kit-catalogue.png",
-    "status": "template",
+    "file": "ios/ipad-13/screenshots/04-kit.png",
+    "status": "ready",
     "kind": "screenshot",
     "width": 2064,
     "height": 2752,
     "platform": "ios/ipad-13",
-    "capture": null
+    "capture": "captures/ipad/04-kit.png"
   },
   {
-    "file": "templates/ios/ipad-13/05-kit-request.png",
-    "status": "template",
+    "file": "ios/ipad-13/screenshots/05-navigator.png",
+    "status": "ready",
     "kind": "screenshot",
     "width": 2064,
     "height": 2752,
     "platform": "ios/ipad-13",
-    "capture": null
+    "capture": "captures/ipad/05-navigator.png"
   },
   {
-    "file": "templates/ios/ipad-13/06-my-requests.png",
-    "status": "template",
-    "kind": "screenshot",
-    "width": 2064,
-    "height": 2752,
-    "platform": "ios/ipad-13",
-    "capture": null
-  },
-  {
-    "file": "android/phone/screenshots/01-home.png",
+    "file": "android/phone/screenshots/01-events.png",
     "status": "ready",
     "kind": "screenshot",
     "width": 1080,
     "height": 1920,
     "platform": "android/phone",
-    "capture": "captures/android/01-home.png"
+    "capture": "captures/android/01-events.png"
   },
   {
-    "file": "android/phone/screenshots/02-join.png",
+    "file": "android/phone/screenshots/02-walk.png",
     "status": "ready",
     "kind": "screenshot",
     "width": 1080,
     "height": 1920,
     "platform": "android/phone",
-    "capture": "captures/android/02-join.png"
+    "capture": "captures/android/02-walk.png"
   },
   {
-    "file": "android/phone/screenshots/03-signin.png",
+    "file": "android/phone/screenshots/03-year-map.png",
     "status": "ready",
     "kind": "screenshot",
     "width": 1080,
     "height": 1920,
     "platform": "android/phone",
-    "capture": "captures/android/03-signin.png"
+    "capture": "captures/android/03-year-map.png"
   },
   {
-    "file": "templates/android/phone/04-kit-catalogue.png",
-    "status": "template",
+    "file": "android/phone/screenshots/04-kit.png",
+    "status": "ready",
     "kind": "screenshot",
     "width": 1080,
     "height": 1920,
     "platform": "android/phone",
-    "capture": null
+    "capture": "captures/android/04-kit.png"
   },
   {
-    "file": "templates/android/phone/05-kit-request.png",
-    "status": "template",
+    "file": "android/phone/screenshots/05-navigator.png",
+    "status": "ready",
     "kind": "screenshot",
     "width": 1080,
     "height": 1920,
     "platform": "android/phone",
-    "capture": null
+    "capture": "captures/android/05-navigator.png"
   },
   {
-    "file": "templates/android/phone/06-my-requests.png",
-    "status": "template",
-    "kind": "screenshot",
-    "width": 1080,
-    "height": 1920,
-    "platform": "android/phone",
-    "capture": null
-  },
-  {
-    "file": "android/tablet-7/screenshots/01-home.png",
+    "file": "android/tablet-7/screenshots/01-events.png",
     "status": "ready",
     "kind": "screenshot",
     "width": 1200,
     "height": 1920,
     "platform": "android/tablet-7",
-    "capture": "captures/android-tablet-7/01-home.png"
+    "capture": "captures/android-tablet-7/01-events.png"
   },
   {
-    "file": "android/tablet-7/screenshots/02-join.png",
+    "file": "android/tablet-7/screenshots/02-walk.png",
     "status": "ready",
     "kind": "screenshot",
     "width": 1200,
     "height": 1920,
     "platform": "android/tablet-7",
-    "capture": "captures/android-tablet-7/02-join.png"
+    "capture": "captures/android-tablet-7/02-walk.png"
   },
   {
-    "file": "android/tablet-7/screenshots/03-signin.png",
+    "file": "android/tablet-7/screenshots/03-year-map.png",
     "status": "ready",
     "kind": "screenshot",
     "width": 1200,
     "height": 1920,
     "platform": "android/tablet-7",
-    "capture": "captures/android-tablet-7/03-signin.png"
+    "capture": "captures/android-tablet-7/03-year-map.png"
   },
   {
-    "file": "templates/android/tablet-7/04-kit-catalogue.png",
-    "status": "template",
+    "file": "android/tablet-7/screenshots/04-kit.png",
+    "status": "ready",
     "kind": "screenshot",
     "width": 1200,
     "height": 1920,
     "platform": "android/tablet-7",
-    "capture": null
+    "capture": "captures/android-tablet-7/04-kit.png"
   },
   {
-    "file": "templates/android/tablet-7/05-kit-request.png",
-    "status": "template",
+    "file": "android/tablet-7/screenshots/05-navigator.png",
+    "status": "ready",
     "kind": "screenshot",
     "width": 1200,
     "height": 1920,
     "platform": "android/tablet-7",
-    "capture": null
+    "capture": "captures/android-tablet-7/05-navigator.png"
   },
   {
-    "file": "templates/android/tablet-7/06-my-requests.png",
-    "status": "template",
-    "kind": "screenshot",
-    "width": 1200,
-    "height": 1920,
-    "platform": "android/tablet-7",
-    "capture": null
-  },
-  {
-    "file": "android/tablet-10/screenshots/01-home.png",
+    "file": "android/tablet-10/screenshots/01-events.png",
     "status": "ready",
     "kind": "screenshot",
     "width": 1600,
     "height": 2560,
     "platform": "android/tablet-10",
-    "capture": "captures/android-tablet-10/01-home.png"
+    "capture": "captures/android-tablet-10/01-events.png"
   },
   {
-    "file": "android/tablet-10/screenshots/02-join.png",
+    "file": "android/tablet-10/screenshots/02-walk.png",
     "status": "ready",
     "kind": "screenshot",
     "width": 1600,
     "height": 2560,
     "platform": "android/tablet-10",
-    "capture": "captures/android-tablet-10/02-join.png"
+    "capture": "captures/android-tablet-10/02-walk.png"
   },
   {
-    "file": "android/tablet-10/screenshots/03-signin.png",
+    "file": "android/tablet-10/screenshots/03-year-map.png",
     "status": "ready",
     "kind": "screenshot",
     "width": 1600,
     "height": 2560,
     "platform": "android/tablet-10",
-    "capture": "captures/android-tablet-10/03-signin.png"
+    "capture": "captures/android-tablet-10/03-year-map.png"
   },
   {
-    "file": "templates/android/tablet-10/04-kit-catalogue.png",
-    "status": "template",
+    "file": "android/tablet-10/screenshots/04-kit.png",
+    "status": "ready",
     "kind": "screenshot",
     "width": 1600,
     "height": 2560,
     "platform": "android/tablet-10",
-    "capture": null
+    "capture": "captures/android-tablet-10/04-kit.png"
   },
   {
-    "file": "templates/android/tablet-10/05-kit-request.png",
-    "status": "template",
+    "file": "android/tablet-10/screenshots/05-navigator.png",
+    "status": "ready",
     "kind": "screenshot",
     "width": 1600,
     "height": 2560,
     "platform": "android/tablet-10",
-    "capture": null
-  },
-  {
-    "file": "templates/android/tablet-10/06-my-requests.png",
-    "status": "template",
-    "kind": "screenshot",
-    "width": 1600,
-    "height": 2560,
-    "platform": "android/tablet-10",
-    "capture": null
+    "capture": "captures/android-tablet-10/05-navigator.png"
   }
 ]

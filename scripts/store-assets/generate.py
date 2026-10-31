@@ -15,13 +15,14 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
 STORE = ROOT / 'assets/store'
+# Captures come from scripts/store-assets/capture.mjs: the real app, run
+# locally on invented demo walks and kit, never against the club database.
 SCREENS = [
-    ('01-home', ['London out.', 'Wild in.'], 'Meet UCL Hiking Club.'),
-    ('02-join', ['The trail', 'starts here.'], 'Connect with your hiking club.'),
-    ('03-signin', ['Your club.', 'Your UCL sign-in.'], 'Access depends on your club membership.'),
-    ('04-kit-catalogue', ['Find kit for', 'your next hike.'], 'Browse club equipment and availability.'),
-    ('05-kit-request', ['Plan your trip.', 'Request your kit.'], 'Choose dates and send a loan request.'),
-    ('06-my-requests', ['Keep track', 'of your kit.'], 'Check your requests and loan status.'),
+    ('01-events', ['London out.', 'Wild in.'], 'Every walk and social, with what’s next up top.'),
+    ('02-walk', ['Know the route', 'before you go.'], 'The map, the climb and the plan for the day.'),
+    ('03-year-map', ['See where', 'we walked.'], 'Every club walk this year, on one map.'),
+    ('04-kit', ['Borrow the kit.', 'Skip the shop.'], 'Tents, poles and waterproofs from the club store.'),
+    ('05-navigator', ['Read the', 'Navigator.'], 'Every issue of the club magazine, in your pocket.'),
 ]
 FORMATS = {
     'ios/iphone-6.9': (1320, 2868, 'ios', 132, 484, 1056, 92, 40),
@@ -30,6 +31,9 @@ FORMATS = {
     'android/tablet-7': (1200, 1920, 'android-tablet-7', 170, 450, 860, 64, 28),
     'android/tablet-10': (1600, 2560, 'android-tablet-10', 227, 600, 1147, 85, 37),
 }
+# The app icon's seed in scripts/logo/generate.mjs (branding/app_icons/).
+ICON_SEED = 7
+FEATURE_ALT = 'UCL Hiking Club: Your hiking club, in your pocket. Walks, routes, kit hire and the club magazine. Snow-capped peaks with a lime dashed trail, as on the app icon.'
 manifest = []
 
 
@@ -66,7 +70,11 @@ def screenshot(format_name, spec, screen):
         if (cw, ch) != (w, h):
             raise ValueError(f'{capture}: expected {w} × {h}, got {cw} × {ch}. Capture the correct native device size.')
         uri = 'data:image/png;base64,' + base64.b64encode(capture.read_bytes()).decode()
-        slot = f'<image href="{uri}" x="{x}" y="{y}" width="{sw}" height="{sh}"/>'
+        # A plain device frame: the screen with rounded corners in a dark bezel.
+        radius, bezel = round(sw * (.07 if 'ipad' not in source_name and 'tablet' not in source_name else .035)), round(sw * .018)
+        slot = f'''<defs><clipPath id="screen"><rect x="{x}" y="{y}" width="{sw}" height="{sh}" rx="{radius}"/></clipPath></defs>
+          <rect x="{x-bezel}" y="{y-bezel}" width="{sw+2*bezel}" height="{sh+2*bezel}" rx="{radius+bezel}" fill="#18232e"/>
+          <image href="{uri}" x="{x}" y="{y}" width="{sw}" height="{sh}" preserveAspectRatio="none" clip-path="url(#screen)"/>'''
     else:
         cx, cy = x + sw / 2, y + sh / 2
         slot = f'''<rect x="{x}" y="{y}" width="{sw}" height="{sh}" fill="#edf4f3"/>
@@ -100,33 +108,19 @@ def screenshot(format_name, spec, screen):
 
 def feature():
     svg = STORE / 'google-play-feature.svg'
-    svg.write_text('''<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
+    # The mountains are the app icon's own: seed 7 of scripts/logo/generate.mjs,
+    # its foreground layer (peaks, snow caps, lime trail) set on the right with
+    # the rock running off the bottom edge.
+    mark = run('node', str(ROOT / 'scripts/logo/generate.mjs'), '--seed', str(ICON_SEED), '--layer', 'foreground')
+    mark = re.sub(r'^<svg[^>]*>|</svg>$', '', mark.strip())
+    svg.write_text(f'''<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="500" viewBox="0 0 1024 500">
       <rect width="1024" height="500" fill="#01a2a6"/>
-      <path d="M-20 448 140 412 300 450 450 424 560 452 720 190 810 448 890 316 1044 448V520H-20Z" fill="#2c3e50"/>
-      <path d="M720 190 666 279 706 268 761 309Z" fill="#fff"/>
-      <path d="M890 316 863 361 893 348 936 356Z" fill="#fff"/>
-      <path d="M-20 486C130 468 230 488 340 478s190-6 270-26c40-10 65-24 80-42" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" stroke-dasharray="1 26"/>
-      <g fill="#fff" transform="translate(856 70) scale(.478)">
-        <path d="M97 26h6v20h-6z"/>
-        <path d="M89 40h22v7H89z"/>
-        <path d="M58 104c0-46 20-62 42-62s42 16 42 62z"/>
-        <path d="M52 104h96v11H52z"/>
-        <path d="M38 115h124l20 28H18z"/>
-        <path d="M22 143h156v13H22z"/>
-        <path d="M41 156h12v64H41zm21.2 0h12v64h-12zm21.2 0h12v64h-12zm21.2 0h12v64h-12zm21.2 0h12v64h-12zM147 156h12v64h-12z"/>
-        <path d="M24 220h152v15H24z"/>
-        <path d="M10 235h180v18H10z"/>
-      </g>
-      <g transform="translate(735 372)">
-        <circle r="46" fill="#2c3e50"/>
-        <circle r="38" fill="#bdf271"/>
-        <path fill="#2c3e50" fill-rule="evenodd" transform="scale(.5)" d="m-40 43 25-69 69-28-28 69-66 28Zm16-15 30-13-20-20-10 33Z"/>
-      </g>
+      <g transform="translate(560 10) scale(.52)">{mark}</g>
       <g font-family="Arial, Helvetica, sans-serif" fill="#fff">
         <text x="94" y="112" font-size="23" font-weight="700" letter-spacing="2.4">UCL HIKING CLUB</text>
-        <text x="90" y="190" font-size="56" font-weight="800">Ready for</text>
-        <text x="90" y="252" font-size="56" font-weight="800">the next adventure.</text>
-        <text x="94" y="301" font-size="22">Your club equipment, in one place.</text>
+        <text x="90" y="190" font-size="56" font-weight="800">Your hiking club,</text>
+        <text x="90" y="252" font-size="56" font-weight="800">in your pocket.</text>
+        <text x="94" y="301" font-size="22">Walks, routes, kit hire and the club magazine.</text>
       </g>
     </svg>''')
     png = STORE / 'google-play-feature.png'
@@ -135,7 +129,7 @@ def feature():
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(png, target)
     record(target, 'ready', 'feature-graphic', 1024, 500,
-           alt='UCL Hiking Club: Ready for the next adventure. Your club equipment, in one place. A mountain range and dotted trail.')
+           alt=FEATURE_ALT)
 
 
 def gallery():
@@ -146,7 +140,7 @@ def gallery():
         groups.append(f'<section><h2>{platform}</h2><div class="row">{cards}</div></section>')
     (STORE / 'preview.html').write_text('''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>UCL Hiking Club store assets</title>
     <style>body{margin:0;padding:40px;background:#edf4f3;color:#2c3e50;font:16px Arial,sans-serif}h1{margin:0 0 12px}p{line-height:1.6;max-width:850px}.feature{max-width:1024px;width:100%;margin:20px 0;border-radius:12px}.row{display:flex;gap:20px;overflow:auto;padding:12px 0 24px}a{flex:0 0 210px;color:inherit;text-decoration:none}a img{width:210px;display:block;box-shadow:0 5px 18px #2c3e5020}a span{display:block;font-size:13px;padding-top:10px}h2{font-size:20px;margin-top:36px}</style>
-    <h1>UCL Hiking Club store assets</h1><p>Finished public screenshots use genuine native app captures. Member templates have labelled slots and must be filled before upload. Click an asset to open it at full size.</p><img class="feature" src="android/feature-graphic.png" alt="Mountain range with UCL Hiking Club adventure message">''' + ''.join(groups) + '</html>')
+    <h1>UCL Hiking Club store assets</h1><p>Screenshots frame captures of the real app running locally on invented demo walks and kit (scripts/store-assets/capture.mjs). Click an asset to open it at full size.</p><img class="feature" src="android/feature-graphic.png" alt="Mountain range with UCL Hiking Club adventure message">''' + ''.join(groups) + '</html>')
 
 
 def archive():
@@ -250,6 +244,18 @@ if __name__ == '__main__':
         out.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(STORE / source, out)
         record(out, 'ready', 'app-icon', size, size)
+    # Screens dropped from SCREENS (and their old templates) leave no stale files to upload.
+    names = {name for name, _, _ in SCREENS}
+    for format_name in FORMATS:
+        for folder in [STORE / format_name / 'screenshots', STORE / 'templates' / format_name]:
+            for old in folder.glob('*'):
+                if old.suffix in ('.png', '.svg') and old.stem not in names:
+                    old.unlink()
+    for folder in sorted((STORE / 'templates').glob('**/*'), reverse=True):
+        if folder.is_dir() and not any(folder.iterdir()):
+            folder.rmdir()
+    if (STORE / 'templates').exists() and not any((STORE / 'templates').iterdir()):
+        (STORE / 'templates').rmdir()
     for format_name, spec in FORMATS.items():
         for screen in SCREENS:
             screenshot(format_name, spec, screen)
