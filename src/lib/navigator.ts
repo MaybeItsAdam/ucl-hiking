@@ -115,6 +115,20 @@ export function formatBytes(bytes: number): string {
   return `${Math.max(1, Math.round(bytes / 1e3))} KB`;
 }
 
+/**
+ * Names the exact file an issue reads: its Drive id and size. It changes whenever
+ * the file behind an issue does (a web copy goes up, a fixed reprint replaces it),
+ * so it is both the proxy's ETag and the namespace every copy kept on a device
+ * sits under — a new file never shows pages cached from the old one.
+ */
+export function navigatorVersion(issue: Pick<NavigatorIssue, "pdfUrl" | "bytes">): string {
+  let id = "";
+  try {
+    id = new URL(issue.pdfUrl).searchParams.get("id") ?? "";
+  } catch {}
+  return `${id.replace(/[^\w-]/g, "") || "file"}-${issue.bytes ?? 0}`;
+}
+
 /** Newest first: by date, then by issue number for two in the same month. */
 export function navigatorIssues(list: readonly NavigatorIssue[] = NAVIGATOR_ISSUES): NavigatorIssue[] {
   return [...list].sort((a, b) => b.date.localeCompare(a.date) || b.issue - a.issue);
