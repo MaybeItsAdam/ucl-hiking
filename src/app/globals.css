@@ -3239,28 +3239,53 @@ button.kit-item-main { cursor: pointer; }
   background: var(--surface) center / cover no-repeat; opacity: .55;
 }
 
-/* The book: StPageFlip's own layout rules (the package ships none), sized by the
-   reader to exactly one page, or two side by side. The curl's shadows are drawn
-   by the library: they're the paper's, content rather than chrome. */
+/* The book (src/lib/flipbook.ts): printed paper on a slightly deeper desk.
+   Square-cornered pages, a shaded gutter where facing pages meet the spine,
+   the stack of page edges either side, and shading that follows a turning page.
+   That shading is the paper's, content rather than chrome; only its opacity
+   changes, and the turning page only its transform, so a turn never repaints. */
+.navigator-stage { background: color-mix(in srgb, var(--ink) 7%, var(--paper-warm)); }
 .navigator-book { position: relative; flex-shrink: 0; }
-.navigator-book.stf__parent { position: relative; display: block; box-sizing: border-box; transform: translateZ(0); touch-action: none; }
-.navigator-book .stf__wrapper { position: relative; width: 100%; height: 100%; box-sizing: border-box; }
-.navigator-book .stf__block { position: absolute; inset: 0; box-sizing: border-box; perspective: 2000px; }
-.navigator-book .stf__item { display: none; position: absolute; transform-style: preserve-3d; }
-.navigator-book .stf__outerShadow, .navigator-book .stf__innerShadow,
-.navigator-book .stf__hardShadow, .navigator-book .stf__hardInnerShadow { position: absolute; left: 0; top: 0; }
-
-/* A page: the paper, then the image drawn from the PDF once it's ready. */
-.navigator-leaf {
-  box-sizing: border-box; overflow: hidden;
-  border: 1px solid var(--line); background: var(--surface) center / cover no-repeat;
-}
-.navigator-leaf img {
+.fb { position: relative; touch-action: none; }
+.fb-shift { position: absolute; inset: 0; will-change: transform; }
+.fb-page, .fb-leaf { position: absolute; top: 0; height: 100%; }
+.fb-page { z-index: 1; }
+.fb-leaf { z-index: 2; transform-origin: 0 50%; will-change: transform; }
+.fb-leaf[hidden], .fb-page[hidden] { display: none; }
+.fb-side { position: absolute; inset: 0; }
+.fb-back { transform: scaleX(-1); }
+/* Paper is white in either theme: the pages are the magazine's, not ours to theme. */
+.fb-page, .fb-side { overflow: hidden; background: #fff; }
+.fb-face { position: absolute; inset: 0; background: center / cover no-repeat; }
+.fb-face img {
   display: block; width: 100%; height: 100%; object-fit: fill;
   opacity: 0; transition: opacity .18s ease;
   pointer-events: none; -webkit-user-drag: none; -webkit-touch-callout: none;
 }
-.navigator-leaf.is-drawn img { opacity: 1; }
+.fb-face img.is-drawn { opacity: 1; }
+.fb-gutter, .fb-shade { position: absolute; inset: 0; pointer-events: none; }
+/* Right-hand pages meet the spine on their left, left-hand pages on their right. */
+.fb-page-r .fb-gutter, .fb-front .fb-gutter {
+  background: linear-gradient(to right, rgba(0, 0, 0, .16), rgba(0, 0, 0, .05) 3%, rgba(0, 0, 0, 0) 9%);
+}
+.fb-page-l .fb-gutter, .fb-back .fb-gutter {
+  background: linear-gradient(to left, rgba(0, 0, 0, .16), rgba(0, 0, 0, .05) 3%, rgba(0, 0, 0, 0) 9%);
+}
+.fb-single .fb-gutter { background: linear-gradient(to right, rgba(0, 0, 0, .08), rgba(0, 0, 0, 0) 4%); }
+.fb-shade { opacity: 0; will-change: opacity; }
+/* Uncovered as the page lifts off it; covered as the page lands on it. */
+.fb-page-r .fb-shade { background: linear-gradient(to right, rgba(0, 0, 0, .5), rgba(0, 0, 0, .12) 45%, rgba(0, 0, 0, 0)); }
+.fb-page-l .fb-shade { background: linear-gradient(to left, rgba(0, 0, 0, .5), rgba(0, 0, 0, .12) 45%, rgba(0, 0, 0, 0)); }
+/* The turning page, as it tips away from the light and back towards it. */
+.fb-front .fb-shade { background: linear-gradient(to left, rgba(0, 0, 0, .42), rgba(0, 0, 0, .14) 60%, rgba(0, 0, 0, .22)); }
+.fb-back .fb-shade { background: linear-gradient(to left, rgba(0, 0, 0, .3), rgba(0, 0, 0, .1) 50%, rgba(255, 255, 255, .06)); }
+.fb-side.is-blank .fb-gutter { display: none; }
+/* The edges of the pages either side: a few hairlines, as thick as the stack. */
+.fb-edge {
+  position: absolute; top: 1px; bottom: 1px; left: 0; z-index: 0;
+  background: repeating-linear-gradient(to right, #fff 0 1px, rgba(0, 0, 0, .16) 1px 2px);
+}
+.fb-edge-r { background: repeating-linear-gradient(to left, #fff 0 1px, rgba(0, 0, 0, .16) 1px 2px); }
 
 /* A page zoomed in: over the book, panned with a finger, closed with the X,
    a double-tap or a pinch back. */

@@ -128,4 +128,17 @@ describe("RenderQueue", () => {
     expect(q.aborted).toEqual([4]);
     expect(q.started.at(-1)).toBe(3);
   });
+
+  it("finishes the page under way when paused, then starts nothing until resumed", async () => {
+    const q = setup();
+    q.queue.plan([3, 4, 5]);
+    q.queue.pause();
+    await q.finish(3);
+    expect(q.done).toEqual([3]);
+    expect(q.started).toEqual([3]);
+    q.queue.plan([4, 5]);
+    expect(q.started).toEqual([3]);
+    q.queue.resume();
+    expect(q.started).toEqual([3, 4]);
+  });
 });

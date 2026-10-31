@@ -5,9 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Download, ExternalLink, LoaderCircle, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy } from "pdfjs-dist";
-import type { PageFlip } from "page-flip/dist/js/page-flip.module.js";
 import { NavigatorDownload } from "@/components/NavigatorDownload";
 import { OpenExternal } from "@/components/OpenExternal";
+import { FlipBook } from "@/lib/flipbook";
 import { formatBytes, readerViews, viewIndexOf } from "@/lib/navigator";
 import { RenderQueue, bucketWidth, preloadPlan } from "@/lib/navigatorCache";
 import { openIssueFile } from "@/lib/navigatorFile";
@@ -110,9 +110,10 @@ async function pageImage(doc: PDFDocumentProxy, version: string | null, pageNumb
 type Zoom = { page: number; level: number; fx: number; fy: number };
 
 /**
- * The Navigator, open. A real page turn (StPageFlip): drag a corner and the page
- * curls, a quick swipe or a tap on either edge turns it, and the arrow keys and
- * buttons do too. One page at a time on a phone, facing pages on a wide screen.
+ * The Navigator, open, laid out like the printed magazine: the cover alone, then
+ * facing pages across the gutter on a wide screen, one page at a time on a phone.
+ * Drag a page and it turns under the finger (FlipBook, src/lib/flipbook.ts); a
+ * flick, a tap on either edge, the arrow keys and the buttons turn it too.
  * A pinch or a double-tap opens the page zoomed, outside the book, to pan around.
  *
  * Pages are drawn by pdf.js a few ahead and behind, encoded as images and kept on
@@ -152,10 +153,11 @@ export function NavigatorReader({
   const [zoom, setZoom] = useState<Zoom | null>(null);
   const [stage, setStage] = useState<HTMLDivElement | null>(null);
   const [stageSize, setStageSize] = useState({ w: 0, h: 0 });
-  const [drawnTick, setDrawnTick] = useState(0);
   const bookRef = useRef<HTMLDivElement | null>(null);
-  const flipRef = useRef<PageFlip | null>(null);
-  const leaves = useRef<HTMLElement[]>([]);
+  const flipRef = useRef<FlipBook | null>(null);
+  // One image element per drawn page. The book moves them between its faces, so
+  // a page decoded once never flashes as it turns.
+  const imgs = useRef(new Map<number, HTMLImageElement>());
   const urls = useRef(new Map<number, string>());
   const dir = useRef<1 | -1>(1);
   const pageRef = useRef(1);
@@ -228,18 +230,25 @@ export function NavigatorReader({
   }, [stage]);
 
   const pageCount = doc?.numPages ?? knownPages ?? 1;
-  const spreads = stageSize.w >= 720 && stageSize.w > stageSize.h * 1.05;
+  // Always facing pages, the way the magazine is printed: the cover alone, then
+  // spreads. On a phone held upright that's two small pages; a pinch or a
+  // double-tap opens either one full size.
+  const spreads = pageCount > 1;
   const views = useMemo(() => readerViews(pageCount, spreads), [pageCount, spreads]);
   const viewIndex = viewIndexOf(views, page);
   const view = useMemo(() => views[viewIndex] ?? [1], [views, viewIndex]);
   const firstShown = view[0];
 
-  const pad = stageSize.w < 640 ? 8 : 24;
+  const pad = stageSize.w < 640 ? 4 : 24;
   const columns = spreads ? 2 : 1;
   const fit = Math.max(0.05, Math.min((stageSize.w - pad * 2) / (columns * pageSize.w), (stageSize.h - pad * 2) / pageSize.h));
   const pageWidth = Math.floor(pageSize.w * fit);
   const pageHeight = Math.floor(pageSize.h * fit);
-  const dpr = typeof window === "undefined" ? 1 : Math.min(window.devicePixelRatio || 1, 3);
+  // Drawing a page holds the main thread for as long as it takes, and that time
+  // grows with its pixels: a phone's 3x screen gets pages at 2x, which still
+  // reads sharp at book size. The zoomed view draws its own, sharper copy.
+  const coarse = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+  const dpr = typeof window === "undefined" ? 1 : Math.min(window.devicePixelRatio || 1, coarse ? 2 : 3);
   const pxWidth = bucketWidth(pageWidth * dpr);
 
   useEffect(() => {
@@ -251,11 +260,13 @@ export function NavigatorReader({
   // size starts it over. Images far from the page open are let go of; the
   // device keeps them.
   const queue = useRef<{ key: string; queue: RenderQueue<Blob> } | null>(null);
+  const resumeTimer = useRef<number | undefined>(undefined);
   const dropQueue = useCallback(() => {
     queue.current?.queue.stop();
     queue.current = null;
     for (const url of urls.current.values()) URL.revokeObjectURL(url);
     urls.current.clear();
+    imgs.current.clear();
   }, []);
   useEffect(() => dropQueue, [dropQueue, doc]);
 
@@ -275,9 +286,15 @@ export function NavigatorReader({
             if (old) URL.revokeObjectURL(old);
             const url = URL.createObjectURL(blob);
             urls.current.set(p, url);
-            const img = leaves.current[p - 1]?.querySelector("img");
-            if (img) showImage(img, url);
-            setDrawnTick((t) => t + 1);
+            let img = imgs.current.get(p);
+            if (!img) {
+              img = document.createElement("img");
+              img.alt = `Page ${p}`;
+              img.draggable = false;
+              img.decoding = "async";
+              imgs.current.set(p, img);
+            }
+            showImage(img, url, () => flipRef.current?.refresh());
           },
         ),
       };
@@ -285,86 +302,74 @@ export function NavigatorReader({
     const q = queue.current.queue;
     const plan = preloadPlan(views, viewIndex, dir.current);
     q.plan(plan);
+    let evicted = false;
     for (const [p, url] of urls.current) {
       if (plan.includes(p) || Math.abs(p - firstShown) <= IMAGES_KEPT_AROUND) continue;
       URL.revokeObjectURL(url);
       urls.current.delete(p);
       q.forget(p);
-      leaves.current[p - 1]?.querySelector("img")?.removeAttribute("src");
-      leaves.current[p - 1]?.classList.remove("is-drawn");
+      imgs.current.get(p)?.remove();
+      imgs.current.delete(p);
+      evicted = true;
     }
+    if (evicted) flipRef.current?.refresh();
   }, [doc, pageWidth, pxWidth, bytes, version, views, viewIndex, firstShown, dropQueue]);
 
   // The book. Rebuilt when the page size or spreads-versus-single changes (a
-  // rotation, a resize); the drawn images carry over.
+  // rotation, a resize); the drawn images carry over. Nothing runs between turns.
   useEffect(() => {
     const host = bookRef.current;
     if (!doc || !host || pageWidth < 40) return;
-    let flip: PageFlip | null = null;
-    let cancelled = false;
-    import("page-flip/dist/js/page-flip.module.js").then(({ PageFlip }) => {
-      if (cancelled) return;
-      const items: HTMLElement[] = [];
-      for (let p = 1; p <= pageCount; p++) {
-        const leaf = document.createElement("div");
-        leaf.className = "navigator-leaf";
-        leaf.dataset.density = "soft";
-        if (p === 1 && cover) leaf.style.backgroundImage = `url(${cover})`;
-        const img = document.createElement("img");
-        img.alt = `Page ${p}`;
-        img.draggable = false;
-        img.decoding = "async";
-        leaf.appendChild(img);
-        const url = urls.current.get(p);
-        if (url) showImage(img, url);
-        items.push(leaf);
-      }
-      leaves.current = items;
-      flip = new PageFlip(host, {
-        width: pageWidth,
-        height: pageHeight,
-        size: "fixed",
-        autoSize: false,
-        usePortrait: !spreads,
-        showCover: true,
-        startPage: Math.min(pageRef.current, pageCount) - 1,
-        drawShadow: true,
-        maxShadowOpacity: 0.4,
-        flippingTime: prefersReducedMotion() ? 1 : 650,
-        // The reader feeds it every drag itself (see onPointerDown).
-        useMouseEvents: false,
-        showPageCorners: false,
-      });
-      flip.loadFromHTML(items);
-      flip.on("flip", (e) => {
-        const p = Number(e.data) + 1;
+    const book = new FlipBook({
+      host,
+      views,
+      spreads,
+      pageWidth,
+      pageHeight,
+      start: viewIndexOf(views, Math.min(pageRef.current, pageCount)),
+      duration: prefersReducedMotion() ? 0 : 620,
+      pageImage: (p) => {
+        const img = imgs.current.get(p);
+        return img?.classList.contains("is-drawn") ? img : null;
+      },
+      placeholder: (p) => (p === 1 ? cover : null),
+      // No page is drawn while one is moving; drawing starts again a moment
+      // after it lands, so a quick run of turns isn't held up either.
+      onTurnStart: () => {
+        window.clearTimeout(resumeTimer.current);
+        queue.current?.queue.pause();
+      },
+      onIdle: () => {
+        window.clearTimeout(resumeTimer.current);
+        resumeTimer.current = window.setTimeout(() => queue.current?.queue.resume(), 220);
+      },
+      onSettle: (i) => {
+        const p = views[i]?.[0] ?? 1;
         dir.current = p >= pageRef.current ? 1 : -1;
         target.current = p;
         setPage(p);
-      });
-      flipRef.current = flip;
+      },
     });
+    flipRef.current = book;
     return () => {
-      cancelled = true;
-      flip?.destroy();
-      if (flipRef.current === flip) flipRef.current = null;
-      leaves.current = [];
+      window.clearTimeout(resumeTimer.current);
+      queue.current?.queue.resume();
+      book.destroy();
+      if (flipRef.current === book) flipRef.current = null;
     };
     // pageRef carries the page in; a turn doesn't rebuild the book.
-  }, [doc, pageWidth, pageHeight, spreads, pageCount, cover]);
+  }, [doc, pageWidth, pageHeight, spreads, pageCount, cover, views]);
 
   const turn = useCallback(
     (step: 1 | -1) => {
       const flip = flipRef.current;
       if (!flip) return;
-      const next = views[viewIndex + step];
-      if (!next) return;
       dir.current = step;
-      target.current = next[0];
-      if (step > 0) flip.flipNext("bottom");
-      else flip.flipPrev("bottom");
+      // A turn already under way lands first, so quick taps each turn a page.
+      if (!flip.flip(step)) return;
+      target.current = views[flip.turning ? flip.current + step : flip.current]?.[0] ?? target.current;
     },
-    [views, viewIndex],
+    [views],
   );
   const next = useCallback(() => turn(1), [turn]);
   const prev = useCallback(() => turn(-1), [turn]);
@@ -374,7 +379,7 @@ export function NavigatorReader({
       if (!t) return;
       dir.current = t[0] >= pageRef.current ? 1 : -1;
       target.current = t[0];
-      flipRef.current?.turnToPage(t[0] - 1);
+      flipRef.current?.jump(views.indexOf(t));
       setPage(t[0]);
     },
     [views],
@@ -431,7 +436,7 @@ export function NavigatorReader({
 
   /** Opens the zoomed view on whichever page is under a point on the screen. */
   function zoomAt(clientX: number, clientY: number) {
-    const rects = view.map((p) => [p, leaves.current[p - 1]?.getBoundingClientRect()] as const);
+    const rects = view.map((p) => [p, flipRef.current?.pageRect(p) ?? undefined] as const);
     const hit = rects.find(([, r]) => r && r.width && clientX >= r.left && clientX <= r.right) ?? rects[0];
     const r = hit?.[1];
     const fx = r && r.width ? Math.min(1, Math.max(0, (clientX - r.left) / r.width)) : 0.5;
@@ -439,12 +444,11 @@ export function NavigatorReader({
     openZoom(hit?.[0] ?? firstShown, fx, fy);
   }
 
-  // Every pointer on the book is handled here, finger, pen or mouse alike, and
-  // StPageFlip's own touch handling is off: it picks the way a page turns from
-  // where the finger is 250ms in, so an ordinary thumb flick on a phone turned
-  // the page backwards, or not at all.
-  //  - A drag sideways curls the page from its edge, following the finger; let
-  //    go past a third of the way, or flick, and it turns, otherwise it settles back.
+  // Every pointer on the book is handled here, finger, pen or mouse alike; the
+  // book itself only draws. The way a page turns is fixed by the first sideways
+  // movement, so an ordinary thumb flick always turns the way it was flicked.
+  //  - A drag sideways pulls the page over from the spine, following the finger;
+  //    let go past 30% of the way, or flick, and it turns, otherwise it settles back.
   //  - A tap on either edge turns; a double-tap in the middle zooms.
   //  - Two fingers pinch: spreading them opens the zoomed page.
   const pointers = useRef(new Map<number, { x: number; y: number }>());
@@ -453,7 +457,8 @@ export function NavigatorReader({
     x0: number;
     y0: number;
     t0: number;
-    fold: { dir: 1 | -1; edge: number; top: number; left: number; leaf: number; spine: number } | null;
+    /** A page being pulled over: which way, and how far the finger goes for a whole turn. */
+    fold: { dir: 1 | -1; reach: number } | null;
     dead: boolean;
   } | null>(null);
   const pinch = useRef<{ d0: number; d: number; x: number; y: number } | null>(null);
@@ -463,18 +468,13 @@ export function NavigatorReader({
     return { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
   };
 
-  /** Lets go of a curl: on to the next page, or back where it was. */
-  function release(turnIt: boolean, clientY: number) {
+  /** Lets go of a page being pulled: on over, or back where it was. */
+  function release(turnIt: boolean) {
     const g = gesture.current;
     const flip = flipRef.current;
     if (!g?.fold || !flip) return;
-    const { dir, edge, top, leaf, spine } = g.fold;
-    const pos = { x: turnIt ? spine - dir * 0.3 * leaf : edge, y: clientY - top };
-    if (turnIt) {
-      target.current = views[viewIndex + dir]?.[0] ?? target.current;
-    }
-    flip.userMove(pos, true);
-    flip.userStop(pos);
+    if (turnIt) target.current = views[flip.current + g.fold.dir]?.[0] ?? target.current;
+    flip.release(turnIt);
   }
 
   function onPointerDown(event: ReactPointerEvent) {
@@ -484,7 +484,7 @@ export function NavigatorReader({
     event.currentTarget.setPointerCapture?.(event.pointerId);
     if (pointers.current.size === 2) {
       // A second finger: a pinch. Any curl under way settles back.
-      if (gesture.current?.fold) release(false, event.clientY);
+      if (gesture.current?.fold) release(false);
       gesture.current = null;
       const s0 = spread();
       pinch.current = { d0: s0.d, d: s0.d, x: s0.x, y: s0.y };
@@ -509,21 +509,14 @@ export function NavigatorReader({
     if (!g.fold) {
       if (Math.hypot(dx, dy) < 10) return;
       const dir: 1 | -1 = dx < 0 ? 1 : -1;
-      const block = stage?.querySelector(".stf__block")?.getBoundingClientRect();
-      // Vertical, mid-turn, or nothing that way: not a page turn.
-      if (Math.abs(dx) < Math.abs(dy) || flip.getState() !== "read" || !views[viewIndex + dir] || !block) {
+      // Vertical, or nothing that way: not a page turn.
+      if (Math.abs(dx) < Math.abs(dy) || !flip.beginDrag(dir)) {
         g.dead = true;
         return;
       }
-      const portrait = flip.getOrientation() === "portrait";
-      const leaf = portrait ? block.width : block.width / 2;
-      // Where the curl starts: the outer edge of the page being turned. (In
-      // portrait a page turning back comes in from just off its left edge.)
-      const edge = dir > 0 ? block.width - 2 : portrait ? -2 : 2;
-      g.fold = { dir, edge, top: block.top, left: block.left, leaf, spine: portrait ? 0 : block.width / 2 };
-      flip.startUserTouch({ x: edge, y: event.clientY - block.top });
+      g.fold = { dir, reach: spreads ? pageWidth * 1.6 : pageWidth };
     }
-    flip.userMove({ x: g.fold.edge + dx, y: event.clientY - g.fold.top }, true);
+    flip.dragTo((-dx * g.fold.dir) / g.fold.reach);
   }
 
   function onPointerUp(event: ReactPointerEvent) {
@@ -543,10 +536,10 @@ export function NavigatorReader({
     const dt = event.timeStamp - g.t0;
     if (g.fold) {
       const flick = Math.abs(dx) >= SWIPE_DISTANCE && dt <= SWIPE_MS && Math.sign(dx) === -g.fold.dir;
-      const far = -dx * g.fold.dir > g.fold.leaf / 3;
+      const far = (-dx * g.fold.dir) / g.fold.reach > 0.3;
       if (flick || far) dir.current = g.fold.dir;
       gesture.current = g;
-      release(flick || far, event.clientY);
+      release(flick || far);
       gesture.current = null;
       return;
     }
@@ -568,7 +561,7 @@ export function NavigatorReader({
     pointers.current.delete(event.pointerId);
     if (pointers.current.size === 0) pinch.current = null;
     if (gesture.current?.id === event.pointerId) {
-      release(false, event.clientY);
+      release(false);
       gesture.current = null;
     }
   }
@@ -586,12 +579,12 @@ export function NavigatorReader({
     w.__navigatorShown = () => {
       const t = target.current;
       const pages = views[viewIndexOf(views, t)] ?? [t];
-      return pages.every((p) => leaves.current[p - 1]?.classList.contains("is-drawn"));
+      return pages.every((p) => imgs.current.get(p)?.classList.contains("is-drawn"));
     };
     return () => {
       delete w.__navigatorShown;
     };
-  }, [views, drawnTick]);
+  }, [views]);
 
   const shownIndex = scrub ?? viewIndex;
   const shownView = views[shownIndex] ?? view;
@@ -732,13 +725,14 @@ export function NavigatorReader({
   );
 }
 
-/** Puts a drawn page on its leaf once the image is decoded, so it never paints half-loaded. */
-function showImage(img: HTMLImageElement, url: string) {
+/** Points a page's image at a new drawing, and marks it drawn once decoded, so it never paints half-loaded. */
+function showImage(img: HTMLImageElement, url: string, done: () => void) {
   img.src = url;
-  const leaf = img.parentElement;
   img.decode().then(
     () => {
-      if (img.src === url) leaf?.classList.add("is-drawn");
+      if (img.src !== url) return;
+      img.classList.add("is-drawn");
+      done();
     },
     () => {},
   );
