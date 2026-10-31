@@ -94,11 +94,12 @@ export const NAVIGATOR_ISSUES: readonly NavigatorIssue[] = [
     cover: "/navigator/issue-4.webp",
     // A4 rather than US Letter.
     coverSize: { width: 640, height: 906 },
-    // Magazine4_HD_FINAL.pdf, the 431 MB print file. Until its web copy is on
-    // Drive the app reads this, and the library warns that it's a big download.
-    // The web copy is 40_444_645 bytes. Once it's on Drive:
-    // drive({ id: "12inNw…", bytes: 430_692_288 }, { id: "<web copy's id>", bytes: 40_444_645 }).
-    ...drive({ id: "12inNwa1d5IIovlZHRIVxGS5aSFNR7HwZ", bytes: 430_692_288 }),
+    // Magazine4_HD_FINAL.pdf is the 431 MB print file, kept as the original.
+    // The app reads and downloads Magazine4_web.pdf, a 150 dpi copy beside it.
+    ...drive(
+      { id: "12inNwa1d5IIovlZHRIVxGS5aSFNR7HwZ", bytes: 430_692_288 },
+      { id: "1fgm6t1dY7_qshgcBkiPlHN9mxvYE4LiB", bytes: 40_444_645 },
+    ),
   },
 ];
 
