@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { isEventCurrent, startOfLondonDay } from "@/lib/eventList";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import type { SUEvent } from "@/lib/types";
 
@@ -11,18 +12,24 @@ async function devEvents(): Promise<SUEvent[]> {
   return getDevEvents() as SUEvent[];
 }
 
-/** Upcoming events, plus any that started earlier but are still running (a weekend away). */
-export async function getUpcomingEvents(): Promise<SUEvent[]> {
+/**
+ * Events that haven't ended: upcoming ones, today's all day long, and any that
+ * started earlier but are still running (a weekend away). The query takes
+ * everything from the start of London's today, since an all-day walk is stored
+ * at its midnight and one with no end has nothing later to match; isEventCurrent
+ * then drops what has finished.
+ */
+export async function getUpcomingEvents(now = new Date()): Promise<SUEvent[]> {
   if (!isSupabaseConfigured()) return devEvents();
-  const now = new Date().toISOString();
+  const today = startOfLondonDay(now).toISOString();
   const { data } = await getSupabaseAdmin()
     .from("events")
     .select("*")
-    .or(`starts_at.gte.${now},ends_at.gte.${now}`)
+    .or(`starts_at.gte.${today},ends_at.gte.${today}`)
     .neq("status", "draft")
     .order("starts_at", { ascending: true })
     .limit(200);
-  return (data ?? []) as SUEvent[];
+  return ((data ?? []) as SUEvent[]).filter((event) => isEventCurrent(event, now));
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

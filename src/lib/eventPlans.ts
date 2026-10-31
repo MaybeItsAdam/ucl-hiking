@@ -222,6 +222,19 @@ export async function getEventPlans(eventSuuIds: string[]): Promise<Map<string, 
   return plans;
 }
 
+/** Every plan naming this member as leader or backmarker, keyed by SU id: the walks they're running. */
+export async function getPlansNaming(memberId: string): Promise<Map<string, EventPlanView>> {
+  const plans = new Map<string, EventPlanView>();
+  if (!isSupabaseConfigured()) return plans;
+  const { data, error } = await getSupabaseAdmin()
+    .from("event_plans")
+    .select(PLAN_SELECT)
+    .or(`leader_member_id.eq.${memberId},backmarker_member_id.eq.${memberId}`);
+  if (error) return plans;
+  for (const row of (data ?? []) as EventPlanView[]) plans.set(row.event_suu_id, row);
+  return plans;
+}
+
 export async function saveEventPlan(eventSuuId: string, plan: PlanInput, editorId: string) {
   return getSupabaseAdmin()
     .from("event_plans")
