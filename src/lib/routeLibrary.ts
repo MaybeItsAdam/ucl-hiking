@@ -1,4 +1,5 @@
 import { profileOf } from "@/lib/access";
+import { dedupeEvents } from "@/lib/eventDuplicates";
 import { getEventsBySuuIds } from "@/lib/events";
 import type { TrackPoint, Waypoint } from "@/lib/gpx";
 import { canSeeLibraryRoute, thumbnailPath, walkStats, type CatalogueEntry } from "@/lib/routeCatalogue";
@@ -136,13 +137,17 @@ export async function getLibraryLinks(routeId?: string): Promise<LibraryLink[]> 
   }
 }
 
-/** The walks behind these links that this member may see, oldest first. */
+/**
+ * The walks behind these links that this member may see, oldest first. One walk
+ * listed twice by Toolbox often has the route on both rows (it is matched to
+ * each), so the copies go here or the route reads "walked twice".
+ */
 export async function walksFor(links: LibraryLink[], member: Member): Promise<SUEvent[]> {
   const ids = [...new Set(links.map((l) => l.event_suu_id))];
   const events: SUEvent[] = [];
   // In slices, so the id list stays well inside a URL.
   for (let i = 0; i < ids.length; i += 200) events.push(...(await getEventsBySuuIds(ids.slice(i, i + 200))));
-  return visibleEvents(events, viewerOf(member));
+  return visibleEvents(dedupeEvents(events), viewerOf(member));
 }
 
 /** The catalogue as this member may see it: every visible route with its walk count and dates. */
