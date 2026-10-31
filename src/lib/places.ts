@@ -86,7 +86,11 @@ export async function geocodePlace(name: string): Promise<{ at: LatLng; label: s
 export async function loadPlaces(names: Iterable<string>): Promise<Map<string, LatLng>> {
   const keys = [...new Set([...names].map(placeKey))].filter(Boolean);
   const found = new Map<string, LatLng>();
-  if (!keys.length || !isSupabaseConfigured()) return found;
+  if (!keys.length) return found;
+  if (!isSupabaseConfigured()) {
+    if (process.env.NODE_ENV === "production") return found;
+    return (await import("@/lib/dev-store")).getDevPlaces(keys);
+  }
   const { data, error } = await getSupabaseAdmin()
     .from("place_geocodes")
     .select("place, latitude, longitude")

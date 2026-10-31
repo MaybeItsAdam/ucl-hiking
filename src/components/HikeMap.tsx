@@ -91,6 +91,33 @@ function savedBase(): Base | null {
  * year map works the same way, and its pins still open with a tap. Without a
  * route a walk's map stays a still picture until tapped open full screen.
  */
+const LABEL_GAP = 6;
+/** Each label's own offset, before any slide. */
+const baseOffsets = new WeakMap<Marker, [number, number]>();
+
+/**
+ * Slide a permanent label sideways so the map's edge doesn't clip it. Its
+ * own offset is remembered, so each pass starts from where it belongs.
+ */
+function keepLabelInside(map: LeafletMap, marker: Marker) {
+  const tip = marker.getTooltip();
+  const el = tip?.getElement();
+  if (!tip || !el) return;
+  if (!baseOffsets.has(marker)) baseOffsets.set(marker, (tip.options.offset as [number, number] | undefined) ?? [0, 0]);
+  const base = baseOffsets.get(marker)!;
+  tip.options.offset = base;
+  tip.update();
+  const frame = map.getContainer().getBoundingClientRect();
+  const box = el.getBoundingClientRect();
+  const shift =
+    box.left < frame.left + LABEL_GAP ? frame.left + LABEL_GAP - box.left
+    : box.right > frame.right - LABEL_GAP ? frame.right - LABEL_GAP - box.right
+    : 0;
+  if (!shift) return;
+  tip.options.offset = [base[0] + shift, base[1]];
+  tip.update();
+}
+
 export function HikeMap({
   hikes,
   interactive = false,
@@ -162,6 +189,7 @@ export function HikeMap({
 
       const points: [number, number][] = [];
       let startMarker: Marker | null = null;
+      let finishMarker: Marker | null = null;
 
       if (route) {
         for (const seg of route.segments) {
@@ -191,7 +219,7 @@ export function HikeMap({
         const finishNorth = route.finish[0] >= route.start[0];
         const below = (up: boolean) => (up ? { direction: "top" as const, offset: [0, -10] as [number, number] } : { direction: "bottom" as const, offset: [0, 10] as [number, number] });
         if (!loop) {
-          L.marker(route.finish, {
+          finishMarker = L.marker(route.finish, {
             icon: L.divIcon({ className: "", html: '<span class="hike-track-end"></span>', iconSize: [16, 16], iconAnchor: [8, 8] }),
             keyboard: false,
             interactive: false,
@@ -302,6 +330,16 @@ export function HikeMap({
           const ends = near(route.start, route.finish) ? "Start and finish" : "Start";
           startMarker.setTooltipContent(escape(`${ends} · meet at ${meetPin.name}`));
         }
+      }
+      // A route's end labels hang centred off points that can sit near the
+      // frame's edge; slide them back inside after every move.
+      const ends = [startMarker, finishMarker].filter((m): m is Marker => m !== null);
+      if (ends.length) {
+        const keep = () => {
+          if (map) for (const marker of ends) keepLabelInside(map, marker);
+        };
+        keep();
+        map.on("moveend zoomend resize", keep);
       }
       setReady(++builds.current);
     });

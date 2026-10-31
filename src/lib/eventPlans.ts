@@ -201,7 +201,11 @@ const PLAN_SELECT =
  * hasn't run, or local dev against production) reads as no plan, not an error.
  */
 export async function getEventPlan(eventSuuId: string | null): Promise<EventPlanView | null> {
-  if (!eventSuuId || !isSupabaseConfigured()) return null;
+  if (!eventSuuId) return null;
+  if (!isSupabaseConfigured()) {
+    if (process.env.NODE_ENV === "production") return null;
+    return (await import("@/lib/dev-store")).getDevPlan(eventSuuId);
+  }
   const { data, error } = await getSupabaseAdmin()
     .from("event_plans")
     .select(PLAN_SELECT)
