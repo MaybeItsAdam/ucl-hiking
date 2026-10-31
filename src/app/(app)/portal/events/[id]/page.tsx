@@ -34,6 +34,7 @@ import { EventPlanEditor } from "@/components/EventPlanEditor";
 import { KitChecklist } from "@/components/KitChecklist";
 import { OpenExternal } from "@/components/OpenExternal";
 import { RouteView } from "@/components/RouteView";
+import { profileOf } from "@/lib/access";
 import { bookingFor, getSheetSuLink } from "@/lib/booking";
 import { DIFFICULTY_LABELS, eventDetails, formatAscent, formatKm, isHeading, KIND_LABELS } from "@/lib/eventDetails";
 import { countdown, eventWhen, longDate } from "@/lib/eventList";
@@ -42,6 +43,8 @@ import { getEventRoute, mapRouteOf } from "@/lib/eventRoutes";
 import { getEvent } from "@/lib/events";
 import { mapHikes } from "@/lib/hikeMap";
 import { loadPlaces, type LatLng } from "@/lib/places";
+import { canSeeLibraryRoute } from "@/lib/routeCatalogue";
+import { getLibraryRouteFlags } from "@/lib/routeLibrary";
 import { getCurrentMember } from "@/lib/session";
 import type { SUEvent } from "@/lib/types";
 import { canSeeEvent, viewerOf } from "@/lib/walkVisibility";
@@ -261,11 +264,25 @@ export default async function EventPage({ params, searchParams }: Params & { sea
   // A GPX link already drawn and downloadable here doesn't need its own button too.
   const routeLink = plan?.route_url && plan.route_url !== route?.source_url ? plan.route_url : null;
 
+  // From the club's library, and the member may see it there: link to its catalogue page.
+  const libraryFlags = route?.osmaps_route_id ? await getLibraryRouteFlags(route.osmaps_route_id) : null;
+  const libraryHref =
+    route?.osmaps_route_id && libraryFlags && canSeeLibraryRoute(libraryFlags, profileOf(member))
+      ? `/portal/events/routes/${encodeURIComponent(route.osmaps_route_id)}`
+      : null;
+
   const routeFacts = route ? (
     <p className="event-route-facts">
       <Route size={15} aria-hidden="true" />
       <span>
-        {route.osmaps_route_id ? "Route from the club's OS Maps" : "GPX route"} · {formatKm(route.distance_m / 1000)}
+        {libraryHref ? (
+          <Link href={libraryHref}>Route from the club&apos;s OS Maps</Link>
+        ) : route.osmaps_route_id ? (
+          "Route from the club's OS Maps"
+        ) : (
+          "GPX route"
+        )}{" "}
+        · {formatKm(route.distance_m / 1000)}
         {route.ascent_m !== null ? ` · ${formatAscent(route.ascent_m)} up` : ""}
       </span>
     </p>
