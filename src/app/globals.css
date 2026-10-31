@@ -2098,6 +2098,12 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 .event-hero-chips:empty { display: none; }
 .event-hero-chips .event-status { margin-left: 0; vertical-align: 0; }
 
+/* The way to a ticket, straight under the title so a phone sees it without scrolling. */
+.event-book { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 16px; }
+.event-book .kit-btn { min-height: 44px; padding: 0 20px; font-size: 15px; }
+.event-book .kit-btn.is-disabled, .event-book .kit-btn.is-disabled:hover { border-color: var(--ink-fill); opacity: .45; cursor: default; }
+.event-book-note { margin: 0; font-size: 13px; color: var(--muted); }
+
 .event-stats, .walkmap-stats {
   display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1px; margin: 20px 0 0;
   border: 1px solid var(--line); border-radius: 12px; background: var(--line); overflow: hidden;
@@ -2527,6 +2533,7 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
   .event-hero-emoji { width: 56px; height: 56px; font-size: 30px; }
   .event-hero h2 { font-size: 22px; }
   .event-stats { grid-template-columns: repeat(2, 1fr); }
+  .event-book .kit-btn { flex: 1 1 100%; }
   .event-day-actions .kit-btn { flex: 1 1 auto; min-height: 44px; }
   .walkmap-head h2 { font-size: 24px; }
   .walkmap-stats { grid-template-columns: repeat(2, 1fr); }
