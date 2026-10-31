@@ -89,6 +89,50 @@ describe("findDuplicates", () => {
   });
 });
 
+describe("findDuplicates across a day", () => {
+  // Production: the copy is dated 7 March, the SU listing 8 March.
+  const colne = ev("cmm9colne", "👣 Walk: Colne Valley Walk (14km)", "2026-03-08T09:30:00Z", {
+    location: "Uxbridge Station",
+    description: WRITE_UP,
+  });
+  const strayCopy = ev("cmmacolne", "Colne Valley Walk", "2026-03-07T00:00:00Z", { description: "From the term card" });
+
+  it("folds a stray copy dated a day off into the full listing", () => {
+    for (const rows of [
+      [colne, strayCopy],
+      [strayCopy, colne],
+    ]) {
+      const losers = findDuplicates(rows);
+      expect(losers.size).toBe(1);
+      expect(losers.get(strayCopy)).toBe(colne);
+    }
+  });
+
+  it("keeps two listed walks of one name on consecutive days apart", () => {
+    const sunday = ev("cmm9colnf", "👣 Walk: Colne Valley Walk (14km)", "2026-03-09T09:30:00Z", {
+      location: "Uxbridge Station",
+      description: WRITE_UP,
+    });
+    expect(findDuplicates([colne, sunday]).size).toBe(0);
+  });
+
+  it("leaves a copy two days off, or with a meeting point, alone", () => {
+    const early = ev("cmmbcolne", "Colne Valley Walk", "2026-03-06T00:00:00Z");
+    const located = ev("cmmccolne", "Colne Valley Walk", "2026-03-07T00:00:00Z", { location: "Uxbridge" });
+    expect(findDuplicates([colne, early]).size).toBe(0);
+    expect(findDuplicates([colne, located]).size).toBe(0);
+  });
+
+  it("keeps a stray copy a member booked", () => {
+    expect(findDuplicates([colne, strayCopy], ["cmmacolne"]).size).toBe(0);
+  });
+
+  it("does not fold a copy into a different distance", () => {
+    const short = ev("cmmdcolne", "Colne Valley Walk (8km)", "2026-03-07T00:00:00Z");
+    expect(findDuplicates([colne, short]).size).toBe(0);
+  });
+});
+
 describe("dedupeEvents", () => {
   it("drops duplicates and keeps the original order", () => {
     const other = ev("zzz", "Walk: Ouse Valley Viaduct Loop (12km)", "2026-03-01T09:00:00Z");
