@@ -65,8 +65,12 @@ The geometry lives in a 1024 design space. All meaningful content stays inside
 a circle of about r = 300 around the centre. The rock runs past the bottom and
 sides, so a mask only ever trims rock or sky.
 
-- **Android adaptive foreground**: drawn 1:1 into the 108dp layer. The circle
-  that is guaranteed to be visible is 66dp (r = 313 at 1024).
+- **Android adaptive foreground**: the scene is scaled ×0.85 (`ADAPTIVE_SCALE`)
+  into the 108dp layer. The circle that is guaranteed to be visible is 66dp
+  (r = 313 at 1024), and the Android 12+ launcher and splash show r = 341. At
+  1:1 the outer snow cap reached r ≈ 362 and was clipped. At ×0.85 it ends at
+  r ≈ 307. `scripts/generate-splash.sh` reads the scale back from the SVG, so
+  the flat-base splash is unaffected.
 - **iOS, web, legacy Android, PWA maskable**: the scene is scaled ×1.3, which
   keeps the mark inside the 40% maskable zone and clear of the iOS corner mask.
 - **Adaptive background**: a flat sky layer, also written as

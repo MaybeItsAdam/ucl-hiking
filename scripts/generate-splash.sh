@@ -42,7 +42,11 @@ inner=$(sed -e 's/^<svg[^>]*>//' -e 's/<\/svg>$//' "$foreground")
 # The trail is the only path whose d comes first; its M is the trailhead.
 trailhead_y=$(sed -n 's/.*<path d="M[-0-9.]* \([-0-9.]*\)C.*/\1/p' "$foreground")
 [[ -n $trailhead_y ]] || { echo "generate-splash: no trailhead in $foreground" >&2; exit 1; }
-base_y=$(awk -v y="$trailhead_y" -v g="$base_gap" 'BEGIN { print y + g }')
+# The foreground is drawn scaled about the centre (ADAPTIVE_SCALE in
+# scripts/logo/generate.mjs), while the trail's coordinates are pre-scale.
+fg_scale=$(sed -n 's/.*translate(512 512) scale(\([0-9.]*\)).*/\1/p' "$foreground")
+fg_scale=${fg_scale:-1}
+base_y=$(awk -v y="$trailhead_y" -v g="$base_gap" -v k="$fg_scale" 'BEGIN { print 512 + (y + g - 512) * k }')
 
 # mark_svg VIEWBOX: the scene clipped at the base, with nothing behind it.
 mark_svg() {
