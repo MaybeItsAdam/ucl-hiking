@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ChevronLeft, ChevronRight, Lock, Route } from "lucide-react";
+import { ClubRouteToggle } from "@/components/ClubRouteToggle";
 import { EventsSubnav } from "@/components/EventsSubnav";
 import { RouteCatalogueSearch } from "@/components/RouteCatalogueSearch";
 import { can, profileOf } from "@/lib/access";
@@ -25,8 +26,9 @@ const THUMB_W = 72;
 const THUMB_H = 54;
 
 /**
- * The club's own routes from its OS Maps library (named "… [CLUB]" there), for
- * the committee: "where have we walked" and "what can we run again".
+ * The club's own routes from its OS Maps library, for the committee: "where
+ * have we walked" and "what can we run again". Club routes are starred here
+ * (or named "… [CLUB]" in OS Maps); All routes shows the rest to star from.
  * Search, band and sort live in the URL and the list is cut into pages on the
  * server, so a phone gets 25 rows and 25 thumbnail paths, never 800 tracks.
  */
@@ -37,7 +39,9 @@ export default async function RoutesPage({ searchParams }: { searchParams: Promi
   if (!canSeeRoutes(profile)) notFound();
   const query = parseCatalogueQuery(await searchParams);
 
-  const catalogue = await getCatalogue(member);
+  const library = await getCatalogue(member);
+  // What "x of y routes" counts against: the club's own, or the whole library.
+  const catalogue = query.all ? library : library.filter((r) => r.club);
   const matching = filterCatalogue(catalogue, query);
   const { items, page, pages, total } = pageOf(matching, query.page);
   const thumbs = await getLibraryThumbnails(
@@ -50,7 +54,15 @@ export default async function RoutesPage({ searchParams }: { searchParams: Promi
     <article className="events-page routes-page">
       <EventsSubnav active="routes" showRota={can(profile, "lead_walks")} showProgramme={can(profile, "manage_walks")} />
 
-      <RouteCatalogueSearch key={`${query.q}|${query.band}|${query.sort}`} query={query} sorts={CATALOGUE_SORTS} />
+      <nav className="programme-filters routes-show" aria-label="Which routes">
+        <Link href={catalogueHref(query, { all: false, page: 1 })} className={query.all ? undefined : "active"} aria-current={query.all ? undefined : "page"}>
+          Club routes
+        </Link>
+        <Link href={catalogueHref(query, { all: true, page: 1 })} className={query.all ? "active" : undefined} aria-current={query.all ? "page" : undefined}>
+          All routes
+        </Link>
+      </nav>
+      <RouteCatalogueSearch key={`${query.q}|${query.band}|${query.sort}|${query.all}`} query={query} sorts={CATALOGUE_SORTS} />
       <nav className="programme-filters" aria-label="Distance">
         <Link href={catalogueHref(query, { band: null, page: 1 })} className={query.band ? undefined : "active"} aria-current={query.band ? undefined : "page"}>
           Any length
@@ -78,7 +90,7 @@ export default async function RoutesPage({ searchParams }: { searchParams: Promi
                 const walked = walkedLabel(r);
                 const path = thumbs.get(r.id);
                 return (
-                  <li key={r.id}>
+                  <li key={r.id} className="route-item">
                     <Link href={`/portal/events/routes/${r.id}`} className="route-row">
                       <svg className="route-thumb" viewBox={`0 0 ${THUMB_W} ${THUMB_H}`} aria-hidden="true">
                         {path ? <path d={path} /> : null}
@@ -102,6 +114,7 @@ export default async function RoutesPage({ searchParams }: { searchParams: Promi
                       </div>
                       <ChevronRight size={18} aria-hidden="true" className="event-chevron" />
                     </Link>
+                    <ClubRouteToggle key={`${r.id}:${r.club}`} id={r.id} club={r.club} taggedInName={r.taggedInName} />
                   </li>
                 );
               })}
@@ -137,7 +150,14 @@ export default async function RoutesPage({ searchParams }: { searchParams: Promi
       ) : (
         <div className="events-empty">
           <Route size={28} aria-hidden="true" />
-          <p>The club&apos;s OS Maps routes show up here once the morning sync has read them.</p>
+          {query.all || !library.length ? (
+            <p>The club&apos;s OS Maps routes show up here once the morning sync has read them.</p>
+          ) : (
+            <p>
+              No club routes yet. Open <Link href={catalogueHref(query, { all: true, page: 1 })}>All routes</Link> and tap the star on the
+              ones that are the club&apos;s.
+            </p>
+          )}
         </div>
       )}
     </article>

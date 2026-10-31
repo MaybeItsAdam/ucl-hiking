@@ -26,6 +26,7 @@ export function RouteCatalogueSearch({
         <input type="search" name="q" defaultValue={query.q} placeholder="Search by name" enterKeyHint="search" autoComplete="off" />
       </label>
       {query.band ? <input type="hidden" name="band" value={query.band} /> : null}
+      {query.all ? <input type="hidden" name="show" value="all" /> : null}
       <label className="routes-sort">
         <span className="sr-only">Sort</span>
         <select name="sort" defaultValue={query.sort} onChange={(e) => e.currentTarget.form?.requestSubmit()}>

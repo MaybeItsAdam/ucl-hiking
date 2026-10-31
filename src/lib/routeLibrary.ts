@@ -2,7 +2,8 @@ import { profileOf } from "@/lib/access";
 import { dedupeEvents } from "@/lib/eventDuplicates";
 import { getEventsBySuuIds } from "@/lib/events";
 import type { TrackPoint, Waypoint } from "@/lib/gpx";
-import { canSeeLibraryRoute, routeDisplayName, thumbnailPath, walkStats, type CatalogueEntry } from "@/lib/routeCatalogue";
+import { isClubRoute } from "@/lib/clubRoutes";
+import { canSeeLibraryRoute, isClubEntry, routeDisplayName, thumbnailPath, walkStats, type CatalogueEntry } from "@/lib/routeCatalogue";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import type { Member, SUEvent } from "@/lib/types";
 import { viewerOf, visibleEvents } from "@/lib/walkVisibility";
@@ -26,10 +27,12 @@ export interface LibraryRoute {
   waypoints: Waypoint[];
   private: boolean;
   present: boolean;
+  /** Marked as a club route in the app (see migration osmaps_club_routes). */
+  club?: boolean | null;
   remote_updated_at?: string | null;
 }
 
-export type LibraryIndexRow = Pick<LibraryRoute, "id" | "name" | "distance_m" | "ascent_m" | "private" | "present">;
+export type LibraryIndexRow = Pick<LibraryRoute, "id" | "name" | "distance_m" | "ascent_m" | "private" | "present" | "club">;
 
 /** OS Maps ids are digits; anything else never reaches the query. */
 const ROUTE_ID = /^[\w-]{1,40}$/;
@@ -48,13 +51,13 @@ export async function getLibraryIndex(): Promise<LibraryIndexRow[]> {
     const dev = await devStore();
     return (dev?.getDevLibrary() ?? [])
       .filter((r) => r.present)
-      .map(({ id, name, distance_m, ascent_m, private: priv, present }) => ({ id, name, distance_m, ascent_m, private: priv, present }));
+      .map(({ id, name, distance_m, ascent_m, private: priv, present, club }) => ({ id, name, distance_m, ascent_m, private: priv, present, club }));
   }
   const rows: LibraryIndexRow[] = [];
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await getSupabaseAdmin()
       .from("osmaps_routes")
-      .select("id, name, distance_m, ascent_m, private, present")
+      .select("id, name, distance_m, ascent_m, private, present, club")
       .eq("present", true)
       .order("id")
       .range(from, from + PAGE - 1);
@@ -164,9 +167,33 @@ export async function getCatalogue(member: Member, now = new Date()): Promise<Ca
       distance_m: r.distance_m,
       ascent_m: r.ascent_m,
       private: Boolean(r.private),
+      club: isClubEntry(r),
+      taggedInName: isClubRoute(r.name),
       walks: s?.walks ?? 0,
       lastWalked: s?.lastWalked ?? null,
       nextWalk: s?.nextWalk ?? null,
     };
   });
+}
+
+/**
+ * Marks a route as one of the club's, or unmarks it. Committee only (the
+ * caller checks). Unmarking a route named "… [CLUB]" leaves it a club route:
+ * the name in OS Maps still says so.
+ */
+export async function setClubRoute(id: string, club: boolean, by: string): Promise<boolean> {
+  if (!ROUTE_ID.test(id)) return false;
+  if (!isSupabaseConfigured()) {
+    const dev = await devStore();
+    const row = dev?.getDevLibrary().find((r) => r.id === id);
+    if (!row) return false;
+    row.club = club;
+    return true;
+  }
+  const { data, error } = await getSupabaseAdmin()
+    .from("osmaps_routes")
+    .update({ club, club_marked_by: club ? by : null, club_marked_at: club ? new Date().toISOString() : null })
+    .eq("id", id)
+    .select("id");
+  return !error && Boolean(data?.length);
 }

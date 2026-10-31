@@ -7,9 +7,8 @@ import { getCurrentMember } from "@/lib/session";
 type Params = { params: Promise<{ id: string }> };
 
 /**
- * A route from the club's OS Maps library as a .gpx file: committee only, and
- * only a route tagged [CLUB]. To anyone else, and for any other route, it
- * doesn't exist.
+ * A route from the club's OS Maps library as a .gpx file: committee only. To
+ * anyone else it doesn't exist.
  */
 export async function GET(_request: Request, { params }: Params) {
   const member = await getCurrentMember();
