@@ -12,6 +12,7 @@ import { getMemberAttendance, walkRole, type WalkRole } from "@/lib/attendees";
 import { eventDetails, formatAscent, formatKm } from "@/lib/eventDetails";
 import { eventWhen, isEventCurrent, isOnToday, longDate } from "@/lib/eventList";
 import { getPlansNaming } from "@/lib/eventPlans";
+import { dedupeEvents } from "@/lib/eventDuplicates";
 import { getEventsBySuuIds } from "@/lib/events";
 import { getRouteLines } from "@/lib/eventRoutes";
 import { clubYear, clubYearLabel, eventPlaces, mapHikes, onMap, withTracks, yearStats } from "@/lib/hikeMap";
@@ -34,7 +35,8 @@ export default async function MyWalksPage() {
   // Walks they're booked on or checked in to, and walks a plan names them to lead or backmark.
   const [attendance, plans] = await Promise.all([getMemberAttendance(member.id), getPlansNaming(member.id)]);
   const bySuuId = new Map(attendance.map((a) => [a.event_suu_id, a]));
-  const all = await getEventsBySuuIds([...new Set([...bySuuId.keys(), ...plans.keys()])]);
+  // One walk listed twice (lib/eventDuplicates) shows once, as the copy they're booked on.
+  const all = dedupeEvents(await getEventsBySuuIds([...new Set([...bySuuId.keys(), ...plans.keys()])]), bySuuId.keys());
   // Totals, the map and Done stay theirs as walkers; leading one without a ticket isn't walking it here.
   const events = all.filter((e) => bySuuId.has(e.suu_event_id ?? ""));
   const [places, lines] = await Promise.all([loadPlaces(eventPlaces(events)), getRouteLines(events.map((e) => e.suu_event_id))]);

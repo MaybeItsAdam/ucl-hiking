@@ -14,6 +14,7 @@ import {
   writeCells,
   type CellWrite,
 } from "@/lib/googleSheets";
+import { dedupeEvents, type DedupeEvent } from "@/lib/eventDuplicates";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { historyAsOf, leaderCells, leaderChanges, MASS_CHANGE_WALKS, sameLeaders, type HistoryRow, type LeaderChange } from "@/lib/leaderHistory";
 import {
@@ -216,17 +217,24 @@ async function storedWalks(): Promise<StoredWalk[]> {
   return (data ?? []) as StoredWalk[];
 }
 
-/** SU events around the calendar's dates, for linking rows to them. */
-async function suCandidates(from: string, to: string) {
+/**
+ * SU events around the calendar's dates, for linking rows to them. One walk
+ * Toolbox lists twice is one candidate here: two equally good matches on a day
+ * are a tie, which matchSuEvent refuses, so the row went unlinked and the walk
+ * lost its published and visibility rules. `linked` keeps an existing link on
+ * the copy it already points at.
+ */
+async function suCandidates(from: string, to: string, linked: (string | null)[]) {
   const { data } = await getSupabaseAdmin()
     .from("events")
-    .select("suu_event_id, title, starts_at")
+    .select("suu_event_id, title, starts_at, location, description, status")
     .gte("starts_at", `${from}T00:00:00Z`)
     .lte("starts_at", `${to}T23:59:59Z`)
     .not("suu_event_id", "is", null)
     .limit(2000);
   const london = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London", year: "numeric", month: "2-digit", day: "2-digit" });
-  return (data ?? []).map((e) => ({
+  const events = dedupeEvents((data ?? []) as DedupeEvent[], linked.filter((id): id is string => Boolean(id)));
+  return events.map((e) => ({
     suuId: e.suu_event_id as string,
     title: e.title as string,
     date: london.format(new Date(e.starts_at as string)),
@@ -348,7 +356,7 @@ export async function pullWalkSheet(trigger: string): Promise<PullResult> {
     const stored = await storedWalks();
     const snapshot = await readSheets(stored);
     const dates = snapshot.walks.map((w) => w.date!).sort();
-    const candidates = dates.length ? await suCandidates(dates[0], dates.at(-1)!) : [];
+    const candidates = dates.length ? await suCandidates(dates[0], dates.at(-1)!, stored.map((w) => w.event_suu_id)) : [];
     const now = new Date().toISOString();
     const { upserts, gone, changed, conflicts } = mergeWalks(snapshot, stored, candidates, now);
 

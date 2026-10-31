@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dedupeEvents } from "@/lib/eventDuplicates";
 import { getEventPlans } from "@/lib/eventPlans";
 import { joinMultiDayEvents } from "@/lib/eventList";
 import { buildCalendar, calendarSignatureMatches, readCalendarToken, toIcsEvent } from "@/lib/ics";
@@ -42,7 +43,7 @@ export async function GET(_request: Request, { params }: Params) {
     .neq("status", "draft")
     .order("starts_at", { ascending: true })
     .limit(300);
-  const events = joinMultiDayEvents(await visibleEvents((data ?? []) as SUEvent[], viewerOf(member as Pick<Member, "membership_tier" | "governance_role" | "is_walk_leader">)));
+  const events = joinMultiDayEvents(await visibleEvents(dedupeEvents((data ?? []) as SUEvent[]), viewerOf(member as Pick<Member, "membership_tier" | "governance_role" | "is_walk_leader">)));
   const plans = await getEventPlans(events.map((e) => e.suu_event_id ?? ""));
   const entries = events
     .map((event) => {

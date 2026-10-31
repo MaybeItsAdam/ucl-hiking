@@ -1,10 +1,14 @@
 import { cache } from "react";
+import { dedupeEvents } from "@/lib/eventDuplicates";
 import { isEventCurrent, startOfLondonDay } from "@/lib/eventList";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import type { SUEvent } from "@/lib/types";
 
 // `*`, not a column list, throughout: local dev reads the production database,
 // which may not have this deploy's columns yet.
+//
+// Lists go through dedupeEvents: Toolbox lists some walks twice under two SU
+// ids (see lib/eventDuplicates), and one walk must show and count once.
 
 async function devEvents(): Promise<SUEvent[]> {
   if (process.env.NODE_ENV === "production") return [];
@@ -20,7 +24,7 @@ async function devEvents(): Promise<SUEvent[]> {
  * then drops what has finished.
  */
 export async function getUpcomingEvents(now = new Date()): Promise<SUEvent[]> {
-  if (!isSupabaseConfigured()) return (await devEvents()).filter((e) => e.status !== "draft" && isEventCurrent(e, now));
+  if (!isSupabaseConfigured()) return dedupeEvents((await devEvents()).filter((e) => e.status !== "draft" && isEventCurrent(e, now)));
   const today = startOfLondonDay(now).toISOString();
   const { data } = await getSupabaseAdmin()
     .from("events")
@@ -29,7 +33,7 @@ export async function getUpcomingEvents(now = new Date()): Promise<SUEvent[]> {
     .neq("status", "draft")
     .order("starts_at", { ascending: true })
     .limit(200);
-  return ((data ?? []) as SUEvent[]).filter((event) => isEventCurrent(event, now));
+  return dedupeEvents(((data ?? []) as SUEvent[]).filter((event) => isEventCurrent(event, now)));
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -52,7 +56,7 @@ export async function getEventsInClubYear(year: number): Promise<SUEvent[]> {
   const from = `${year}-08-31T23:00:00Z`;
   const to = `${year + 1}-08-31T23:00:00Z`;
   if (!isSupabaseConfigured()) {
-    return (await devEvents()).filter((e) => e.starts_at && e.starts_at >= from && e.starts_at < to);
+    return dedupeEvents((await devEvents()).filter((e) => e.starts_at && e.starts_at >= from && e.starts_at < to));
   }
   const { data } = await getSupabaseAdmin()
     .from("events")
@@ -62,10 +66,14 @@ export async function getEventsInClubYear(year: number): Promise<SUEvent[]> {
     .neq("status", "draft")
     .order("starts_at", { ascending: true })
     .limit(1000);
-  return (data ?? []) as SUEvent[];
+  return dedupeEvents((data ?? []) as SUEvent[]);
 }
 
-/** Events by their SU ids, oldest first; for a member's walk history. */
+/**
+ * Events by their SU ids, oldest first; for a member's walk history. Every id
+ * asked for comes back, duplicates included: callers look rows up by id. Pass
+ * the result through dedupeEvents before counting or listing it.
+ */
 export async function getEventsBySuuIds(ids: string[]): Promise<SUEvent[]> {
   const unique = [...new Set(ids.filter(Boolean))];
   if (!unique.length) return [];
