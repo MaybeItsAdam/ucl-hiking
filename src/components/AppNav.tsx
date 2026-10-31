@@ -3,11 +3,12 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BookOpen, CalendarDays, Landmark, Package, ReceiptPoundSterling, Settings, Users } from "lucide-react";
+import { BookOpen, BookOpenText, CalendarDays, Landmark, Package, ReceiptPoundSterling, Settings, Users } from "lucide-react";
 import { APP_PAGE_HREFS, type AppPage } from "@/lib/app-pages";
 
 export const PAGE_META: Record<AppPage, { label: string; icon: typeof Users }> = {
   events: { label: "Events", icon: CalendarDays },
+  navigator: { label: "Navigator", icon: BookOpenText },
   members: { label: "Members", icon: Users },
   equipment: { label: "Equipment", icon: Package },
   club: { label: "Club", icon: Landmark },

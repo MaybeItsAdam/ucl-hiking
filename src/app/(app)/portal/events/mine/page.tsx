@@ -13,7 +13,8 @@ import { eventDetails, formatAscent, formatKm } from "@/lib/eventDetails";
 import { eventWhen, isEventCurrent, isOnToday, longDate } from "@/lib/eventList";
 import { getPlansNaming } from "@/lib/eventPlans";
 import { getEventsBySuuIds } from "@/lib/events";
-import { clubYear, clubYearLabel, eventPlaces, mapHikes, onMap, yearStats } from "@/lib/hikeMap";
+import { getRouteLines } from "@/lib/eventRoutes";
+import { clubYear, clubYearLabel, eventPlaces, mapHikes, onMap, withTracks, yearStats } from "@/lib/hikeMap";
 import { loadPlaces } from "@/lib/places";
 import { getCurrentMember } from "@/lib/session";
 
@@ -36,8 +37,8 @@ export default async function MyWalksPage() {
   const all = await getEventsBySuuIds([...new Set([...bySuuId.keys(), ...plans.keys()])]);
   // Totals, the map and Done stay theirs as walkers; leading one without a ticket isn't walking it here.
   const events = all.filter((e) => bySuuId.has(e.suu_event_id ?? ""));
-  const places = await loadPlaces(eventPlaces(events));
-  const hikes = mapHikes(events, places);
+  const [places, lines] = await Promise.all([loadPlaces(eventPlaces(events)), getRouteLines(events.map((e) => e.suu_event_id))]);
+  const hikes = withTracks(mapHikes(events, places), lines);
 
   const year = clubYear();
   const thisYear = hikes.filter((h) => clubYear(new Date(h.date)) === year);

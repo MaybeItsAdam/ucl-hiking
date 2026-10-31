@@ -20,7 +20,10 @@ export default async function NavigatorIssuePage({ params }: Params) {
 
   return (
     <NavigatorReader
+      issue={issue.issue}
       src={`/api/navigator/${issue.issue}`}
+      directUrl={issue.pdfUrl}
+      bytes={issue.bytes ?? null}
       sourceUrl={issue.sourceUrl}
       label={issueLabel(issue.issue)}
       title={issue.title}

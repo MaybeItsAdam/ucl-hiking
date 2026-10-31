@@ -87,6 +87,33 @@ export function mapRouteOf(route: Pick<EventRoute, "segments" | "waypoints">): M
   };
 }
 
+/** A route on a map of many walks: a line to see where it went, at a few hundred points. */
+export const OVERVIEW_TOLERANCE_M = 30;
+export const OVERVIEW_MAX_POINTS = 250;
+
+export function overviewLine(segments: TrackPoint[][] | null | undefined): [number, number][][] {
+  return simplifySegments(segments ?? [], OVERVIEW_TOLERANCE_M, OVERVIEW_MAX_POINTS)
+    .map((s) => s.map((p) => [p[0], p[1]] as [number, number]))
+    .filter((s) => s.length >= 2);
+}
+
+/** Each walk's route as an overview line, by SU id, for the year map and My walks. Walks without one are left out. */
+export async function getRouteLines(eventSuuIds: (string | null | undefined)[]): Promise<Map<string, [number, number][][]>> {
+  const lines = new Map<string, [number, number][][]>();
+  const ids = [...new Set(eventSuuIds.filter((id): id is string => Boolean(id)))];
+  if (!ids.length || !isSupabaseConfigured()) return lines;
+  const supabase = getSupabaseAdmin();
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data, error } = await supabase.from("event_routes").select("event_suu_id, segments").in("event_suu_id", ids.slice(i, i + 100));
+    if (error) return lines;
+    for (const row of (data ?? []) as Pick<EventRoute, "event_suu_id" | "segments">[]) {
+      const line = overviewLine(row.segments);
+      if (line.length) lines.set(row.event_suu_id, line);
+    }
+  }
+  return lines;
+}
+
 /** The route for an event, or null. A missing table reads as no route, as with plans. */
 export async function getEventRoute(eventSuuId: string | null): Promise<EventRoute | null> {
   if (!eventSuuId || !isSupabaseConfigured()) return null;

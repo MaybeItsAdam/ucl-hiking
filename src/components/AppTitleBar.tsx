@@ -14,7 +14,8 @@ import { InboxBell } from "@/components/InboxBell";
  */
 export function AppTitleBar({ inbox = false }: { inbox?: boolean }) {
   const pageTitle = PAGE_META[useAppNav().active].label;
-  // The inbox and the magazine aren't tabs, so they name themselves.
+  // The inbox isn't a tab, so it names itself; the magazine's tab is "Navigator"
+  // to fit the tab bar, but its page goes by its full name.
   const pathname = usePathname();
   const title =
     pathname === "/portal/inbox" ? "Inbox" : pathname.startsWith("/portal/navigator") ? "The Navigator" : pageTitle;

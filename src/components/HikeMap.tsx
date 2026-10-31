@@ -221,9 +221,16 @@ export function HikeMap({
         const counts = (p: [number, number]) => !routeBounds || routeBounds.contains(p);
         if (counts(start)) points.push(start);
 
+        // A walk with a route on a map of many: the way it went, in its grade's colour.
+        const track = !route && hike.track?.length ? hike.track : null;
+        for (const seg of track ?? []) {
+          L.polyline(seg, { className: `hike-route ${tone}`, weight: 3, lineCap: "round", lineJoin: "round", interactive: false }).addTo(map);
+          points.push(...seg);
+        }
+
         if (finish) {
           if (counts(finish)) points.push(finish);
-          if (!route) {
+          if (!route && !track) {
             L.polyline([start, finish], { className: `hike-route ${tone}`, weight: 3, dashArray: "1 7", lineCap: "round", interactive: false }).addTo(map);
           }
           const end = L.marker(finish, {

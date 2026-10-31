@@ -1,22 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type AnimationEvent as ReactAnimationEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Capacitor } from "@capacitor/core";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  ExternalLink,
-  GalleryHorizontalEnd,
-  LoaderCircle,
-  ZoomIn,
-  ZoomOut,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, ExternalLink, LoaderCircle, ZoomIn, ZoomOut } from "lucide-react";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from "pdfjs-dist";
+import { NavigatorDownload } from "@/components/NavigatorDownload";
 import { OpenExternal } from "@/components/OpenExternal";
-import { readerViews, viewIndexOf } from "@/lib/navigator";
+import { formatBytes, readerViews, viewIndexOf } from "@/lib/navigator";
 
 type PdfJs = typeof import("pdfjs-dist/legacy/build/pdf.mjs");
 
@@ -47,123 +47,150 @@ const ZOOMS = [1, 1.5, 2, 3];
 // soon after, so a page at 3x on a retina iPad is drawn a little softer instead.
 const MAX_PAGE_PIXELS = 12_000_000;
 const SWIPE_DISTANCE = 48;
-const THUMB_WIDTH = 64;
+// A tap this far in from either side of the page area turns the page.
+const EDGE_ZONE = 0.3;
+// Drawn pages kept: the view on screen and the ones either side of it, twice over.
+const PAGES_KEPT = 12;
 
-/** Draws one PDF page into a canvas at the size it is shown, sharp on high-DPI screens. */
-function PdfPage({
-  doc,
-  pageNumber,
-  width,
-  height,
-  maxPixels = MAX_PAGE_PIXELS,
-  placeholder,
-}: {
-  doc: PDFDocumentProxy;
-  pageNumber: number;
-  width: number;
-  height: number;
-  maxPixels?: number;
-  placeholder?: string | null;
-}) {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const [drawn, setDrawn] = useState<string | null>(null);
-  const key = `${pageNumber}@${width}`;
+type Drawn = { canvas: HTMLCanvasElement | null; task: RenderTask | null; promise: Promise<HTMLCanvasElement> };
 
-  useEffect(() => {
-    let cancelled = false;
-    let task: RenderTask | null = null;
-    (async () => {
-      const page = await doc.getPage(pageNumber);
-      if (cancelled) return;
+/**
+ * Every page the reader draws, drawn once and kept for a while, so that turning
+ * to a page that was drawn ahead of time puts it on screen in the same frame. A
+ * page is drawn off screen and copied into whichever canvas shows it, which is
+ * also how the turning leaf can show the page you are leaving.
+ */
+class PageStore {
+  private drawn = new Map<string, Drawn>();
+
+  constructor(private doc: PDFDocumentProxy) {}
+
+  static key(page: number, width: number): string {
+    return `${page}@${width}`;
+  }
+
+  /** The finished drawing, if there is one: used to paint before the browser does. */
+  peek(page: number, width: number): HTMLCanvasElement | null {
+    const key = PageStore.key(page, width);
+    const entry = this.drawn.get(key);
+    if (!entry?.canvas) return null;
+    this.touch(key, entry);
+    return entry.canvas;
+  }
+
+  get(page: number, width: number): Promise<HTMLCanvasElement> {
+    const key = PageStore.key(page, width);
+    let entry = this.drawn.get(key);
+    if (entry) this.touch(key, entry);
+    else {
+      entry = this.draw(key, page, width);
+      this.drawn.set(key, entry);
+      this.trim();
+    }
+    return entry.promise;
+  }
+
+  /** Stops drawing anything not wanted any more: a size the window has since left, a page skipped past. */
+  retain(wanted: Set<string>) {
+    for (const [key, entry] of this.drawn) if (!entry.canvas && !wanted.has(key)) this.drop(key, entry);
+  }
+
+  destroy() {
+    for (const [key, entry] of this.drawn) this.drop(key, entry);
+  }
+
+  private draw(key: string, pageNumber: number, width: number): Drawn {
+    const entry: Drawn = { canvas: null, task: null, promise: Promise.resolve(null as unknown as HTMLCanvasElement) };
+    entry.promise = (async () => {
+      const page = await this.doc.getPage(pageNumber);
+      if (this.drawn.get(key) !== entry) throw new Error("dropped");
       const base = page.getViewport({ scale: 1 });
       let scale = (width / base.width) * Math.min(window.devicePixelRatio || 1, 3);
       const area = base.width * scale * base.height * scale;
-      if (area > maxPixels) scale *= Math.sqrt(maxPixels / area);
+      if (area > MAX_PAGE_PIXELS) scale *= Math.sqrt(MAX_PAGE_PIXELS / area);
       const viewport = page.getViewport({ scale });
-      // Drawn off screen and copied over once finished, so a re-render (zoom,
-      // rotation) replaces the old drawing in one go instead of blanking it.
-      const scratch = document.createElement("canvas");
-      scratch.width = Math.floor(viewport.width);
-      scratch.height = Math.floor(viewport.height);
-      task = page.render({ canvas: scratch, viewport });
-      await task.promise;
-      const target = canvas.current;
-      if (cancelled || !target) return;
-      target.width = scratch.width;
-      target.height = scratch.height;
-      target.getContext("2d")?.drawImage(scratch, 0, 0);
-      scratch.width = scratch.height = 0;
-      setDrawn(key);
-    })().catch(() => {
-      // Cancelled by a newer render, or a page that won't draw: the placeholder stays.
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.floor(viewport.width);
+      canvas.height = Math.floor(viewport.height);
+      entry.task = page.render({ canvas, viewport });
+      await entry.task.promise;
+      entry.task = null;
+      entry.canvas = canvas;
+      return canvas;
+    })();
+    entry.promise.catch(() => {
+      if (this.drawn.get(key) === entry) this.drawn.delete(key);
     });
-    return () => {
-      cancelled = true;
-      task?.cancel();
+    return entry;
+  }
+
+  private touch(key: string, entry: Drawn) {
+    this.drawn.delete(key);
+    this.drawn.set(key, entry);
+  }
+
+  private trim() {
+    for (const [key, entry] of this.drawn) {
+      if (this.drawn.size <= PAGES_KEPT) break;
+      this.drop(key, entry);
+    }
+  }
+
+  private drop(key: string, entry: Drawn) {
+    this.drawn.delete(key);
+    entry.task?.cancel();
+    // A zero-sized canvas hands its memory back at once; iOS counts it until then.
+    if (entry.canvas) entry.canvas.width = entry.canvas.height = 0;
+  }
+}
+
+/** One page, at the size it is shown, sharp on high-DPI screens. */
+function PdfPage({
+  store,
+  pageNumber,
+  width,
+  height,
+  placeholder,
+}: {
+  store: PageStore;
+  pageNumber: number;
+  width: number;
+  height: number;
+  placeholder?: string | null;
+}) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+
+  // A layout effect, so a page drawn ahead of time is painted before the browser
+  // shows the frame: a turn never flashes an empty page. A new size keeps the old
+  // drawing, stretched, until the sharp one is ready.
+  useLayoutEffect(() => {
+    let live = true;
+    const paint = (source: HTMLCanvasElement) => {
+      const target = canvas.current;
+      if (!live || !target || !source.width) return;
+      target.width = source.width;
+      target.height = source.height;
+      target.getContext("2d")?.drawImage(source, 0, 0);
+      target.parentElement?.classList.add("is-drawn");
     };
-  }, [doc, pageNumber, width, maxPixels, key]);
+    const ready = store.peek(pageNumber, width);
+    if (ready) paint(ready);
+    else
+      store.get(pageNumber, width).then(paint, () => {
+        // Dropped for a newer size, or a page that won't draw: the placeholder stays.
+      });
+    return () => {
+      live = false;
+    };
+  }, [store, pageNumber, width]);
 
   return (
     <span
-      className={`navigator-pdf-page${drawn ? " is-drawn" : ""}`}
-      style={{ width, height, backgroundImage: placeholder && !drawn ? `url(${placeholder})` : undefined }}
+      className="navigator-pdf-page"
+      style={{ width, height, backgroundImage: placeholder ? `url(${placeholder})` : undefined }}
     >
       <canvas ref={canvas} style={{ width, height }} aria-hidden="true" />
     </span>
-  );
-}
-
-/** A thumbnail that only draws once it scrolls near the strip's visible part. */
-function Thumb({
-  doc,
-  pageNumber,
-  aspect,
-  current,
-  onSelect,
-  root,
-}: {
-  doc: PDFDocumentProxy;
-  pageNumber: number;
-  aspect: number;
-  current: boolean;
-  onSelect: (page: number) => void;
-  root: HTMLElement | null;
-}) {
-  const button = useRef<HTMLButtonElement>(null);
-  const [seen, setSeen] = useState(false);
-  useEffect(() => {
-    const el = button.current;
-    if (!el || seen || typeof IntersectionObserver === "undefined") return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setSeen(true);
-          observer.disconnect();
-        }
-      },
-      { root, rootMargin: "0px 240px" },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [root, seen]);
-
-  const height = Math.round(THUMB_WIDTH / aspect);
-  return (
-    <button
-      ref={button}
-      type="button"
-      className={`navigator-thumb${current ? " is-current" : ""}`}
-      aria-label={`Page ${pageNumber}`}
-      aria-current={current ? "page" : undefined}
-      onClick={() => onSelect(pageNumber)}
-    >
-      {seen ? (
-        <PdfPage doc={doc} pageNumber={pageNumber} width={THUMB_WIDTH} height={height} maxPixels={200_000} />
-      ) : (
-        <span className="navigator-pdf-page" style={{ width: THUMB_WIDTH, height }} />
-      )}
-      <span className="navigator-thumb-number">{pageNumber}</span>
-    </button>
   );
 }
 
@@ -172,21 +199,35 @@ function pageFromHash(): number {
   return match ? Math.max(1, Number(match[1])) : 1;
 }
 
+// Facing pages sit as they do in print: even numbers on the left, odd on the right.
+const leftOf = (view: readonly number[]) => view.find((p) => p % 2 === 0) ?? null;
+const rightOf = (view: readonly number[]) => view.find((p) => p % 2 === 1) ?? null;
+
+type Turn = { dir: "next" | "prev"; from: number[]; to: number[]; spreads: boolean; n: number };
+
 /**
  * The Navigator, open. Facing pages on a wide screen and one page at a time on a
- * phone; swipe, arrow keys or the buttons turn the page; a strip of thumbnails
- * jumps anywhere. Pages are drawn by pdf.js as they come into view, and the PDF
- * itself arrives in ranges, so opening an issue doesn't mean downloading it.
+ * phone. A tap on either edge, a swipe, the arrow keys or the buttons turn the
+ * page: facing pages flip over the spine, a single page lifts away like a
+ * notebook's. The scrubber along the bottom jumps anywhere. Pages either side of
+ * the one open are drawn ahead, and the PDF itself arrives in ranges, so opening
+ * an issue doesn't mean downloading it.
  */
 export function NavigatorReader({
+  issue,
   src,
+  directUrl,
+  bytes,
   sourceUrl,
   label,
   title,
   cover,
   knownPages,
 }: {
+  issue: number;
   src: string;
+  directUrl: string;
+  bytes: number | null;
   sourceUrl: string;
   label: string;
   title: string;
@@ -199,13 +240,12 @@ export function NavigatorReader({
   const [pageSize, setPageSize] = useState<{ w: number; h: number }>({ w: 640, h: 828 });
   const [page, setPage] = useState(1);
   const [zoomIndex, setZoomIndex] = useState(0);
-  const [turn, setTurn] = useState<{ dir: "next" | "prev"; n: number } | null>(null);
-  const [showThumbs, setShowThumbs] = useState(true);
-  const [native, setNative] = useState(false);
+  const [turn, setTurn] = useState<Turn | null>(null);
+  // The scrubber's position while a finger is on it; the page follows on release.
+  const [scrub, setScrub] = useState<number | null>(null);
   const [stage, setStage] = useState<HTMLDivElement | null>(null);
   const [stageSize, setStageSize] = useState({ w: 0, h: 0 });
-  const [strip, setStrip] = useState<HTMLDivElement | null>(null);
-  const swipe = useRef<{ x: number; y: number; id: number } | null>(null);
+  const gesture = useRef<{ x: number; y: number; id: number; type: string } | null>(null);
 
   // Open the document.
   useEffect(() => {
@@ -239,16 +279,13 @@ export function NavigatorReader({
     };
   }, [src]);
 
-  // Where to start, the platform, and a page that doesn't scroll behind the reader.
+  const store = useMemo(() => (doc ? new PageStore(doc) : null), [doc]);
+  useEffect(() => () => store?.destroy(), [store]);
+
+  // Where to start, and a page that doesn't scroll behind the reader.
   useEffect(() => {
     const start = pageFromHash();
-    const native = Capacitor.isNativePlatform();
-    const narrow = window.matchMedia("(max-width: 640px)").matches;
-    queueMicrotask(() => {
-      setPage(start);
-      setNative(native);
-      if (narrow) setShowThumbs(false);
-    });
+    queueMicrotask(() => setPage(start));
     const root = document.documentElement;
     const previous = root.style.overflow;
     root.style.overflow = "hidden";
@@ -289,14 +326,42 @@ export function NavigatorReader({
       const target = Math.max(0, Math.min(views.length - 1, index));
       if (target === viewIndex) return;
       setPage(views[target][0]);
-      setTurn((t) => ({ dir: dir ?? (target > viewIndex ? "next" : "prev"), n: (t?.n ?? 0) + 1 }));
+      // Zoomed in, the page changes in place: a flip of a page bigger than the screen is all blur.
+      if (zoom > 1) {
+        setTurn(null);
+        return;
+      }
+      setTurn((t) => ({
+        dir: dir ?? (target > viewIndex ? "next" : "prev"),
+        from: views[viewIndex],
+        to: views[target],
+        spreads,
+        n: (t?.n ?? 0) + 1,
+      }));
     },
-    [views, viewIndex],
+    [views, viewIndex, zoom, spreads],
   );
   const next = useCallback(() => goToView(viewIndex + 1, "next"), [goToView, viewIndex]);
   const prev = useCallback(() => goToView(viewIndex - 1, "prev"), [goToView, viewIndex]);
-  const goToPage = useCallback((p: number) => goToView(viewIndexOf(views, p)), [goToView, views]);
   const zoomBy = useCallback((step: number) => setZoomIndex((z) => Math.max(0, Math.min(ZOOMS.length - 1, z + step))), []);
+
+  // A turn that never reports its end (a tab in the background) still finishes.
+  useEffect(() => {
+    if (!turn) return;
+    const timer = window.setTimeout(() => setTurn((t) => (t === turn ? null : t)), 1200);
+    return () => window.clearTimeout(timer);
+  }, [turn]);
+  const activeTurn = turn && turn.spreads === spreads && zoom === 1 ? turn : null;
+
+  // Draw ahead: the pages on screen first, then the next view, then the previous.
+  useEffect(() => {
+    if (!store || !pageWidth) return;
+    const wanted = [view];
+    if (zoom === 1) wanted.push(views[viewIndex + 1] ?? [], views[viewIndex - 1] ?? []);
+    const pages = wanted.flat();
+    store.retain(new Set(pages.map((p) => PageStore.key(p, pageWidth))));
+    for (const p of pages) store.get(p, pageWidth).catch(() => {});
+  }, [store, view, views, viewIndex, pageWidth, zoom]);
 
   // Keep the place in the URL, so a reload or a shared link opens the same page.
   useEffect(() => {
@@ -346,34 +411,125 @@ export function NavigatorReader({
     stage?.scrollTo({ top: 0 });
   }, [stage, viewIndex]);
 
-  // The current page stays in sight in the thumbnail strip.
-  useEffect(() => {
-    if (!strip || !showThumbs) return;
-    const current = strip.querySelector<HTMLElement>(".navigator-thumb.is-current");
-    if (!current) return;
-    const left = current.offsetLeft - (strip.clientWidth - current.offsetWidth) / 2;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    strip.scrollTo({ left, behavior: reduce ? "auto" : "smooth" });
-  }, [strip, showThumbs, viewIndex, doc]);
+  /** Where on the stage a tap landed: the left edge, the right edge or the middle. */
+  function zoneOf(clientX: number): "prev" | "next" | null {
+    if (!stage) return null;
+    const rect = stage.getBoundingClientRect();
+    const x = (clientX - rect.left) / rect.width;
+    return x < EDGE_ZONE ? "prev" : x > 1 - EDGE_ZONE ? "next" : null;
+  }
 
-  // Swipe to turn. Only at fit-to-screen: zoomed in, a drag pans the page.
+  // A swipe or a tap on either edge turns the page. Only at fit-to-screen:
+  // zoomed in, a drag pans and a tap does nothing.
   function onPointerDown(event: ReactPointerEvent) {
-    if (zoom > 1 || event.pointerType === "mouse") return;
-    swipe.current = { x: event.clientX, y: event.clientY, id: event.pointerId };
+    if (zoom > 1 || !event.isPrimary) return;
+    gesture.current = { x: event.clientX, y: event.clientY, id: event.pointerId, type: event.pointerType };
   }
   function onPointerUp(event: ReactPointerEvent) {
-    const start = swipe.current;
-    swipe.current = null;
-    if (!start || start.id !== event.pointerId) return;
+    const start = gesture.current;
+    gesture.current = null;
+    if (!start || start.id !== event.pointerId || !doc) return;
+    if ((event.target as Element).closest("button, a, input")) return;
     const dx = event.clientX - start.x;
     const dy = event.clientY - start.y;
-    if (Math.abs(dx) < SWIPE_DISTANCE || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+    if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+      const zone = zoneOf(event.clientX);
+      if (zone === "next") next();
+      else if (zone === "prev") prev();
+      return;
+    }
+    // A mouse drag selects or does nothing; fingers and pens swipe.
+    if (start.type === "mouse" || Math.abs(dx) < SWIPE_DISTANCE || Math.abs(dx) < Math.abs(dy) * 1.4) return;
     if (dx < 0) next();
     else prev();
   }
 
-  const pageLabel = view.length > 1 ? `${view[0]}–${view[view.length - 1]}` : String(view[0]);
-  const aspect = pageSize.w / pageSize.h;
+  function commitScrub() {
+    if (scrub === null) return;
+    setScrub(null);
+    goToView(scrub);
+  }
+
+  function endTurn(event: ReactAnimationEvent) {
+    if (event.target === event.currentTarget) setTurn(null);
+  }
+
+  const shownIndex = scrub ?? viewIndex;
+  const shownView = views[shownIndex] ?? view;
+  const pageLabel = shownView.length > 1 ? `${shownView[0]}–${shownView[shownView.length - 1]}` : String(shownView[0]);
+
+  /** What lies flat during a turn: the side the leaf hasn't reached yet still shows the page being left. */
+  function book() {
+    if (!store) return null;
+    const pageProps = (p: number) => ({
+      store,
+      pageNumber: p,
+      width: pageWidth,
+      height: pageHeight,
+      placeholder: p === 1 ? cover : null,
+    });
+    if (!spreads) {
+      // One page: turning on, the old page lifts off the new one; turning back,
+      // the earlier page settles down over the current one.
+      const flat = activeTurn?.dir === "prev" ? activeTurn.from[0] : view[0];
+      const leaf = activeTurn ? (activeTurn.dir === "next" ? activeTurn.from[0] : activeTurn.to[0]) : null;
+      return (
+        <div className="navigator-book" style={{ width: pageWidth, height: pageHeight, perspective: pageWidth * 3 }}>
+          <div className="navigator-slot">
+            <PdfPage key={flat} {...pageProps(flat)} />
+          </div>
+          {activeTurn && leaf ? (
+            <div
+              key={activeTurn.n}
+              className={`navigator-leaf leaf-single-${activeTurn.dir}`}
+              style={{ width: pageWidth, height: pageHeight }}
+              onAnimationEnd={endTurn}
+            >
+              <div className="navigator-leaf-face">
+                <PdfPage key={leaf} {...pageProps(leaf)} />
+                <span className="navigator-leaf-shade" />
+              </div>
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+
+    // Facing pages: the leaf is the right-hand page going forward, or the left
+    // going back, hinged at the spine, with the page it lands as on its back.
+    const t = activeTurn;
+    const left = t ? leftOf(t.dir === "next" ? t.from : t.to) : leftOf(view);
+    const right = t ? rightOf(t.dir === "next" ? t.to : t.from) : rightOf(view);
+    const front = t ? (t.dir === "next" ? rightOf(t.from) : leftOf(t.from)) : null;
+    const back = t ? (t.dir === "next" ? leftOf(t.to) : rightOf(t.to)) : null;
+    const side = (p: number | null, which: "left" | "right") =>
+      p ? <PdfPage key={p} {...pageProps(p)} /> : <span className={`navigator-blank-page is-${which}`} style={{ width: pageWidth, height: pageHeight }} />;
+    return (
+      <div className="navigator-book is-spread" style={{ width: pageWidth * 2, height: pageHeight, perspective: pageWidth * 4 }}>
+        <div className="navigator-slot is-left">{left ? side(left, "left") : null}</div>
+        <div className="navigator-slot is-right" style={{ left: pageWidth }}>
+          {right ? side(right, "right") : null}
+        </div>
+        {t ? (
+          <div
+            key={t.n}
+            className={`navigator-leaf leaf-spread-${t.dir}`}
+            style={{ left: t.dir === "next" ? pageWidth : 0, width: pageWidth, height: pageHeight }}
+            onAnimationEnd={endTurn}
+          >
+            <div className={`navigator-leaf-face ${t.dir === "next" ? "is-right" : "is-left"}`}>
+              {side(front, t.dir === "next" ? "right" : "left")}
+              <span className="navigator-leaf-shade" />
+            </div>
+            <div className={`navigator-leaf-face navigator-leaf-back ${t.dir === "next" ? "is-left" : "is-right"}`}>
+              {side(back, t.dir === "next" ? "left" : "right")}
+              <span className="navigator-leaf-shade" />
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="navigator-reader" data-no-swipe role="region" aria-label={`The Navigator, ${label}: ${title}`}>
@@ -387,11 +543,16 @@ export function NavigatorReader({
           <strong>{title}</strong>
         </div>
         <div className="navigator-reader-actions">
-          {native ? null : (
-            <a className="navigator-icon-btn" href={`${src}?download`} download aria-label="Download PDF" title="Download PDF">
-              <Download size={18} aria-hidden="true" />
-            </a>
-          )}
+          <NavigatorDownload
+            issue={issue}
+            directUrl={directUrl}
+            bytes={bytes}
+            className="navigator-icon-btn"
+            title={bytes ? `Download PDF · ${formatBytes(bytes)}` : "Download PDF"}
+          >
+            <Download size={18} aria-hidden="true" />
+            <span className="sr-only">Download PDF{bytes ? `, ${formatBytes(bytes)}` : ""}</span>
+          </NavigatorDownload>
           <OpenExternal href={sourceUrl} className="navigator-icon-btn">
             <ExternalLink size={18} aria-hidden="true" />
             <span className="sr-only">Open the original</span>
@@ -404,8 +565,11 @@ export function NavigatorReader({
         className={`navigator-stage${zoom > 1 ? " is-zoomed" : ""}`}
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
-        onPointerCancel={() => (swipe.current = null)}
-        onDoubleClick={() => setZoomIndex((z) => (z === 0 ? 2 : 0))}
+        onPointerCancel={() => (gesture.current = null)}
+        onDoubleClick={(event) => {
+          // Double-tapping the middle zooms; the edges are for turning.
+          if (zoom > 1 || !zoneOf(event.clientX)) setZoomIndex((z) => (z === 0 ? 2 : 0));
+        }}
       >
         {failed ? (
           <div className="navigator-message">
@@ -424,14 +588,8 @@ export function NavigatorReader({
             </span>
           </div>
         ) : (
-          <div
-            key={turn ? `${viewIndex}-${turn.n}` : viewIndex}
-            className={`navigator-view${turn ? ` turn-${turn.dir}` : ""}${view.length > 1 ? " is-spread" : ""}`}
-            style={{ padding: pad }}
-          >
-            {view.map((p) => (
-              <PdfPage key={p} doc={doc} pageNumber={p} width={pageWidth} height={pageHeight} placeholder={p === 1 ? cover : null} />
-            ))}
+          <div className="navigator-view" style={{ padding: pad }}>
+            {book()}
           </div>
         )}
         {doc && zoom === 1 ? (
@@ -446,32 +604,30 @@ export function NavigatorReader({
         ) : null}
       </div>
 
-      {doc && showThumbs ? (
-        <div ref={setStrip} className="navigator-strip" role="group" aria-label="Pages">
-          {Array.from({ length: doc.numPages }, (_, i) => i + 1).map((p) => (
-            <Thumb key={p} doc={doc} pageNumber={p} aspect={aspect} current={view.includes(p)} onSelect={goToPage} root={strip} />
-          ))}
-        </div>
-      ) : null}
+      <div className="navigator-scrub">
+        <input
+          type="range"
+          min={0}
+          max={Math.max(0, views.length - 1)}
+          step={1}
+          value={shownIndex}
+          disabled={!doc || views.length < 2}
+          aria-label="Page"
+          aria-valuetext={`Page ${pageLabel} of ${pageCount}`}
+          onChange={(event) => setScrub(Number(event.target.value))}
+          onPointerUp={commitScrub}
+          onKeyUp={commitScrub}
+          onBlur={commitScrub}
+        />
+      </div>
 
       <footer className="navigator-controls">
-        <button
-          type="button"
-          className={`navigator-icon-btn${showThumbs ? " is-on" : ""}`}
-          onClick={() => setShowThumbs((s) => !s)}
-          aria-pressed={showThumbs}
-          aria-label="Page thumbnails"
-          title="Page thumbnails"
-          disabled={!doc}
-        >
-          <GalleryHorizontalEnd size={18} aria-hidden="true" />
-        </button>
         <div className="navigator-pager">
           <button type="button" className="navigator-icon-btn" onClick={prev} disabled={!doc || viewIndex === 0} aria-label="Previous page">
             <ChevronLeft size={20} aria-hidden="true" />
           </button>
           <span className="navigator-count" aria-live="polite">
-            <span className="navigator-card-label">Page</span> {pageLabel} <span className="navigator-of">of {pageCount}</span>
+            {pageLabel} <span className="navigator-of">/ {pageCount}</span>
           </span>
           <button type="button" className="navigator-icon-btn" onClick={next} disabled={!doc || viewIndex >= views.length - 1} aria-label="Next page">
             <ChevronRight size={20} aria-hidden="true" />

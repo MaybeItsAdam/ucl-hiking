@@ -6,7 +6,8 @@ import { DifficultyChip } from "@/components/EventFacts";
 import { HikeMap } from "@/components/HikeMap";
 import { formatAscent, formatKm } from "@/lib/eventDetails";
 import { getEventsInClubYear } from "@/lib/events";
-import { clubYear, clubYearLabel, eventPlaces, mapHikes, onMap, yearStats } from "@/lib/hikeMap";
+import { getRouteLines } from "@/lib/eventRoutes";
+import { clubYear, clubYearLabel, eventPlaces, mapHikes, onMap, withTracks, yearStats } from "@/lib/hikeMap";
 import { loadPlaces } from "@/lib/places";
 import { getCurrentMember } from "@/lib/session";
 import { viewerOf, visibleEvents } from "@/lib/walkVisibility";
@@ -27,8 +28,8 @@ export default async function WalkMapPage({ searchParams }: { searchParams: Prom
   if (!member) redirect("/auth/signin");
 
   const events = await visibleEvents(yearEvents, viewerOf(member));
-  const places = await loadPlaces(eventPlaces(events));
-  const hikes = mapHikes(events, places);
+  const [places, lines] = await Promise.all([loadPlaces(eventPlaces(events)), getRouteLines(events.map((e) => e.suu_event_id))]);
+  const hikes = withTracks(mapHikes(events, places), lines);
   const stats = yearStats(hikes);
   const pinned = hikes.filter(onMap);
   // Newest first below the map: the walk you went on last is the one you look for.
