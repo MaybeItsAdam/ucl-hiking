@@ -7,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "Weekend walks, mountain weekends and good company. Open to every UCL student.",
     start_url: "/",
     display: "standalone",
-    background_color: "#2C3E50",
+    background_color: "#01A2A6",
     theme_color: "#01A2A6",
     icons: [
       {

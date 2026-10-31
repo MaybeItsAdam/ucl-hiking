@@ -118,16 +118,15 @@ look. The crest itself has none.
 ## Splash screens
 
 The native launch splash is a flat brand-teal `#01A2A6` field with the mark
-centred. The mark is the adaptive foreground clipped to the circle Android 12+
-shows on its own system splash (r = 1024/3), so the rock gets a round base and
-the sky merges into the field. The splash looks the same on iOS, on Android
-before 12 and on Android 12+, and it continues straight on from the icon.
-Teal rather than slate, because the rock is slate: on a slate field only the
-snow and trail would show.
+centred: the adaptive foreground's peaks, snow caps and trail standing on a flat
+base, where the rock is cut off by a straight line 24 units under the trailhead.
+Teal, because it is the icon's sky and the rock is slate; on a slate field only
+the snow and trail would show. The PWA manifest's `background_color` is the same
+teal.
 
 ```sh
-scripts/generate-splash.sh                     # rewrite every splash PNG at its current size
-scripts/generate-splash.sh --preview out.png   # ...plus an iPhone / Android port / land preview
+scripts/generate-splash.sh                     # rewrite every splash image
+scripts/generate-splash.sh --preview out.png   # ...plus an iPhone / Android port / Android 12+ / land preview
 ```
 
 It reads `branding/app_icons/app-icon-foreground.svg`, so re-run it after
@@ -135,18 +134,19 @@ changing the icon. It writes:
 
 - iOS `ios/App/App/Assets.xcassets/Splash.imageset/splash-2732x2732{,-1,-2}.png`:
   one 2732 square, drawn aspect-fill by `LaunchScreen.storyboard`. The mark is
-  16% of the square, which is about 35% of an iPhone's width and 21% of an
+  16% of the square wide, which is about 35% of an iPhone's width and 21% of an
   iPad's short side once cropped.
-- Android `android/app/src/main/res/drawable{,-port-*,-land-*}/splash.png`: the
-  window background before Android 12. The mark is 30% of the short side.
-- Android 12+ ignores those PNGs and draws its own splash from
-  `windowSplashScreenBackground` (`@color/splash_background` in
-  `values/colors.xml`) and `windowSplashScreenAnimatedIcon` (`@mipmap/ic_launcher`),
-  both set on `AppTheme.NoActionBarLaunch` in `values/styles.xml`. Change the
-  colour there and in the script together.
+- Android `android/app/src/main/res/drawable-{m,h,xh,xxh,xxxh}dpi/splash_mark.png`:
+  the transparent mark, 120dp wide (30% of a 400dp phone).
+  `drawable/splash.xml` layers it, centred and unscaled, over
+  `@color/splash_background`, so it keeps its shape in either orientation.
+  That is the launch theme's `android:background` before Android 12.
+- Android 12+ draws its own splash from `windowSplashScreenBackground`
+  (`@color/splash_background` in `values/colors.xml`) and
+  `windowSplashScreenAnimatedIcon` (`@mipmap/ic_launcher`, which the system crops
+  to a circle), both set on `AppTheme.NoActionBarLaunch` in `values/styles.xml`.
 
-Android stretches the legacy PNG to fill the screen, so on a tall modern phone
-the round base turns slightly oval. Only pre-12 devices and the brief hand-off
-before the app theme loads show it.
+Change the teal in the script, `values/colors.xml` and `src/app/manifest.ts`
+together.
 
 Not done yet: an Android 13 themed-icon (`monochrome`) layer.

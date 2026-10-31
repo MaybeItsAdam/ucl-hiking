@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launch splash before Android 12: a teal field with the mark centred at its
+     own size, so it never stretches. Android 12+ draws its own splash from the
+     windowSplashScreen* attributes in values/styles.xml.
+     splash_mark.png is written by scripts/generate-splash.sh. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splash_background" />
+    <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@drawable/splash_mark" />
+    </item>
+</layer-list>
