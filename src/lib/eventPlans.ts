@@ -1,5 +1,9 @@
-import { can, type AccessProfile } from "@/lib/access";
+import { can, profileOf, type AccessProfile } from "@/lib/access";
+import { a1, readValues } from "@/lib/googleSheets";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
+import type { Member } from "@/lib/types";
+import { identityOf, leadsWalk } from "@/lib/walkClaims";
+import { readRoster, TABS, walkLeaders, WALK_SHEETS, type Values } from "@/lib/walkSheet";
 
 /**
  * The trip brief a leader writes on top of the Toolbox post: who leads, where
@@ -110,9 +114,66 @@ export function parsePlanInput(body: unknown): { ok: true; plan: PlanInput } | {
   };
 }
 
-/** Who may write a plan: walk leaders and every governance role. */
+/**
+ * Who may write plans at all: walk leaders and every governance role. Which
+ * plan is canEditEventPlan's question; this one gates what isn't one walk's,
+ * like the list of the club's OS Maps routes.
+ */
 export function canEditPlan(profile: AccessProfile): boolean {
   return can(profile, "lead_walks");
+}
+
+/** Whether the plan names them as its leader or backmarker. */
+export function namedOnPlan(
+  plan: Pick<EventPlan, "leader_member_id" | "backmarker_member_id"> | null,
+  memberId: string,
+): boolean {
+  return Boolean(plan && (plan.leader_member_id === memberId || plan.backmarker_member_id === memberId));
+}
+
+/**
+ * Who may write this walk's plan and route: committee for any walk, a walk
+ * leader only for one they're on, as the plan's leader or backmarker or as a
+ * leader on its rota row (not a shadow). The roster is read only when the rota
+ * names someone, and a sheet that can't be read counts as no match. Pass the
+ * plan when it's already loaded, to save reading it again.
+ */
+export async function canEditEventPlan(
+  member: Member,
+  event: { suu_event_id: string | null },
+  plan?: Pick<EventPlan, "leader_member_id" | "backmarker_member_id"> | null,
+): Promise<boolean> {
+  const profile = profileOf(member);
+  if (!canEditPlan(profile)) return false;
+  if (can(profile, "manage_walks")) return true;
+  if (!event.suu_event_id || !isSupabaseConfigured()) return false;
+  if (namedOnPlan(plan === undefined ? await getEventPlan(event.suu_event_id) : plan, member.id)) return true;
+
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("sheet_walks")
+    .select("sheet_values, shown")
+    .eq("event_suu_id", event.suu_event_id)
+    .eq("present", true);
+  if (error) return false;
+  const rows = ((data ?? []) as { sheet_values: Values | null; shown: Values | null }[])
+    .map((r) => ({ sheet_values: r.sheet_values ?? {}, shown: r.shown ?? {} }))
+    .filter((r) => walkLeaders(r.sheet_values, r.shown).leaders.length > 0);
+  if (!rows.length) return false;
+
+  try {
+    const [rosterRows, me] = await Promise.all([
+      readValues(WALK_SHEETS.leaders, a1(TABS.roster, "A1:G")),
+      supabase.from("members").select("wl_name").eq("id", member.id).maybeSingle(),
+    ]);
+    const who = identityOf(
+      { email: member.email, full_name: member.full_name, wl_name: (me.data?.wl_name as string | null | undefined) ?? null },
+      readRoster(rosterRows),
+    );
+    return rows.some((r) => leadsWalk(r, who));
+  } catch {
+    return false;
+  }
 }
 
 /**

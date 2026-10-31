@@ -8,6 +8,7 @@ import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import { LogIn, ShieldCheck, Users, ChevronRight, X } from "lucide-react";
 import { ClubMark } from "@/components/ClubMark";
+import { OpenExternal } from "@/components/OpenExternal";
 import { SU_MEMBERSHIP_URL } from "@/lib/toolbox";
 
 const societyName = process.env.NEXT_PUBLIC_SOCIETY_NAME || "UCL Hiking Club";
@@ -135,7 +136,7 @@ function SignIn() {
             <p className="signin-error" role="alert">{signInError}</p>
           )}
           {signInError && notMember && (
-            <a className="button primary" href={SU_MEMBERSHIP_URL} target="_blank" rel="noopener noreferrer">Buy a membership</a>
+            <OpenExternal className="button primary" href={SU_MEMBERSHIP_URL}>Buy a membership</OpenExternal>
           )}
 
           {stage === "waiting" ? (
@@ -187,7 +188,7 @@ function SignIn() {
           )}
 
           <nav className="signin-links" aria-label="More">
-            <Link href="/#join">Not a member yet?</Link>
+            <OpenExternal href={SU_MEMBERSHIP_URL}>Not a member yet?</OpenExternal>
             <Link href="/privacy">Privacy policy</Link>
           </nav>
         </div>

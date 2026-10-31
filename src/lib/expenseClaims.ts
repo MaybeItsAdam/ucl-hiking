@@ -7,6 +7,9 @@ export const CLAIM_FORMS: Record<ClaimKind, string> = {
   committee: "https://forms.gle/wvxYYWBY4mUwTPSS9",
 };
 
+/** The Walk/Hike Route Feedback Form a walk leader fills in before claiming (also /e/WL/route-feedback). */
+export const ROUTE_FEEDBACK_FORM = "https://forms.gle/FoHDaurVxcoumqM26";
+
 export const CLAIM_KIND_LABELS: Record<ClaimKind, string> = {
   wl: "Walk leader",
   committee: "Committee",

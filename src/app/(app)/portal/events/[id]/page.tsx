@@ -34,10 +34,9 @@ import { EventPlanEditor } from "@/components/EventPlanEditor";
 import { KitChecklist } from "@/components/KitChecklist";
 import { OpenExternal } from "@/components/OpenExternal";
 import { RouteView } from "@/components/RouteView";
-import { profileOf } from "@/lib/access";
 import { DIFFICULTY_LABELS, eventDetails, formatAscent, formatKm, isHeading, KIND_LABELS } from "@/lib/eventDetails";
 import { countdown, eventWhen, longDate } from "@/lib/eventList";
-import { canEditPlan, getEventPlan } from "@/lib/eventPlans";
+import { canEditEventPlan, getEventPlan } from "@/lib/eventPlans";
 import { getEventRoute, mapRouteOf } from "@/lib/eventRoutes";
 import { getEvent } from "@/lib/events";
 import { mapHikes } from "@/lib/hikeMap";
@@ -226,7 +225,7 @@ function ForecastPlaceholder() {
   );
 }
 
-export default async function EventPage({ params }: Params) {
+export default async function EventPage({ params, searchParams }: Params & { searchParams?: Promise<{ from?: string; walk?: string }> }) {
   const [member, event] = await Promise.all([getCurrentMember(), params.then(({ id }) => getEvent(id))]);
   if (!member) redirect("/auth/signin");
   if (!event || !(await canSeeEvent(event, viewerOf(member)))) notFound();
@@ -247,7 +246,7 @@ export default async function EventPage({ params }: Params) {
   // Streamed in behind the rest of the page, so a slow forecast never holds it up.
   const forecastSpot = pinned?.start ?? mapRoute?.start ?? pinned?.finish ?? null;
   const forecastAt = walking && event.status !== "cancelled" && inForecastWindow(event.starts_at) ? forecastSpot : null;
-  const editable = Boolean(event.suu_event_id) && canEditPlan(profileOf(member));
+  const editable = Boolean(event.suu_event_id) && (await canEditEventPlan(member, event, plan));
   const planMeet = plan?.meet_at || plan?.meet_point
     ? [plan.meet_at ? clock.format(new Date(plan.meet_at)) : null, plan.meet_point].filter(Boolean).join(" · ")
     : null;
@@ -291,11 +290,18 @@ export default async function EventPage({ params }: Params) {
 
   const hasFactSheet = details.more.some(isHeading);
 
+  // Opened from a walk's sign-up sheet on the rota: the back link returns to that sheet.
+  const query = searchParams ? await searchParams : undefined;
+  const fromRota = query?.from === "rota";
+  const backHref = fromRota
+    ? `/portal/events/rota${query?.walk ? `?${new URLSearchParams({ open: query.walk })}` : ""}`
+    : "/portal/events";
+
   return (
     <article className={`event-page kind-${details.kind}${event.status === "cancelled" ? " is-cancelled" : ""}`}>
-      <Link href="/portal/events" className="event-back">
+      <Link href={backHref} className="event-back">
         <ChevronLeft size={18} aria-hidden="true" />
-        Events
+        {fromRota ? "Back to sign-up" : "Events"}
       </Link>
 
       {event.image_url ? (

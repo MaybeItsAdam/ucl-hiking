@@ -6,7 +6,7 @@ import { Check, ChevronRight, Footprints } from "lucide-react";
 import { EventFacts } from "@/components/EventFacts";
 import { EventsSubnav } from "@/components/EventsSubnav";
 import { HikeMap } from "@/components/HikeMap";
-import { WalkClaims } from "@/components/WalkClaims";
+import { WalkClaims, WalkClaimsSkeleton } from "@/components/WalkClaims";
 import { can, profileOf } from "@/lib/access";
 import { getMemberAttendance } from "@/lib/attendees";
 import { eventDetails, formatAscent, formatKm } from "@/lib/eventDetails";
@@ -48,8 +48,9 @@ export default async function MyWalksPage() {
       <EventsSubnav active="mine" showRota={showRota} showProgramme={can(profileOf(member), "manage_walks")} />
 
       {showRota ? (
-        // Reads the reimbursement spreadsheet, which can take a few seconds: the rest of the page doesn't wait.
-        <Suspense fallback={null}>
+        // Reads the reimbursement spreadsheet, which can take a few seconds: the rest of the page doesn't wait,
+        // and the section holds its place with a skeleton so leaders can see it's still coming.
+        <Suspense fallback={<WalkClaimsSkeleton />}>
           <WalkClaims member={member} />
         </Suspense>
       ) : null}

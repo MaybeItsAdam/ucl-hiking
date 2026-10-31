@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { can, profileOf } from "@/lib/access";
 import { audit } from "@/lib/audit";
 import { eventDetails } from "@/lib/eventDetails";
-import { canEditPlan, getEventPlan, mergePlanForEditor, newlyAssigned, parsePlanInput, saveEventPlan } from "@/lib/eventPlans";
+import { canEditEventPlan, canEditPlan, getEventPlan, mergePlanForEditor, newlyAssigned, parsePlanInput, saveEventPlan } from "@/lib/eventPlans";
 import { longDate } from "@/lib/eventList";
 import { notify } from "@/lib/notify";
 import { getEventRouteSummary } from "@/lib/eventRoutes";
@@ -14,6 +14,8 @@ import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import type { SUEvent } from "@/lib/types";
 
 type Params = { params: Promise<{ id: string }> };
+
+const FORBIDDEN = "Only this walk's leaders and committee edit its plan.";
 
 async function tellAssigned(event: SUEvent, jobs: ReturnType<typeof newlyAssigned>) {
   const name = eventDetails(event).name;
@@ -32,12 +34,13 @@ export async function GET(_request: Request, { params }: Params) {
   const member = await getCurrentMember();
   if (!member) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const profile = profileOf(member);
-  if (!canEditPlan(profile)) return NextResponse.json({ error: "Only walk leaders and committee edit plans." }, { status: 403 });
+  if (!canEditPlan(profile)) return NextResponse.json({ error: FORBIDDEN }, { status: 403 });
 
   const event = await getEvent((await params).id);
   if (!event?.suu_event_id) return NextResponse.json({ error: "No such event." }, { status: 404 });
 
   const [plan, route] = await Promise.all([getEventPlan(event.suu_event_id), getEventRouteSummary(event.suu_event_id)]);
+  if (!(await canEditEventPlan(member, event, plan))) return NextResponse.json({ error: FORBIDDEN }, { status: 403 });
   let leaders: { id: string; full_name: string | null }[] = [];
   if (can(profile, "manage_walks") && isSupabaseConfigured()) {
     const { data } = await getSupabaseAdmin()
@@ -55,7 +58,7 @@ export async function PUT(request: Request, { params }: Params) {
   const member = await getCurrentMember();
   if (!member) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const profile = profileOf(member);
-  if (!canEditPlan(profile)) return NextResponse.json({ error: "Only walk leaders and committee edit plans." }, { status: 403 });
+  if (!canEditPlan(profile)) return NextResponse.json({ error: FORBIDDEN }, { status: 403 });
   if (!isSupabaseConfigured()) return NextResponse.json({ error: "Plans need the database." }, { status: 503 });
 
   const event = await getEvent((await params).id);
@@ -71,6 +74,7 @@ export async function PUT(request: Request, { params }: Params) {
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 });
 
   const existing = await getEventPlan(event.suu_event_id);
+  if (!(await canEditEventPlan(member, event, existing))) return NextResponse.json({ error: FORBIDDEN }, { status: 403 });
   const plan = mergePlanForEditor(profile, parsed.plan, existing);
   const { data, error } = await saveEventPlan(event.suu_event_id, plan, member.id);
   if (error) return NextResponse.json({ error: "The plan wasn't saved. Try again." }, { status: 500 });

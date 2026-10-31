@@ -2136,7 +2136,8 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 .event-day-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--line); }
 .event-day-actions:empty { display: none; }
 
-.event-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 22px; }
+/* The stats and lead above end flush, so the buttons bring their own gap. */
+.event-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0 22px; }
 .event-actions:empty { display: none; }
 .event-actions .kit-btn { display: inline-flex; align-items: center; gap: 6px; }
 
@@ -2225,7 +2226,13 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 /* ===== Club ===== */
 .club-page { max-width: 880px; }
 .club-page > .event-eyebrow { margin: 0 0 8px; }
-.club-subnav { overflow-x: auto; }
+/* Scrolls sideways when the sections outrun the width, but never down: the
+   tabs' underline used to hang 2px into the strip's border, which counted as
+   vertical overflow and drew a scrollbar with arrows on desktop browsers. The
+   underline now sits on the line instead, and the scrollbar stays hidden. */
+.club-subnav { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.club-subnav::-webkit-scrollbar { display: none; }
+.club-subnav a { margin-bottom: 0; }
 .club-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 22px; }
 .club-tiles dd.club-tile-note { margin: 2px 0 0; font: 400 12px var(--font-body); color: var(--muted); }
 .club-bars { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 2px; align-items: end; height: 160px; padding: 12px 12px 0; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
@@ -2488,6 +2495,9 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 .hike-popup-date { font: 800 10px var(--font-body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .hike-popup-facts { color: var(--muted); }
 .hike-popup a[data-nav] { display: inline-flex; align-items: center; min-height: 32px; color: var(--link); font-weight: 800; }
+/* A pin shared by walks from one start: each walk's card, ruled apart. */
+.hike-popup + .hike-popup { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.hike-pin.is-shared { font-size: 11px; letter-spacing: -.02em; }
 
 @media (max-width: 768px) {
   /* The month is the one piece of context a long list loses as it scrolls, so
@@ -2587,6 +2597,21 @@ button.kit-item-main { cursor: pointer; }
 .kit-item-name { font-size: 15px; font-weight: 700; line-height: 1.3; overflow-wrap: anywhere; }
 .kit-item-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 13px; color: var(--muted); }
 .kit-item-desc { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kit-item-main.is-expandable { padding: 0; gap: 0; }
+/* Members tap the row to unfold the full description; the Borrow button stays separate. */
+.kit-item-toggle {
+  position: relative; display: flex; flex-direction: column; gap: 2px; width: 100%; min-height: 44px;
+  padding: 12px 24px 12px 14px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.kit-item-toggle:focus-visible { outline: 2px solid var(--forest); outline-offset: -2px; }
+.kit-item:has(button.kit-item-toggle):hover { background: var(--surface-2); }
+.kit-item-toggle-icon { position: absolute; top: 50%; right: 2px; translate: 0 -50%; color: var(--muted); transition: rotate 0.15s ease; }
+.kit-item-toggle[aria-expanded="true"] .kit-item-toggle-icon { rotate: 180deg; }
+.kit-item-details { display: flex; flex-direction: column; gap: 6px; padding: 0 24px 12px 14px; font-size: 13px; line-height: 1.45; color: var(--muted); }
+.kit-item-details[hidden] { display: none; }
+.kit-item-details p { margin: 0; overflow-wrap: anywhere; white-space: pre-line; }
+.kit-item-condition strong { color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .kit-item-toggle-icon { transition-duration: 0.01ms; } }
 .kit-stock { flex-shrink: 0; min-width: 44px; text-align: right; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .kit-stock strong { font-size: 17px; color: var(--ok-fg); }
 .kit-stock.is-low strong { color: var(--warn-fg); }
@@ -2672,6 +2697,9 @@ button.kit-item-main { cursor: pointer; }
   /* 36px painted, 44px to the finger. */
   .kit-item .kit-btn::after { content: ""; position: absolute; inset: -4px -2px; }
   .kit-item:has(button.kit-item-main):active { background: var(--surface-2); }
+  .kit-item-toggle { padding: 11px 24px 11px 12px; }
+  .kit-item-details { padding: 0 24px 11px 12px; }
+  .kit-item:has(button.kit-item-toggle):active { background: var(--surface-2); }
   /* The actions drop under the request and split its width, so the
      thumb-sized buttons never squeeze the text beside them. */
   .kit-request { grid-template-columns: 1fr; padding: 12px; }
@@ -2736,6 +2764,7 @@ button.kit-item-main { cursor: pointer; }
 .expense-choice { display: flex; gap: 8px; }
 .expense-question { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; min-width: 0; }
 .expense-question legend { padding: 0; margin-bottom: 6px; font-size: 13px; font-weight: 700; }
+.expense-question-link { color: var(--ink); font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
 .expense-intro { display: flex; flex-direction: column; gap: 4px; }
 .expense-intro p { margin: 0; }
 .expense-choice label {
@@ -2977,6 +3006,13 @@ button.kit-item-main { cursor: pointer; }
 .rota-chevron { color: var(--muted); }
 .rota-fill-tag { display: inline-flex; align-items: center; padding: 1px 8px; border: 1px solid var(--line); border-radius: 6px; color: var(--muted); font: 700 12px var(--font-body); white-space: nowrap; }
 .rota-fill-tag.is-full { border-color: var(--ok-line); color: var(--ok-fg); }
+/* "Walk details" in the sheet's meta line: link-coloured so it reads as one,
+   with its tap area grown past the text without moving the line. The line
+   drops .modal-card p's fade (which greyed the link with it) for muted text. */
+.modal-card .rota-sheet-meta { opacity: 1; color: var(--muted); }
+.rota-walk-link { position: relative; display: inline-flex; align-items: center; gap: 1px; color: var(--link); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+.rota-walk-link::after { content: ""; position: absolute; inset: -12px -6px; }
+.rota-walk-link:hover { color: var(--ink); }
 .rota-sheet-section { display: grid; gap: 8px; margin: 18px 0 0; }
 .rota-sheet-section .event-eyebrow { margin: 0; }
 .rota-slots { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }

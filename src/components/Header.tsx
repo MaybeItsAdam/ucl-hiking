@@ -9,7 +9,7 @@ export async function Header() {
 
   return (
     <header className="site-header">
-      <Link className="brand" href="/" aria-label="UCL Hiking Club home">
+      <Link className="brand" href={member ? "/portal" : "/"} aria-label="UCL Hiking Club home">
         <ClubMark />
         <span><strong>UCL Hiking</strong> Club</span>
       </Link>

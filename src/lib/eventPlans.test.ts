@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canEditPlan, mergePlanForEditor, parseKitList, parsePlanInput, type PlanInput } from "./eventPlans";
+import { canEditPlan, mergePlanForEditor, namedOnPlan, parseKitList, parsePlanInput, type PlanInput } from "./eventPlans";
 
 const leader = { membershipTier: "standard", governanceRole: null, isWalkLeader: true } as const;
 const committee = { membershipTier: "explorer", governanceRole: "committee", isWalkLeader: false } as const;
@@ -72,6 +72,13 @@ describe("who edits a plan", () => {
     expect(canEditPlan(leader)).toBe(true);
     expect(canEditPlan(committee)).toBe(true);
     expect(canEditPlan(member)).toBe(false);
+  });
+
+  it("knows who the plan names, and that no plan names no one", () => {
+    expect(namedOnPlan({ leader_member_id: ID_A, backmarker_member_id: null }, ID_A)).toBe(true);
+    expect(namedOnPlan({ leader_member_id: null, backmarker_member_id: ID_B }, ID_B)).toBe(true);
+    expect(namedOnPlan({ leader_member_id: ID_A, backmarker_member_id: null }, ID_B)).toBe(false);
+    expect(namedOnPlan(null, ID_A)).toBe(false);
   });
 
   it("keeps the stored leader and backmarker when a walk leader saves", () => {
