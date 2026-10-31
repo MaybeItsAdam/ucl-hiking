@@ -10,7 +10,7 @@ import { eventDetails, formatAscent, formatKm } from "@/lib/eventDetails";
 import { longDate } from "@/lib/eventList";
 import { mapRouteOf } from "@/lib/eventRoutes";
 import { osmapsShareUrl } from "@/lib/osmaps";
-import { canSeeLibraryRoute } from "@/lib/routeCatalogue";
+import { canSeeLibraryRoute, routeDisplayName } from "@/lib/routeCatalogue";
 import { getLibraryLinks, getLibraryRoute, walksFor } from "@/lib/routeLibrary";
 import { isPlotted } from "@/lib/routeShape";
 import { getCurrentMember } from "@/lib/session";
@@ -23,14 +23,14 @@ const routeFor = cache(getLibraryRoute);
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const [member, route] = await Promise.all([getCurrentMember(), params.then(({ id }) => routeFor(id))]);
   const visible = member && route && canSeeLibraryRoute(route, profileOf(member));
-  return { title: `${visible ? route.name : "Route"} | UCL Hiking Club` };
+  return { title: `${visible ? routeDisplayName(route.name) : "Route"} | UCL Hiking Club` };
 }
 
 /**
  * One route from the club's OS Maps library: its line on the map with the
  * climb beneath, the way into OS Maps, the GPX, and the walks that used it.
- * A private route is for walk leaders and committee; anyone else gets a 404,
- * as the GPX endpoint does.
+ * Committee only, and only a route tagged [CLUB] in OS Maps; anyone else, or
+ * any other route, gets a 404, as the GPX endpoint does.
  */
 export default async function RoutePage({ params }: Params) {
   const [member, route] = await Promise.all([getCurrentMember(), params.then(({ id }) => routeFor(id))]);
@@ -59,7 +59,7 @@ export default async function RoutePage({ params }: Params) {
 
       <header className="route-page-head">
         <span className="event-eyebrow">OS Maps route</span>
-        <h2>{route.name}</h2>
+        <h2>{routeDisplayName(route.name)}</h2>
         {route.private ? (
           <p className="route-tags">
             <span className="route-tag is-private">
@@ -84,7 +84,7 @@ export default async function RoutePage({ params }: Params) {
         </h3>
         <div className="event-day">
           {mapRoute ? (
-            <RouteView hikes={[]} route={mapRoute} label={`Map of ${route.name}`}>
+            <RouteView hikes={[]} route={mapRoute} label={`Map of ${routeDisplayName(route.name)}`}>
               {plotted ? (
                 <p className="route-note">
                   <TriangleAlert size={15} aria-hidden="true" />
@@ -112,7 +112,7 @@ export default async function RoutePage({ params }: Params) {
             ) : null}
           </div>
           {route.private ? (
-            // Only leaders and committee see a private route at all, and they're the ones with the club's login.
+            // Only committee see Routes at all, and they're the ones with the club's login.
             <p className="route-note is-plain">
               <Lock size={15} aria-hidden="true" />
               <span>Private in OS Maps: the link opens only when signed in to the club&apos;s OS Maps account. Download GPX works without it.</span>

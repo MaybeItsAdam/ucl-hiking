@@ -2,7 +2,7 @@ import { profileOf } from "@/lib/access";
 import { dedupeEvents } from "@/lib/eventDuplicates";
 import { getEventsBySuuIds } from "@/lib/events";
 import type { TrackPoint, Waypoint } from "@/lib/gpx";
-import { canSeeLibraryRoute, thumbnailPath, walkStats, type CatalogueEntry } from "@/lib/routeCatalogue";
+import { canSeeLibraryRoute, routeDisplayName, thumbnailPath, walkStats, type CatalogueEntry } from "@/lib/routeCatalogue";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import type { Member, SUEvent } from "@/lib/types";
 import { viewerOf, visibleEvents } from "@/lib/walkVisibility";
@@ -76,17 +76,17 @@ export async function getLibraryRoute(id: string): Promise<LibraryRoute | null> 
   return { ...(data as LibraryRoute), private: Boolean((data as LibraryRoute).private) };
 }
 
-/** Just whether a route is private and still there, for the event page's link to it. */
-export async function getLibraryRouteFlags(id: string): Promise<Pick<LibraryRoute, "private" | "present"> | null> {
+/** Just its name and whether it is private and still there, for the event page's link to it. */
+export async function getLibraryRouteFlags(id: string): Promise<Pick<LibraryRoute, "name" | "private" | "present"> | null> {
   if (!ROUTE_ID.test(id)) return null;
   if (!isSupabaseConfigured()) {
     const dev = await devStore();
     const row = dev?.getDevLibrary().find((r) => r.id === id);
-    return row ? { private: row.private, present: row.present } : null;
+    return row ? { name: row.name, private: row.private, present: row.present } : null;
   }
-  const { data, error } = await getSupabaseAdmin().from("osmaps_routes").select("private, present").eq("id", id).maybeSingle();
+  const { data, error } = await getSupabaseAdmin().from("osmaps_routes").select("name, private, present").eq("id", id).maybeSingle();
   if (error || !data) return null;
-  return { private: Boolean(data.private), present: Boolean(data.present) };
+  return { name: data.name, private: Boolean(data.private), present: Boolean(data.present) };
 }
 
 /**
@@ -160,7 +160,7 @@ export async function getCatalogue(member: Member, now = new Date()): Promise<Ca
     const s = stats.get(r.id);
     return {
       id: r.id,
-      name: r.name,
+      name: routeDisplayName(r.name),
       distance_m: r.distance_m,
       ascent_m: r.ascent_m,
       private: Boolean(r.private),
