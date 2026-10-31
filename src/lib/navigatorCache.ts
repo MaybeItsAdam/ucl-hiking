@@ -104,6 +104,7 @@ export class RenderQueue<T> {
   private done = new Set<number>();
   private running: { page: number; controller: AbortController } | null = null;
   private stopped = false;
+  private paused = false;
 
   constructor(
     private readonly work: (page: number, signal: AbortSignal) => Promise<T>,
@@ -130,13 +131,26 @@ export class RenderQueue<T> {
     return this.running?.page ?? null;
   }
 
+  /**
+   * Starts nothing new until resume(): drawing a page holds the main thread,
+   * which a page turn needs every frame of. A page already being drawn finishes.
+   */
+  pause() {
+    this.paused = true;
+  }
+
+  resume() {
+    this.paused = false;
+    this.pump();
+  }
+
   stop() {
     this.stopped = true;
     this.running?.controller.abort();
   }
 
   private pump() {
-    if (this.stopped || this.running) return;
+    if (this.stopped || this.paused || this.running) return;
     const page = this.wanted.find((p) => !this.done.has(p));
     if (page === undefined) return;
     const controller = new AbortController();
