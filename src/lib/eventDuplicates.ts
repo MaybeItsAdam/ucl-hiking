@@ -51,6 +51,11 @@ export function sameEvent(a: DedupeEvent, b: DedupeEvent): boolean {
   if (!a.starts_at || !b.starts_at) return false;
   if (a.suu_event_id && a.suu_event_id === b.suu_event_id) return true;
   if (londonDay(a.starts_at) !== londonDay(b.starts_at)) return false;
+  return sameTitle(a, b);
+}
+
+/** Matching titles with no distance or series number that tells them apart. */
+function sameTitle(a: DedupeEvent, b: DedupeEvent): boolean {
   const [ka, kb] = [distanceKm(a.title), distanceKm(b.title)];
   if (ka && kb && ka !== kb) return false;
   const [sa, sb] = [seriesNumber(a.title), seriesNumber(b.title)];
@@ -72,6 +77,19 @@ function rank(e: DedupeEvent, prefer: Set<string>): number {
   if (e.location?.trim()) score += 2;
   if (distanceKm(e.title)) score += 1;
   return score;
+}
+
+/** A full SU listing: the write-up and a meeting point. */
+const isListing = (e: DedupeEvent) => (e.description?.trim().length ?? 0) >= FULL_WRITE_UP && !!e.location?.trim();
+
+/** A stray copy: no write-up and no meeting point. */
+const isStrayCopy = (e: DedupeEvent) => (e.description?.trim().length ?? 0) < FULL_WRITE_UP && !e.location?.trim();
+
+/** The London day `days` after `day` ("2026-03-07", 1 -> "2026-03-08"). */
+function shiftDay(day: string, days: number): string {
+  const d = new Date(`${day}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
 /**
@@ -98,6 +116,21 @@ export function findDuplicates<T extends DedupeEvent>(events: T[], prefer: Itera
       const winner = kept.find((k) => sameEvent(k, e));
       if (winner) losers.set(e, winner);
       else kept.push(e);
+    }
+  }
+  // A stray copy dated a day off its walk ("Colne Valley Walk" on 7 March for
+  // the SU's 8 March listing): it folds into a full listing with a matching
+  // title on the day either side. Two real walks of one name on consecutive
+  // days both carry a listing, so they stay apart.
+  const survivors = new Map<string, T[]>();
+  for (const [day, group] of byDay) survivors.set(day, group.filter((e) => !losers.has(e)));
+  for (const [day, group] of survivors) {
+    for (const e of group) {
+      if (!isStrayCopy(e) || (e.suu_event_id && preferred.has(e.suu_event_id))) continue;
+      const winner = [...(survivors.get(shiftDay(day, -1)) ?? []), ...(survivors.get(shiftDay(day, 1)) ?? [])].find(
+        (k) => isListing(k) && !losers.has(k) && sameTitle(k, e),
+      );
+      if (winner) losers.set(e, winner);
     }
   }
   return losers;
