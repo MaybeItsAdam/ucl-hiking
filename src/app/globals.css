@@ -2200,6 +2200,8 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 .kit-form-error { margin: 0; font-size: 13px; color: var(--bad-fg); }
 
 .my-walk-in { gap: 3px; margin-left: 8px; border: 1px solid var(--ok-line); background: var(--ok-bg); color: var(--ok-fg); vertical-align: middle; }
+.my-walk-role { margin-left: 8px; border: 1px solid var(--info-line); background: var(--info-bg); color: var(--info-fg); vertical-align: middle; }
+.events-list .event-day-actions .kit-btn { display: inline-flex; align-items: center; gap: 6px; }
 .events-page > .hike-map { margin: 0 0 20px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .events-page > .event-stats { margin-bottom: 16px; }
 

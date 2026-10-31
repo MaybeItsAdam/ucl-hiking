@@ -7,7 +7,7 @@ import { EventFacts, routeLabel } from "@/components/EventFacts";
 import { EventsSubnav } from "@/components/EventsSubnav";
 import { can, profileOf } from "@/lib/access";
 import { eventDetails, formatKm, KIND_LABELS } from "@/lib/eventDetails";
-import { countdown, eventWhen, groupEventsByMonth, joinMultiDayEvents, longDate } from "@/lib/eventList";
+import { countdown, eventWhen, groupEventsByMonth, isOnToday, joinMultiDayEvents, longDate } from "@/lib/eventList";
 import { getEventsInClubYear, getUpcomingEvents } from "@/lib/events";
 import { clubYear, clubYearLabel, mapHikes, yearStats } from "@/lib/hikeMap";
 import { getCurrentMember } from "@/lib/session";
@@ -37,7 +37,7 @@ function NextUp({ event }: { event: SUEvent }) {
   return (
     <Link href={`/portal/events/${event.id}`} className={`event-next kind-${details.kind}`}>
       <div className="event-next-top">
-        <span className="event-next-label">Next up</span>
+        <span className="event-next-label">{isOnToday(event) ? "On today" : "Next up"}</span>
         {soon ? <span className="event-countdown">{soon.label}</span> : null}
       </div>
       <div className="event-next-main">

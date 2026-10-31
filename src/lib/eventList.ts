@@ -51,19 +51,71 @@ function londonDayNumber(date: Date): number {
   return Date.UTC(y, m - 1, d) / 86_400_000;
 }
 
-/** "Today", "Tomorrow", "In 5 days", "Happening now", or how long ago it was. */
-export function countdown(
-  event: Pick<SUEvent, "starts_at" | "ends_at">,
-  now = new Date(),
-): { label: string; past: boolean } | null {
+/**
+ * The instant a London day number begins. Midnight is never inside a clock
+ * change (London moves at 01:00 UTC), so it is UTC midnight less the hour
+ * London's clocks are ahead then: 0 in GMT, 1 in BST.
+ */
+function londonMidnight(day: number): Date {
+  const utc = day * 86_400_000;
+  const ahead = Number(part(new Date(utc), { hour: "2-digit", hourCycle: "h23" })) % 24;
+  return new Date(utc - ahead * 3_600_000);
+}
+
+/** The instant today's London day began; for lists that keep everything still on today. */
+export function startOfLondonDay(now = new Date()): Date {
+  return londonMidnight(londonDayNumber(now));
+}
+
+type EventTimes = Pick<SUEvent, "starts_at" | "ends_at" | "is_all_day">;
+
+/**
+ * When an event stops being current. A timed event ends at its end time. An
+ * all-day event, or one with no end (or an end before its start), runs to the
+ * end of its last London day, which is the end's day as the calendar feed
+ * reads it. Null without a start.
+ */
+export function eventEndsAt(event: EventTimes): Date | null {
   if (!event.starts_at) return null;
   const start = new Date(event.starts_at);
   const end = event.ends_at ? new Date(event.ends_at) : null;
-  if (end && start <= now && now <= end && londonDayNumber(end) !== londonDayNumber(start)) {
+  if (end && end > start && !event.is_all_day) return end;
+  return londonMidnight(londonDayNumber(end && end > start ? end : start) + 1);
+}
+
+/**
+ * Whether an event still belongs under Upcoming: it hasn't ended. A walk on
+ * today's London date stays listed until it ends, all of today when it has no
+ * end time or is all day, and a trip until its last day is out.
+ */
+export function isEventCurrent(event: EventTimes, now = new Date()): boolean {
+  const end = eventEndsAt(event);
+  return end !== null && now < end;
+}
+
+/**
+ * On today in London: it starts today, finished or not, or it started earlier
+ * and is still running (a trip). The leader's day carries on after the walk.
+ */
+export function isOnToday(event: EventTimes, now = new Date()): boolean {
+  if (!event.starts_at) return false;
+  const start = new Date(event.starts_at);
+  return londonDayNumber(start) === londonDayNumber(now) || (start <= now && isEventCurrent(event, now));
+}
+
+/** "Today", "Tomorrow", "In 5 days", "Happening now", or how long ago it was. */
+export function countdown(event: EventTimes, now = new Date()): { label: string; past: boolean } | null {
+  if (!event.starts_at) return null;
+  const start = new Date(event.starts_at);
+  const end = event.ends_at ? new Date(event.ends_at) : null;
+  const running = start <= now && isEventCurrent(event, now);
+  if (end && running && londonDayNumber(end) !== londonDayNumber(start)) {
     return { label: "Happening now", past: false };
   }
   const days = londonDayNumber(start) - londonDayNumber(now);
   if (days === 0) return { label: "Today", past: false };
+  // Still running on a later day than it started: a trip on its last day.
+  if (days < 0 && running) return { label: "Happening now", past: false };
   if (days === 1) return { label: "Tomorrow", past: false };
   if (days > 1) return { label: days < 14 ? `In ${days} days` : `In ${Math.round(days / 7)} weeks`, past: false };
   if (days === -1) return { label: "Yesterday", past: true };
