@@ -40,9 +40,12 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
-/** Brand tokens, from src/app/globals.css. Fixed: the seed never touches colour. */
+/** Brand colours. Fixed: the seed never touches colour. */
 export const PALETTE = {
-  sky: "#08a8ad", //     --forest / --green
+  // The brand teal (branding/brand.md), shared with the manifest theme_color and
+  // Android's ic_launcher_background. globals.css's --forest #08a8ad is the UI
+  // accent, a separate token.
+  sky: "#01a2a6",
   rock: "#2d4153", //    --deep
   contour: "#4b6a84", // rock lifted toward --ink-fill: visible, still quieter than snow or trail
   snow: "#ffffff",
