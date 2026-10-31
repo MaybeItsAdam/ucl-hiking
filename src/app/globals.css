@@ -781,6 +781,8 @@ footer { max-width: 1180px; margin: 0 auto; padding: 40px 30px 55px; display: fl
 .authenticator-card { width: min(520px, 100%); padding: 44px 36px; }
 .auth-header-brand { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 20px; }
 .auth-brand-cross { font-size: 14px; font-weight: 700; opacity: .35; }
+/* The Toolbox logo is a square image: round it to match the club mark beside it. */
+.auth-brand-logo { display: block; border-radius: 12px; }
 .authenticator-info-box { background: color-mix(in srgb, var(--surface) 80%, transparent); border: 1px solid var(--line); border-radius: 16px; padding: 18px; text-align: left; margin-bottom: 24px; display: flex; flex-direction: column; gap: 14px; }
 .info-row { display: flex; gap: 12px; align-items: flex-start; }
 .info-row .info-icon { color: var(--forest); flex-shrink: 0; margin-top: 2px; }
@@ -1734,7 +1736,9 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
    explanation sits at the top and the button in the thumb zone at the bottom,
    clear of the notch and home indicator. */
 .signin-page .eyebrow { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 700; opacity: .7; cursor: default; -webkit-user-select: none; user-select: none; }
-.signin-page .auth-actions { display: flex; flex-direction: column; gap: 12px; }
+.signin-page .auth-actions { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.signin-page .auth-actions > * { max-width: 100%; }
+.signin-page .signin-error, .signin-page .review-signin { align-self: stretch; }
 .signin-page .authenticator-btn { min-height: 52px; }
 .auth-card .signin-error { margin: 0; max-width: none; padding: 12px 14px; border: 1px solid var(--bad-line); border-radius: 12px; background: var(--bad-bg); color: var(--bad-fg); font-size: 14px; line-height: 1.45; text-align: left; opacity: 1; }
 .signin-waiting { display: grid; justify-items: center; gap: 12px; }
