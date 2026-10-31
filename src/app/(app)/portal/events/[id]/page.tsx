@@ -34,6 +34,7 @@ import { EventPlanEditor } from "@/components/EventPlanEditor";
 import { KitChecklist } from "@/components/KitChecklist";
 import { OpenExternal } from "@/components/OpenExternal";
 import { RouteView } from "@/components/RouteView";
+import { bookingFor, getSheetSuLink } from "@/lib/booking";
 import { DIFFICULTY_LABELS, eventDetails, formatAscent, formatKm, isHeading, KIND_LABELS } from "@/lib/eventDetails";
 import { countdown, eventWhen, longDate } from "@/lib/eventList";
 import { canEditEventPlan, getEventPlan } from "@/lib/eventPlans";
@@ -231,10 +232,11 @@ export default async function EventPage({ params, searchParams }: Params & { sea
   if (!event || !(await canSeeEvent(event, viewerOf(member)))) notFound();
 
   const details = eventDetails(event);
-  const [places, plan, route] = await Promise.all([
+  const [places, plan, route, sheetSuLink] = await Promise.all([
     loadPlaces([details.start, details.finish].filter((p): p is string => Boolean(p))),
     getEventPlan(event.suu_event_id),
     getEventRoute(event.suu_event_id),
+    getSheetSuLink(event.suu_event_id),
   ]);
   const [hike] = mapHikes([event], places);
   const pinned = hike && (hike.start || hike.finish) ? hike : null;
@@ -242,6 +244,7 @@ export default async function EventPage({ params, searchParams }: Params & { sea
   const distanceKm = details.distanceKm ?? (route && route.distance_m > 0 ? route.distance_m / 1000 : null);
   const ascentM = details.ascentM ?? route?.ascent_m ?? null;
   const soon = countdown(event);
+  const booking = bookingFor(event, { plan: plan?.booking_url, sheet: sheetSuLink });
   const walking = details.kind === "hike" || details.kind === "walk" || details.kind === "trip";
   // Streamed in behind the rest of the page, so a slow forecast never holds it up.
   const forecastSpot = pinned?.start ?? mapRoute?.start ?? pinned?.finish ?? null;
@@ -330,6 +333,24 @@ export default async function EventPage({ params, searchParams }: Params & { sea
         </div>
       </header>
 
+      {booking ? (
+        <div className="event-book">
+          {booking.soldOut ? (
+            <span className="kit-btn primary is-disabled" aria-disabled="true">
+              <Ticket size={16} aria-hidden="true" />
+              Sold out
+            </span>
+          ) : (
+            <OpenExternal className="kit-btn primary" href={booking.href}>
+              <Ticket size={16} aria-hidden="true" />
+              {booking.label}
+              <ExternalLink size={13} aria-hidden="true" />
+            </OpenExternal>
+          )}
+          {!booking.specific && !booking.soldOut ? <p className="event-book-note">Find this event on the club&rsquo;s SU page.</p> : null}
+        </div>
+      ) : null}
+
       {stats.length ? (
         <dl className="event-stats">
           {stats.map((stat) => (
@@ -344,12 +365,6 @@ export default async function EventPage({ params, searchParams }: Params & { sea
       {details.lead ? <p className="event-page-lead">{details.lead}</p> : null}
 
       <div className="event-actions">
-        {plan?.booking_url && event.status !== "cancelled" ? (
-          <OpenExternal className="kit-btn primary" href={plan.booking_url}>
-            <Ticket size={15} aria-hidden="true" />
-            Book on the SU
-          </OpenExternal>
-        ) : null}
         {event.starts_at ? (
           <a className="kit-btn" href={`/api/events/${event.id}/ics`} download>
             <CalendarPlus size={15} aria-hidden="true" />
