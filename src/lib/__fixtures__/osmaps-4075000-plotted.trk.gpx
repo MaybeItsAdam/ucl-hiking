@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<gpx version="1.1" creator="OS Maps - Web" xmlns="http://www.topografix.com/GPX/1/1"
+xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd"
+xmlns:gs="http://www.topografix.com/GPX/gpx_style/0/2"
+xmlns:gh="https://graphhopper.com/public/schema/gpx/1.1"
+xmlns:os="https://ordnancesurvey.co.uk/public/schema/route/0.1">
+    <metadata>
+        <name>Fan Frynych really hard</name>
+        <desc>hostel - hostel
+</desc>
+        <bounds minlat="51.8349210" minlon="-3.5628432" maxlat="51.9031135" maxlon="-3.4956651"/>
+    </metadata>
+    <wpt lat="51.8930268" lon="-3.4956651"/>
+    <wpt lat="51.8925315" lon="-3.4957213"/>
+    <wpt lat="51.8915281" lon="-3.4968505"/>
+    <wpt lat="51.8890384" lon="-3.5017085"/>
+    <wpt lat="51.8937422" lon="-3.5030279"/>
+    <wpt lat="51.9018339" lon="-3.5030800"/>
+    <wpt lat="51.9031135" lon="-3.5154783"/>
+    <wpt lat="51.8924544" lon="-3.5331399"/>
+    <wpt lat="51.8867758" lon="-3.5410838"/>
+    <wpt lat="51.8788220" lon="-3.5442259"/>
+    <wpt lat="51.8654562" lon="-3.5554597"/>
+    <wpt lat="51.8542985" lon="-3.5628432"/>
+    <wpt lat="51.8349210" lon="-3.5594869"/>
+    <wpt lat="51.8550870" lon="-3.5439938"/>
+    <wpt lat="51.8777796" lon="-3.5414299"/>
+    <wpt lat="51.8854115" lon="-3.5180794"/>
+    <wpt lat="51.8878101" lon="-3.5133650"/>
+    <wpt lat="51.8940322" lon="-3.5154633"/>
+    <wpt lat="51.8854544" lon="-3.5007172"/>
+    <wpt lat="51.8892417" lon="-3.4963386"/>
+    <trk>
+        <name>Fan Frynych really hard</name>
+        <trkseg>
+            <trkpt lat="51.8930268" lon="-3.4956651"/>
+            <trkpt lat="51.8925315" lon="-3.4957213"/>
+            <trkpt lat="51.8915281" lon="-3.4968505"/>
+            <trkpt lat="51.8890384" lon="-3.5017085"/>
+            <trkpt lat="51.8937422" lon="-3.5030279"/>
+            <trkpt lat="51.9018339" lon="-3.5030800"/>
+            <trkpt lat="51.9031135" lon="-3.5154783"/>
+            <trkpt lat="51.8924544" lon="-3.5331399"/>
+            <trkpt lat="51.8867758" lon="-3.5410838"/>
+            <trkpt lat="51.8788220" lon="-3.5442259"/>
+            <trkpt lat="51.8654562" lon="-3.5554597"/>
+            <trkpt lat="51.8542985" lon="-3.5628432"/>
+            <trkpt lat="51.8349210" lon="-3.5594869"/>
+            <trkpt lat="51.8550870" lon="-3.5439938"/>
+            <trkpt lat="51.8777796" lon="-3.5414299"/>
+            <trkpt lat="51.8854115" lon="-3.5180794"/>
+            <trkpt lat="51.8878101" lon="-3.5133650"/>
+            <trkpt lat="51.8940322" lon="-3.5154633"/>
+            <trkpt lat="51.8854544" lon="-3.5007172"/>
+            <trkpt lat="51.8892417" lon="-3.4963386"/>
+            <extensions>
+                <gs:line>
+                    <gs:color>58509B</gs:color>
+                    <gs:opacity>1.0</gs:opacity>
+                    <gs:width>4.0</gs:width>
+                </gs:line>
+            </extensions>
+        </trkseg>
+    </trk>
+</gpx>

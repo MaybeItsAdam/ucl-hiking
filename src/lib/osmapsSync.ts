@@ -5,6 +5,7 @@ import { getEventsInClubYear } from "@/lib/events";
 import { osmapsDetails, osmapsGpx, osmapsRouteId, OsmapsError, stampOf, type OsmapsDetails } from "@/lib/osmaps";
 import { loadPlaces, placeKey, type LatLng } from "@/lib/places";
 import { matchRoutes, type CandidateRoute, type MatchableHike } from "@/lib/routeMatch";
+import { isPlotted, PLOTTED_WARNING } from "@/lib/routeShape";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import type { SUEvent } from "@/lib/types";
 
@@ -18,6 +19,8 @@ import type { SUEvent } from "@/lib/types";
  * 2. Puts a linked route on its walk, and passes edits on to walks using it.
  * 3. Gives walks with no route the clear best match from the library of
  *    routes so far (lib/routeMatch), so a walk run again gets last time's.
+ *    A route OS Maps only has as straight lines between clicks
+ *    (lib/routeShape) is never matched: it would draw as the crow flies.
  *
  * A route a person attached (a link, an upload, or picked from the list) is
  * never replaced by a match; only earlier matches are. See lib/osmaps for why
@@ -172,7 +175,11 @@ export async function importOsmapsRoute(
   return row;
 }
 
-/** A leader linked a walk to an OS Maps route: fetch it now and put it on the walk. */
+/**
+ * A leader linked a walk to an OS Maps route: fetch it now and put it on the walk.
+ * A route plotted click to click is still theirs to use, but comes back with a
+ * warning saying how to make it follow the paths.
+ */
 export async function attachOsmapsLink(eventSuuId: string, link: string, editorId: string | null, fetchers: OsmapsFetchers = LIVE) {
   const id = osmapsRouteId(link);
   if (!id) throw new OsmapsError("That isn't an OS Maps route link.");
@@ -183,7 +190,7 @@ export async function attachOsmapsLink(eventSuuId: string, link: string, editorI
     .select(ROUTE_SUMMARY)
     .single();
   if (error) throw new Error(error.message);
-  return data;
+  return { route: data, warning: isPlotted(row.segments) ? PLOTTED_WARNING : null };
 }
 
 export async function syncOsmapsRoutes(fetchers: OsmapsFetchers = LIVE, now = new Date()): Promise<SyncResult> {
@@ -266,7 +273,7 @@ export async function syncOsmapsRoutes(fetchers: OsmapsFetchers = LIVE, now = ne
 export async function matchAndAttach(now = new Date()): Promise<number> {
   const supabase = getSupabaseAdmin();
   const { data: rows } = await supabase.from("osmaps_routes").select("*").eq("present", true);
-  const routes = (rows ?? []) as OsmapsRouteRow[];
+  const routes = ((rows ?? []) as OsmapsRouteRow[]).filter((r) => !isPlotted(r.segments));
   if (!routes.length) return 0;
 
   const year = clubYear(now);

@@ -90,7 +90,9 @@ export async function PUT(request: Request, { params }: Params) {
   let routeError: string | null = null;
   if (plan.route_url && plan.route_url !== existing?.route_url && osmapsRouteId(plan.route_url)) {
     try {
-      route = await attachOsmapsLink(event.suu_event_id, plan.route_url, member.id);
+      const attached = await attachOsmapsLink(event.suu_event_id, plan.route_url, member.id);
+      route = attached.route;
+      routeError = attached.warning;
     } catch (e) {
       routeError = e instanceof OsmapsError ? e.message : "The OS Maps route couldn't be fetched. It will be tried again tomorrow morning.";
     }

@@ -101,9 +101,9 @@ export async function POST(request: Request, { params }: Params) {
 
 async function linkOsmapsRoute(ctx: { member: { id: string }; suuId: string }, link: string) {
   try {
-    const route = await attachOsmapsLink(ctx.suuId, link, ctx.member.id);
+    const { route, warning } = await attachOsmapsLink(ctx.suuId, link, ctx.member.id);
     await audit(ctx.member.id, "event.route_attached", "event", ctx.suuId, { osmaps_link: link });
-    return NextResponse.json({ ok: true, route });
+    return NextResponse.json({ ok: true, route, warning });
   } catch (e) {
     return NextResponse.json({ error: e instanceof OsmapsError ? e.message : "The OS Maps route couldn't be fetched." }, { status: 422 });
   }

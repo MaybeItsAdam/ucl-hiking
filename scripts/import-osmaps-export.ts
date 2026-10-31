@@ -13,12 +13,19 @@
  *
  * Re-running it is safe: a route already stored with the same stamp is
  * skipped. Rides and runs are left out. Matching happens on the next sync.
+ *
+ * `gpx` must be the route's track export, `?exportTypes=TRK`, which carries
+ * every point of a route drawn along the paths. A route plotted click to click
+ * has nothing more in any export (JSON, TRK or RTE): it is stored, listed at
+ * the end, and never matched to a walk (lib/routeShape). Redraw it in OS Maps
+ * with "Snap to path" on, and it comes in full on the next export.
  */
 import { readFileSync } from "node:fs";
 import { withHeights } from "@/lib/elevation";
 import { prepareRoute } from "@/lib/gpx";
 import { detailsFrom, stampOf } from "@/lib/osmaps";
 import { routeRow } from "@/lib/osmapsSync";
+import { routeShape } from "@/lib/routeShape";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
 interface Exported {
@@ -48,6 +55,9 @@ async function main() {
   let stored = 0;
   let skipped = 0;
   const failures: string[] = [];
+  // Stored all the same (it's what OS Maps has, and a leader may still pick it),
+  // but the daily match passes these over: they draw as straight lines.
+  const plotted: string[] = [];
   for (const [i, r] of routes.entries()) {
     const details = detailsFrom(r.id, {
       version: r.version,
@@ -59,7 +69,10 @@ async function main() {
       continue;
     }
     try {
-      const route = await withHeights(prepareRoute(r.gpx));
+      const prepared = prepareRoute(r.gpx);
+      const shape = routeShape(prepared.segments);
+      if (shape.plotted) plotted.push(`${r.id} ${r.name}: ${shape.km} km in ${shape.points} points`);
+      const route = await withHeights(prepared);
       const { error } = await supabase.from("osmaps_routes").upsert({
         ...routeRow(details, route),
         present: true,
@@ -75,6 +88,10 @@ async function main() {
   }
   console.log(`Stored ${stored}, unchanged ${skipped}, failed ${failures.length} of ${routes.length}.`);
   for (const f of failures) console.log(`  ${f}`);
+  if (plotted.length) {
+    console.log(`${plotted.length} stored are only straight lines between their clicks in OS Maps, so they won't be matched to walks:`);
+    for (const p of plotted) console.log(`  ${p}`);
+  }
 }
 
 main().catch((err) => {

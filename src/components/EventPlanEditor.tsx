@@ -261,6 +261,8 @@ function RouteAttach({
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? "That didn't work.");
       onChange(kind === "remove" ? null : body.route);
+      // Saved, but drawn click to click in OS Maps: say how to make it follow the paths.
+      if (body.warning) setError(body.warning);
       if (kind === "fetch") setUrl("");
       if (kind === "pick") setPicked("");
     } catch (e) {
