@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clubYear, clubYearLabel, mapHikes, onMap, yearStats } from "./hikeMap";
+import { clubYear, clubYearLabel, mapHikes, onMap, withTracks, yearStats } from "./hikeMap";
 import type { LatLng } from "./places";
 import type { SUEvent } from "./types";
 
@@ -39,6 +39,30 @@ describe("mapHikes", () => {
 
   it("totals only walks already done", () => {
     expect(yearStats(hikes)).toMatchObject({ done: 1, upcoming: 1, km: 20, places: 2 });
+  });
+});
+
+describe("withTracks", () => {
+  const events = [
+    event({ id: "placed", suu_event_id: "su-1", title: "🥾 Hike: Hastings to Rye (20km)", starts_at: "2026-03-21T00:00:00Z" }),
+    event({ id: "unplaced", suu_event_id: "su-2", title: "👣 Walk: Hampstead Heath (10km)", starts_at: "2026-04-01T00:00:00Z" }),
+    event({ id: "bare", suu_event_id: "su-3", title: "👣 Walk: Epping Forest (12km)", starts_at: "2026-04-08T00:00:00Z" }),
+  ];
+  const line: [number, number][] = [[51.56, -0.17], [51.57, -0.16], [51.555, -0.15]];
+  const lines = new Map<string, [number, number][][]>([
+    ["su-1", [[[50.857, 0.577], [50.9, 0.65], [50.952, 0.731]]]],
+    ["su-2", [line]],
+  ]);
+  const hikes = withTracks(mapHikes(events, places, new Date("2026-06-01T00:00:00Z")), lines);
+
+  it("gives each walk its own route by SU id", () => {
+    expect(hikes[0]).toMatchObject({ id: "placed", track: lines.get("su-1"), start: [50.857, 0.577] });
+    expect(hikes[2].track).toBeUndefined();
+  });
+
+  it("puts a walk its stations didn't place on the map at its route's ends", () => {
+    expect(hikes[1]).toMatchObject({ start: [51.56, -0.17], finish: [51.555, -0.15] });
+    expect(hikes.filter(onMap).map((h) => h.id)).toEqual(["placed", "unplaced"]);
   });
 });
 

@@ -21,6 +21,10 @@ export interface MapHike {
   start: LatLng | null;
   finish: LatLng | null;
   upcoming: boolean;
+  /** The SU's id for the walk, which its stored route is keyed by. */
+  suuId?: string | null;
+  /** Its route, thinned for a map of many walks (see withTracks). */
+  track?: [number, number][][] | null;
 }
 
 export interface YearStats {
@@ -87,6 +91,7 @@ export function mapHikes(events: SUEvent[], places: Map<string, LatLng>, now = n
       start,
       finish,
       upcoming: new Date(event.starts_at) > now,
+      suuId: event.suu_event_id ?? null,
     };
     const key = `${londonDay(event.starts_at)}|${(d.start ?? d.finish ?? "").toLowerCase()}`;
     const score = (d.distanceKm ? 4 : 0) + (d.difficulty ? 2 : 0) + (event.description?.length ?? 0) / 1e6;
@@ -121,6 +126,21 @@ export function clubYearLabel(year: number): string {
 }
 
 export const onMap = (hike: MapHike) => Boolean(hike.start || hike.finish);
+
+/**
+ * Each walk with its route, where it has one, so the map draws the way it
+ * went rather than a dotted line from station to station. A walk whose
+ * stations aren't known goes on the map at its route's ends.
+ */
+export function withTracks(hikes: MapHike[], lines: Map<string, [number, number][][]>): MapHike[] {
+  return hikes.map((hike) => {
+    const track = hike.suuId ? lines.get(hike.suuId) : undefined;
+    if (!track?.length) return hike;
+    if (hike.start || hike.finish) return { ...hike, track };
+    const last = track[track.length - 1];
+    return { ...hike, track, start: track[0][0], finish: last[last.length - 1] };
+  });
+}
 
 export function yearStats(hikes: MapHike[]): YearStats {
   const done = hikes.filter((h) => !h.upcoming);
