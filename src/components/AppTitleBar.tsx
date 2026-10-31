@@ -14,8 +14,10 @@ import { InboxBell } from "@/components/InboxBell";
  */
 export function AppTitleBar({ inbox = false }: { inbox?: boolean }) {
   const pageTitle = PAGE_META[useAppNav().active].label;
-  // The inbox isn't a tab, so it names itself.
-  const title = usePathname() === "/portal/inbox" ? "Inbox" : pageTitle;
+  // The inbox and the magazine aren't tabs, so they name themselves.
+  const pathname = usePathname();
+  const title =
+    pathname === "/portal/inbox" ? "Inbox" : pathname.startsWith("/portal/navigator") ? "The Navigator" : pageTitle;
   const bar = useRef<HTMLDivElement>(null);
   const sentinel = useRef<HTMLDivElement>(null);
   const [condensed, setCondensed] = useState(false);

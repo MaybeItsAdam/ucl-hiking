@@ -3026,3 +3026,191 @@ button.kit-item-main { cursor: pointer; }
 .rota-conflict-actions .kit-btn { flex: 1; min-height: 44px; }
 @media (max-width: 380px) { .rota-slots { grid-template-columns: minmax(0, 1fr); } }
 @media (prefers-reduced-motion: reduce) { .rota-row { transition-duration: .01s; } }
+
+/* ==========================================================================
+   THE NAVIGATOR — the club magazine. A shelf of covers, and a reader that
+   takes over the screen: facing pages on a wide screen, one page on a phone.
+   ========================================================================== */
+
+/* Its entry on the events page sits right under the year map, as a pair. */
+.events-map-link:has(+ .events-map-link) { margin-bottom: 10px; }
+
+.navigator-handbook-link { margin-top: 16px; }
+
+.navigator-library { max-width: 880px; }
+.navigator-intro { margin-bottom: 20px; }
+.navigator-intro .event-eyebrow { margin: 0 0 6px; }
+.navigator-intro p:last-child { margin: 0; max-width: 560px; font-size: 15px; line-height: 1.55; color: var(--muted); }
+
+.navigator-card-label {
+  display: inline-flex; align-items: center; gap: 8px;
+  font: 700 10px/1.3 var(--font-body); letter-spacing: .15em; text-transform: uppercase; color: var(--muted);
+}
+
+.navigator-shelf {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 24px 20px;
+}
+.navigator-card { display: flex; flex-direction: column; gap: 10px; color: var(--ink); }
+.navigator-cover {
+  display: block; aspect-ratio: 640 / 828; overflow: hidden;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--surface);
+  transition: border-color .15s ease, transform .2s cubic-bezier(.2,.8,.2,1);
+}
+.navigator-cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.navigator-cover-blank { display: grid; place-items: center; height: 100%; color: var(--muted); }
+.navigator-card:hover .navigator-cover { border-color: var(--line-strong); transform: translateY(-2px); }
+.navigator-card:focus-visible { outline: none; }
+.navigator-card:focus-visible .navigator-cover { border-color: var(--forest); outline: 2px solid var(--forest); outline-offset: 2px; }
+.navigator-card:active .navigator-cover { transform: scale(.98); }
+.navigator-card-text { display: flex; flex-direction: column; gap: 3px; padding-top: 10px; border-top: 1px solid var(--line); }
+.navigator-card-text strong { font: 800 17px/1.25 var(--font-display); letter-spacing: -.01em; }
+.navigator-card-meta { font-size: 13px; color: var(--muted); }
+.navigator-latest {
+  padding: 1px 6px; border: 1px solid color-mix(in srgb, var(--forest) 45%, transparent); border-radius: 6px;
+  background: color-mix(in srgb, var(--forest) 10%, transparent); color: var(--forest); letter-spacing: .12em;
+}
+.navigator-empty {
+  display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 48px 16px; text-align: center;
+  border: 1px dashed var(--line-strong); border-radius: 8px; color: var(--muted);
+}
+.navigator-empty p { margin: 0; font-size: 14px; }
+
+@media (max-width: 520px) {
+  .navigator-shelf { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 12px; }
+  .navigator-card-text strong { font-size: 15px; }
+}
+
+/* The reader. Fixed over the whole app, tab bar included, with its own bars. */
+.navigator-reader {
+  position: fixed; inset: 0; z-index: 60;
+  display: grid; grid-template-rows: auto minmax(0, 1fr) auto auto;
+  background: var(--paper-warm); color: var(--ink);
+}
+.navigator-reader-bar, .navigator-controls {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--surface);
+  padding-left: max(8px, var(--safe-left)); padding-right: max(8px, var(--safe-right));
+}
+.navigator-reader-bar { min-height: calc(56px + var(--safe-top)); padding-top: var(--safe-top); border-bottom: 1px solid var(--line); }
+.navigator-reader-title { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; text-align: center; }
+.navigator-reader-title strong { max-width: 100%; font: 800 15px/1.25 var(--font-display); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.navigator-reader-actions { display: flex; justify-content: flex-end; gap: 4px; }
+.navigator-back { width: auto; padding: 0 10px 0 4px; gap: 2px; }
+.navigator-back-text { font-size: 14px; font-weight: 700; }
+/* Balance the two sides so the title stays centred. */
+.navigator-back, .navigator-reader-actions { min-width: 96px; }
+
+.navigator-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 44px; height: 44px; padding: 0;
+  border: 1px solid transparent; border-radius: 6px; background: none; color: var(--ink);
+  cursor: pointer;
+  transition: background-color .12s ease, border-color .12s ease;
+}
+.navigator-icon-btn:hover:not(:disabled) { background: var(--surface-2); border-color: var(--line); }
+.navigator-icon-btn:focus-visible, .navigator-zoom-level:focus-visible, .navigator-thumb:focus-visible, .navigator-side:focus-visible { outline: 2px solid var(--forest); outline-offset: 1px; }
+.navigator-icon-btn:disabled { opacity: .35; cursor: default; }
+.navigator-icon-btn.is-on { border-color: color-mix(in srgb, var(--forest) 45%, transparent); background: color-mix(in srgb, var(--forest) 10%, transparent); color: var(--forest); }
+
+.navigator-stage {
+  position: relative; display: flex; overflow: hidden;
+  /* Sideways drags are the reader's (page turns); vertical stays native, and the
+     browser's own pinch zoom is off so the bars never scale off the screen. */
+  touch-action: pan-y;
+  user-select: none; -webkit-user-select: none;
+}
+.navigator-stage.is-zoomed { overflow: auto; touch-action: pan-x pan-y; overscroll-behavior: contain; }
+.navigator-view { margin: auto; display: flex; align-items: center; justify-content: center; }
+.navigator-pdf-page {
+  position: relative; display: block; flex-shrink: 0; overflow: hidden;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface) center / cover no-repeat;
+}
+.navigator-pdf-page canvas { display: block; opacity: 0; transition: opacity .18s ease; }
+.navigator-pdf-page.is-drawn canvas { opacity: 1; }
+/* Facing pages meet at a fold: one hairline down the middle, square inner corners. */
+.navigator-view.is-spread .navigator-pdf-page:first-child { border-right: 0; border-radius: 8px 0 0 8px; }
+.navigator-view.is-spread .navigator-pdf-page:last-child { border-radius: 0 8px 8px 0; }
+
+.turn-next { animation: navigator-turn-next .26s cubic-bezier(.2,.8,.2,1); }
+.turn-prev { animation: navigator-turn-prev .26s cubic-bezier(.2,.8,.2,1); }
+@keyframes navigator-turn-next { from { transform: translate3d(32px,0,0); opacity: 0; } }
+@keyframes navigator-turn-prev { from { transform: translate3d(-32px,0,0); opacity: 0; } }
+
+.navigator-side {
+  position: absolute; top: 50%; z-index: 2; display: none;
+  width: 44px; height: 72px; margin-top: -36px; padding: 0;
+  border: 1px solid var(--line); border-radius: 6px;
+  background: color-mix(in srgb, var(--surface) 88%, transparent); color: var(--ink);
+  cursor: pointer;
+}
+.navigator-side:hover:not(:disabled) { border-color: var(--line-strong); }
+.navigator-side:disabled { opacity: 0; pointer-events: none; }
+.navigator-side-prev { left: max(12px, var(--safe-left)); }
+.navigator-side-next { right: max(12px, var(--safe-right)); }
+@media (min-width: 900px) and (pointer: fine) { .navigator-side { display: grid; place-items: center; } }
+
+.navigator-message {
+  margin: auto; padding: 24px 16px;
+  display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center;
+}
+.navigator-message p { margin: 0; font-size: 15px; }
+.navigator-text-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; padding: 0 16px;
+  border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink);
+  font: 700 14px var(--font-body);
+}
+.navigator-text-btn:hover { border-color: var(--ink); }
+.navigator-cover-wait { opacity: .55; }
+.navigator-loading { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.navigator-loading svg { animation: navigator-spin 1s linear infinite; }
+@keyframes navigator-spin { to { transform: rotate(360deg); } }
+
+.navigator-strip {
+  display: flex; gap: 8px; overflow-x: auto; overscroll-behavior-x: contain;
+  padding: 10px max(12px, var(--safe-right)) 10px max(12px, var(--safe-left));
+  background: var(--surface); border-top: 1px solid var(--line);
+  scrollbar-width: thin;
+}
+.navigator-thumb {
+  position: relative; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  min-width: 44px; padding: 3px; border: 1px solid transparent; border-radius: 6px;
+  background: none; color: var(--muted); cursor: pointer;
+}
+.navigator-thumb .navigator-pdf-page { border-radius: 3px; }
+.navigator-thumb:hover { border-color: var(--line); }
+.navigator-thumb.is-current { border-color: var(--forest); color: var(--forest); }
+.navigator-thumb-number { font: 700 10px/1 var(--font-body); letter-spacing: .08em; }
+
+.navigator-controls {
+  justify-content: space-between;
+  min-height: calc(56px + var(--safe-bottom)); padding-bottom: var(--safe-bottom);
+  border-top: 1px solid var(--line);
+}
+.navigator-pager, .navigator-zoom { display: flex; align-items: center; gap: 2px; }
+.navigator-count { min-width: 96px; text-align: center; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.navigator-count .navigator-card-label { margin-right: 2px; }
+.navigator-of { font-weight: 500; color: var(--muted); }
+.navigator-zoom-level {
+  min-width: 52px; height: 44px; padding: 0 4px;
+  border: 1px solid transparent; border-radius: 6px; background: none; color: var(--ink);
+  font: 700 12px var(--font-body); font-variant-numeric: tabular-nums; cursor: pointer;
+}
+.navigator-zoom-level:hover:not(:disabled) { border-color: var(--line); }
+
+@media (max-width: 520px) {
+  .navigator-back-text { display: none; }
+  .navigator-back, .navigator-reader-actions { min-width: 0; }
+  .navigator-back { width: 44px; padding: 0; }
+  .navigator-count .navigator-card-label { display: none; }
+  .navigator-count { min-width: 72px; }
+  .navigator-zoom-level { min-width: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turn-next, .turn-prev { animation-duration: .01s; }
+  .navigator-loading svg { animation-duration: 3s; }
+  .navigator-cover, .navigator-pdf-page canvas, .navigator-icon-btn { transition-duration: .01s; }
+}
