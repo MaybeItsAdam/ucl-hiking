@@ -3153,6 +3153,30 @@ button.kit-item-main { cursor: pointer; }
 .navigator-download-btn:focus-visible { outline: 2px solid var(--forest); outline-offset: 2px; }
 .navigator-download-size { font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
 .navigator-download-note { font-size: 12px; line-height: 1.35; color: var(--warn-fg); }
+/* Save to device: under the download, quieter than it. */
+.navigator-save { display: flex; flex-direction: column; gap: 6px; min-height: 44px; }
+.navigator-save-btn {
+  position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 0 12px;
+  border: 1px solid var(--line); border-radius: 6px; background: none; color: var(--ink);
+  font: 700 13px var(--font-body); white-space: nowrap; cursor: pointer;
+  transition: background-color .12s ease, border-color .12s ease;
+}
+.navigator-save-btn:hover { border-color: var(--line-strong); background: var(--surface-2); }
+.navigator-save-btn:focus-visible { outline: 2px solid var(--forest); outline-offset: 2px; }
+.navigator-save-btn.is-quiet { color: var(--muted); font-weight: 500; }
+.navigator-save-btn.is-busy { font-variant-numeric: tabular-nums; }
+.navigator-save-bar {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+  background: var(--forest); transform-origin: left center; transition: transform .2s ease;
+}
+.navigator-save-status {
+  display: inline-flex; align-items: center; gap: 6px; align-self: flex-start;
+  padding: 1px 6px; border: 1px solid color-mix(in srgb, var(--forest) 45%, transparent); border-radius: 6px;
+  background: color-mix(in srgb, var(--forest) 10%, transparent); color: var(--forest);
+  font: 700 10px/1.6 var(--font-body); letter-spacing: .15em; text-transform: uppercase;
+}
 .navigator-empty {
   display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 48px 16px; text-align: center;
   border: 1px dashed var(--line-strong); border-radius: 8px; color: var(--muted);
@@ -3164,7 +3188,8 @@ button.kit-item-main { cursor: pointer; }
   .navigator-card-text strong { font-size: 15px; }
   /* Two covers abreast leave ~165px a card: the words and the size, no icon. */
   .navigator-download-btn { padding: 0 8px; font-size: 13px; }
-  .navigator-download-btn svg { display: none; }
+  .navigator-download-btn svg, .navigator-save-btn svg { display: none; }
+  .navigator-save-btn { padding: 0 8px; }
 }
 
 /* The reader. Fixed over the whole app, tab bar included, with its own bars. */
@@ -3201,76 +3226,55 @@ button.kit-item-main { cursor: pointer; }
 
 .navigator-stage {
   position: relative; display: flex; overflow: hidden;
-  /* Sideways drags are the reader's (page turns); vertical stays native, and the
-     browser's own pinch zoom is off so the bars never scale off the screen. */
-  touch-action: pan-y;
-  user-select: none; -webkit-user-select: none;
+  /* Every touch on the stage is the reader's: turns, curls, taps and pinches.
+     Nothing scrolls, nothing bounces, and the browser's pinch zoom (which would
+     scale the bars off the screen) is off; the zoomed view pans by itself. */
+  touch-action: none;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
 }
-.navigator-stage.is-zoomed { overflow: auto; touch-action: pan-x pan-y; overscroll-behavior: contain; }
 .navigator-view { margin: auto; display: flex; align-items: center; justify-content: center; }
-.navigator-pdf-page {
-  position: relative; display: block; flex-shrink: 0; overflow: hidden;
-  border: 1px solid var(--line); border-radius: 8px;
-  background: var(--surface) center / cover no-repeat;
+.navigator-view[hidden] { display: none; }
+.navigator-cover-wait {
+  display: block; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--surface) center / cover no-repeat; opacity: .55;
 }
-.navigator-pdf-page canvas { display: block; opacity: 0; transition: opacity .18s ease; }
-.navigator-pdf-page.is-drawn canvas { opacity: 1; }
 
-/* The open magazine. Facing pages sit in two fixed slots, as in print: the cover
-   alone on the right, an even last page alone on the left. */
+/* The book: StPageFlip's own layout rules (the package ships none), sized by the
+   reader to exactly one page, or two side by side. The curl's shadows are drawn
+   by the library: they're the paper's, content rather than chrome. */
 .navigator-book { position: relative; flex-shrink: 0; }
-.navigator-slot { position: absolute; top: 0; left: 0; }
-/* Facing pages meet at a fold: one hairline down the middle, square inner corners. */
-.navigator-book.is-spread .is-left .navigator-pdf-page { border-right: 0; border-radius: 8px 0 0 8px; }
-.navigator-book.is-spread .is-right .navigator-pdf-page { border-radius: 0 8px 8px 0; }
+.navigator-book.stf__parent { position: relative; display: block; box-sizing: border-box; transform: translateZ(0); touch-action: none; }
+.navigator-book .stf__wrapper { position: relative; width: 100%; height: 100%; box-sizing: border-box; }
+.navigator-book .stf__block { position: absolute; inset: 0; box-sizing: border-box; perspective: 2000px; }
+.navigator-book .stf__item { display: none; position: absolute; transform-style: preserve-3d; }
+.navigator-book .stf__outerShadow, .navigator-book .stf__innerShadow,
+.navigator-book .stf__hardShadow, .navigator-book .stf__hardInnerShadow { position: absolute; left: 0; top: 0; }
 
-/* A page turning. The leaf is a card with a page on each face, hinged at the
-   spine: going forward the right-hand page swings over to become the left; going
-   back, the reverse. A flat tint deepens as it rises off the paper, in place of
-   a shadow. On a phone the single page lifts away from its left edge like a
-   notebook's, or settles back down when turning back. Only transforms and
-   opacity are animated, so it runs on the compositor. */
+/* A page: the paper, then the image drawn from the PDF once it's ready. */
 .navigator-leaf {
-  position: absolute; top: 0; left: 0; z-index: 2;
-  transform-style: preserve-3d; will-change: transform;
-  pointer-events: none;
+  box-sizing: border-box; overflow: hidden;
+  border: 1px solid var(--line); background: var(--surface) center / cover no-repeat;
 }
-.navigator-leaf-face {
-  position: absolute; inset: 0;
-  -webkit-backface-visibility: hidden; backface-visibility: hidden;
+.navigator-leaf img {
+  display: block; width: 100%; height: 100%; object-fit: fill;
+  opacity: 0; transition: opacity .18s ease;
+  pointer-events: none; -webkit-user-drag: none; -webkit-touch-callout: none;
 }
-.navigator-leaf-back { transform: rotateY(180deg); }
-.navigator-leaf-face { overflow: hidden; border-radius: 8px; }
-.navigator-leaf-face.is-left { border-radius: 8px 0 0 8px; }
-.navigator-leaf-face.is-right { border-radius: 0 8px 8px 0; }
-.navigator-leaf-face.is-left .navigator-pdf-page { border-right: 0; border-radius: 8px 0 0 8px; }
-.navigator-leaf-face.is-right .navigator-pdf-page { border-radius: 0 8px 8px 0; }
-/* The back of a page with nothing printed on it: the inside of the cover, say. */
-.navigator-blank-page { display: block; border: 1px solid var(--line); border-radius: inherit; background: var(--surface); }
-.navigator-leaf-shade { position: absolute; inset: 0; border-radius: inherit; background: #000; opacity: 0; pointer-events: none; }
+.navigator-leaf.is-drawn img { opacity: 1; }
 
-.leaf-spread-next { transform-origin: left center; animation: navigator-flip-next .6s cubic-bezier(.45,.05,.3,1) forwards; }
-.leaf-spread-prev { transform-origin: right center; animation: navigator-flip-prev .6s cubic-bezier(.45,.05,.3,1) forwards; }
-.leaf-spread-next .navigator-leaf-shade, .leaf-spread-prev .navigator-leaf-shade { animation: navigator-leaf-shade .6s ease-in-out forwards; }
-@keyframes navigator-flip-next { from { transform: rotateY(0deg); } to { transform: rotateY(-180deg); } }
-@keyframes navigator-flip-prev { from { transform: rotateY(0deg); } to { transform: rotateY(180deg); } }
-@keyframes navigator-leaf-shade { 50% { opacity: .16; } }
-
-.leaf-single-next { transform-origin: left center; animation: navigator-lift-away .42s cubic-bezier(.4,0,.6,1) forwards; }
-.leaf-single-prev { transform-origin: left center; animation: navigator-lay-down .42s cubic-bezier(.2,.6,.3,1) both; }
-.leaf-single-next .navigator-leaf-shade { animation: navigator-shade-up .42s ease-in forwards; }
-.leaf-single-prev .navigator-leaf-shade { animation: navigator-shade-up .42s ease-out reverse both; }
-@keyframes navigator-lift-away {
-  from { transform: rotateY(0deg); opacity: 1; }
-  70% { opacity: 1; }
-  to { transform: rotateY(-100deg); opacity: 0; }
+/* A page zoomed in: over the book, panned with a finger, closed with the X,
+   a double-tap or a pinch back. */
+.navigator-zoomview { position: absolute; inset: 0; z-index: 3; background: var(--paper-warm); }
+.navigator-zoomview-scroll {
+  position: absolute; inset: 0; overflow: auto;
+  touch-action: pan-x pan-y; overscroll-behavior: contain; -webkit-overflow-scrolling: touch;
 }
-@keyframes navigator-lay-down {
-  from { transform: rotateY(-100deg); opacity: 0; }
-  30% { opacity: 1; }
-  to { transform: rotateY(0deg); opacity: 1; }
+.navigator-zoomview-page { margin: 12px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.navigator-zoomview-page img { display: block; width: 100%; height: 100%; pointer-events: none; -webkit-user-drag: none; -webkit-touch-callout: none; }
+.navigator-zoomview-close {
+  position: absolute; top: 12px; right: max(12px, var(--safe-right));
+  border-color: var(--line); background: var(--surface);
 }
-@keyframes navigator-shade-up { from { opacity: 0; } to { opacity: .2; } }
 
 .navigator-side {
   position: absolute; top: 50%; z-index: 2; display: none;
@@ -3299,7 +3303,7 @@ button.kit-item-main { cursor: pointer; }
 .navigator-text-btn:hover { border-color: var(--ink); }
 .navigator-cover-wait { opacity: .55; }
 .navigator-loading { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
-.navigator-loading svg { animation: navigator-spin 1s linear infinite; }
+.navigator-loading svg, .navigator-spin { animation: navigator-spin 1s linear infinite; }
 @keyframes navigator-spin { to { transform: rotate(360deg); } }
 
 /* The scrubber: a hairline the width of the screen with a knob on it, 44px tall
@@ -3355,8 +3359,7 @@ button.kit-item-main { cursor: pointer; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* The turn still happens, and still ends (animationend clears it), just at once. */
-  .navigator-leaf, .navigator-leaf-shade { animation-duration: .01s !important; }
-  .navigator-loading svg { animation-duration: 3s; }
-  .navigator-cover, .navigator-pdf-page canvas, .navigator-icon-btn { transition-duration: .01s; }
+  /* The page turn itself collapses in the reader (its flipping time drops to 1ms). */
+  .navigator-loading svg, .navigator-spin { animation-duration: 3s; }
+  .navigator-cover, .navigator-leaf img, .navigator-icon-btn, .navigator-save-bar { transition-duration: .01s; }
 }

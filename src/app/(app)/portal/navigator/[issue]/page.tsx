@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { NavigatorReader } from "@/components/NavigatorReader";
-import { findNavigatorIssue, issueLabel } from "@/lib/navigator";
+import { findNavigatorIssue, issueLabel, navigatorVersion } from "@/lib/navigator";
 import { getCurrentMember } from "@/lib/session";
 
 type Params = { params: Promise<{ issue: string }> };
@@ -22,6 +22,7 @@ export default async function NavigatorIssuePage({ params }: Params) {
     <NavigatorReader
       issue={issue.issue}
       src={`/api/navigator/${issue.issue}`}
+      version={navigatorVersion(issue)}
       directUrl={issue.pdfUrl}
       bytes={issue.bytes ?? null}
       sourceUrl={issue.sourceUrl}

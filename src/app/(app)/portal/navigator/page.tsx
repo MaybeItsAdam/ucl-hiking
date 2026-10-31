@@ -4,7 +4,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { BookOpen, Download } from "lucide-react";
 import { NavigatorDownload } from "@/components/NavigatorDownload";
-import { formatBytes, issueDateLabel, issueLabel, LARGE_DOWNLOAD_BYTES, navigatorIssues } from "@/lib/navigator";
+import { NavigatorSave } from "@/components/NavigatorSave";
+import { formatBytes, issueDateLabel, issueLabel, LARGE_DOWNLOAD_BYTES, navigatorIssues, navigatorVersion } from "@/lib/navigator";
 import { getCurrentMember } from "@/lib/session";
 
 export const metadata: Metadata = { title: "The Navigator | UCL Hiking Club" };
@@ -77,7 +78,9 @@ export default async function NavigatorLibraryPage() {
                   </NavigatorDownload>
                   {issue.bytes > LARGE_DOWNLOAD_BYTES ? (
                     <span className="navigator-download-note">Print quality. Best on Wi-Fi.</span>
-                  ) : null}
+                  ) : (
+                    <NavigatorSave issue={issue.issue} version={navigatorVersion(issue)} bytes={issue.bytes} />
+                  )}
                 </div>
               ) : null}
             </li>
