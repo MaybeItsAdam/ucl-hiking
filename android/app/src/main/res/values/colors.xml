@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launch splash field: brand teal, the icon's sky. Behind the centred
+         splash_mark in drawable/splash.xml (before Android 12) and the system
+         splash (Android 12+); scripts/generate-splash.sh keeps iOS the same. -->
+    <color name="splash_background">#01A2A6</color>
+</resources>
