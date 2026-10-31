@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export type EventsSection = "upcoming" | "mine" | "routes" | "rota" | "leaderboard" | "programme";
 
-/** Upcoming · My walks · Routes · Rota · Leaders (walk leaders and up) · Programme (committee). */
+/** Upcoming · My walks · Rota · Leaders (walk leaders and up) · Routes · Programme (committee). */
 export function EventsSubnav({
   active,
   showRota,
@@ -15,12 +15,13 @@ export function EventsSubnav({
   const items: { key: EventsSection; href: string; label: string }[] = [
     { key: "upcoming", href: "/portal/events", label: "Upcoming" },
     { key: "mine", href: "/portal/events/mine", label: "My walks" },
-    { key: "routes", href: "/portal/events/routes", label: "Routes" },
   ];
   if (showRota) {
     items.push({ key: "rota", href: "/portal/events/rota", label: "Rota" });
     items.push({ key: "leaderboard", href: "/portal/events/leaderboard", label: "Leaders" });
   }
+  // Routes and Programme are both the committee's.
+  if (showProgramme) items.push({ key: "routes", href: "/portal/events/routes", label: "Routes" });
   if (showProgramme) items.push({ key: "programme", href: "/portal/events/programme", label: "Programme" });
   return (
     <nav className="portal-subnav club-subnav" aria-label="Events">

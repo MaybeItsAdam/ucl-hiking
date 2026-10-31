@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ChevronLeft, ChevronRight, Lock, Route } from "lucide-react";
 import { EventsSubnav } from "@/components/EventsSubnav";
 import { RouteCatalogueSearch } from "@/components/RouteCatalogueSearch";
 import { can, profileOf } from "@/lib/access";
 import { formatAscent, formatKm } from "@/lib/eventDetails";
 import {
+  canSeeRoutes,
   CATALOGUE_SORTS,
   catalogueHref,
   DISTANCE_BANDS,
@@ -24,8 +25,8 @@ const THUMB_W = 72;
 const THUMB_H = 54;
 
 /**
- * Every route in the club's OS Maps library, by name: the catalogue a member
- * browses for "where have we walked" and a leader for "what can we run again".
+ * The club's own routes from its OS Maps library (named "… [CLUB]" there), for
+ * the committee: "where have we walked" and "what can we run again".
  * Search, band and sort live in the URL and the list is cut into pages on the
  * server, so a phone gets 25 rows and 25 thumbnail paths, never 800 tracks.
  */
@@ -33,6 +34,7 @@ export default async function RoutesPage({ searchParams }: { searchParams: Promi
   const member = await getCurrentMember();
   if (!member) redirect("/auth/signin");
   const profile = profileOf(member);
+  if (!canSeeRoutes(profile)) notFound();
   const query = parseCatalogueQuery(await searchParams);
 
   const catalogue = await getCatalogue(member);

@@ -4,12 +4,14 @@ import { parseGpx, type TrackPoint } from "@/lib/gpx";
 import {
   bandOf,
   canSeeLibraryRoute,
-  canSeePrivateRoutes,
+  canSeeRoutes,
   catalogueHref,
   filterCatalogue,
+  isClubRoute,
   libraryGpx,
   pageOf,
   parseCatalogueQuery,
+  routeDisplayName,
   searchKey,
   thumbnailPath,
   THUMB_MAX_POINTS,
@@ -27,22 +29,38 @@ function entry(id: string, name: string, km: number, extra: Partial<CatalogueEnt
 }
 
 describe("access", () => {
-  it("shows shared routes to every member and private ones to leaders and committee", () => {
-    const shared = { present: true, private: false };
-    const priv = { present: true, private: true };
-    expect(canSeeLibraryRoute(shared, member)).toBe(true);
-    expect(canSeeLibraryRoute(priv, member)).toBe(false);
-    expect(canSeeLibraryRoute(priv, leader)).toBe(true);
-    expect(canSeeLibraryRoute(priv, committee)).toBe(true);
-    expect(canSeePrivateRoutes(member)).toBe(false);
+  const club = { present: true, name: "Ramsgate to Margate [CLUB]" };
+
+  it("lists a route only when its name ends in [CLUB]", () => {
+    expect(canSeeLibraryRoute(club, committee)).toBe(true);
+    expect(canSeeLibraryRoute({ present: true, name: "Ramsgate to Margate" }, committee)).toBe(false);
+    expect(canSeeLibraryRoute({ present: true, name: "[CLUB] Ramsgate to Margate" }, committee)).toBe(false);
+    expect(canSeeLibraryRoute({ present: true, name: null }, committee)).toBe(false);
+  });
+
+  it("forgives the tag's case and stray spaces", () => {
+    expect(isClubRoute("Box Hill [club]")).toBe(true);
+    expect(isClubRoute("Box Hill[CLUB]  ")).toBe(true);
+    expect(isClubRoute("Box Hill CLUB")).toBe(false);
+  });
+
+  it("keeps Routes to committee: not members, not walk leaders", () => {
+    expect(canSeeRoutes(member)).toBe(false);
+    expect(canSeeRoutes(leader)).toBe(false);
+    expect(canSeeRoutes(committee)).toBe(true);
+    expect(canSeeRoutes({ ...member, governanceRole: "principal" })).toBe(true);
+    expect(canSeeLibraryRoute(club, member)).toBe(false);
+    expect(canSeeLibraryRoute(club, leader)).toBe(false);
   });
 
   it("hides a route gone from OS Maps from everyone", () => {
-    expect(canSeeLibraryRoute({ present: false, private: false }, committee)).toBe(false);
+    expect(canSeeLibraryRoute({ ...club, present: false }, committee)).toBe(false);
   });
 
-  it("reads a missing private flag (before the migration) as shared", () => {
-    expect(canSeeLibraryRoute({ present: true, private: null }, member)).toBe(true);
+  it("drops the tag from the name it shows", () => {
+    expect(routeDisplayName("Ramsgate to Margate [CLUB]")).toBe("Ramsgate to Margate");
+    expect(routeDisplayName("Chess Valley")).toBe("Chess Valley");
+    expect(libraryGpx({ name: "Box Hill [CLUB]", segments: [] }).filename).not.toMatch(/club/i);
   });
 });
 

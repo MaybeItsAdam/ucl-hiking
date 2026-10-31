@@ -1,10 +1,11 @@
 import { can, type AccessProfile } from "@/lib/access";
 import { simplifySegments, toGpx, type TrackPoint, type Waypoint } from "@/lib/gpx";
 import { routeFileName } from "@/lib/eventRoutes";
+import { CLUB_ROUTE_TAG, isClubRoute, routeDisplayName } from "@/lib/clubRoutes";
 
 /**
- * The route catalogue: the club's whole OS Maps library, browsable by any
- * member. Everything here is pure, so the list, the route page and the GPX
+ * The route catalogue: the club's own routes from its OS Maps library, for
+ * the committee. Everything here is pure, so the list, the route page and the GPX
  * endpoint share one set of rules and the tests can hold them to it.
  */
 
@@ -28,17 +29,21 @@ export interface CatalogueEntry {
 // ---------------------------------------------------------------------------
 
 /**
- * Private routes are the committee's working drafts in OS Maps: walk leaders
- * and committee see them, everyone else sees what's shared there.
+ * The Routes tab is the committee's. The OS Maps library holds every route
+ * anyone in the club ever saved, most of them unnamed drafts and many shared
+ * publicly, so only the ones the committee has marked as the club's own, by
+ * ending the name with [CLUB] in OS Maps, are listed at all.
  */
-export function canSeePrivateRoutes(profile: AccessProfile): boolean {
-  return can(profile, "lead_walks");
+export { CLUB_ROUTE_TAG, isClubRoute, routeDisplayName };
+
+/** Committee, principals and admins: who sees the Routes tab at all. */
+export function canSeeRoutes(profile: AccessProfile): boolean {
+  return can(profile, "manage_walks");
 }
 
-/** Gone from OS Maps, or private and the viewer isn't a leader: not theirs to see. */
-export function canSeeLibraryRoute(row: { present: boolean; private?: boolean | null }, profile: AccessProfile): boolean {
-  if (!row.present) return false;
-  return !row.private || canSeePrivateRoutes(profile);
+/** Still in OS Maps, tagged [CLUB], and the viewer is committee. */
+export function canSeeLibraryRoute(row: { present: boolean; name?: string | null }, profile: AccessProfile): boolean {
+  return Boolean(row.present) && canSeeRoutes(profile) && isClubRoute(row.name);
 }
 
 // ---------------------------------------------------------------------------
@@ -244,7 +249,7 @@ export function thumbnailPath(segments: TrackPoint[][] | null | undefined, w: nu
 
 /** A library route as a .gpx file and the name to save it under. */
 export function libraryGpx(route: { name: string; segments: TrackPoint[][]; waypoints?: Waypoint[] | null }): { body: string; filename: string } {
-  const name = route.name.trim() || "OS Maps route";
+  const name = routeDisplayName(route.name.trim()) || "OS Maps route";
   return {
     body: toGpx({ name, segments: route.segments ?? [], waypoints: route.waypoints ?? [] }, "OS Maps route"),
     filename: routeFileName(name),

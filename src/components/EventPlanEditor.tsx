@@ -8,6 +8,7 @@ import { Sheet } from "@/components/Sheet";
 import { formatAscent, formatKm } from "@/lib/eventDetails";
 import type { EventPlanView, PlanPerson } from "@/lib/eventPlans";
 import type { RouteSummaryRow } from "@/lib/eventRoutes";
+import { isClubRoute } from "@/lib/clubRoutes";
 
 interface Draft {
   leader_member_id: string;
@@ -191,6 +192,7 @@ export function EventPlanEditor({ eventId, startsAt }: { eventId: string; starts
               <RouteAttach
                 eventId={eventId}
                 route={route}
+                showRoutes={canAssign}
                 suggestedUrl={/\.gpx(?:$|[?#])/i.test(draft.route_url) ? draft.route_url : ""}
                 onChange={(next) => {
                   setRoute(next);
@@ -227,11 +229,14 @@ export function EventPlanEditor({ eventId, startsAt }: { eventId: string; starts
 function RouteAttach({
   eventId,
   route,
+  showRoutes,
   suggestedUrl,
   onChange,
 }: {
   eventId: string;
   route: RouteSummaryRow | null;
+  /** Committee: the Routes tab is theirs, so link to a [CLUB] route there. */
+  showRoutes: boolean;
   suggestedUrl: string;
   onChange: (route: RouteSummaryRow | null) => void;
 }) {
@@ -312,7 +317,7 @@ function RouteAttach({
           <span>
             <strong>{route.name ?? route.source_file ?? "GPX route"}</strong>
             <small>{facts}</small>
-            {route.osmaps_route_id ? (
+            {route.osmaps_route_id && showRoutes && isClubRoute(route.name) ? (
               <Link className="plan-gpx-catalogue" href={`/portal/events/routes/${encodeURIComponent(route.osmaps_route_id)}`}>
                 See it in Routes
               </Link>
@@ -347,7 +352,7 @@ function RouteAttach({
           <button type="button" className="kit-btn" disabled={busy !== null || !picked} onClick={pick}>
             {busy === "pick" ? "Adding…" : "Use"}
           </button>
-          {picked ? (
+          {picked && showRoutes && isClubRoute(library!.find((r) => r.id === picked)?.name) ? (
             <Link className="kit-icon-btn" href={`/portal/events/routes/${encodeURIComponent(picked)}`} aria-label="See this route in Routes" title="See this route in Routes">
               <BookOpen size={16} aria-hidden="true" />
             </Link>
