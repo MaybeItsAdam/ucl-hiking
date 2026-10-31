@@ -39,17 +39,6 @@ export default async function MemberHandbookPage() {
       ) : (
         <p className="day-note">Nothing has been shared with you yet.</p>
       )}
-      <ul className="kit-list handbook-list navigator-handbook-link">
-        <li>
-          <Link href="/portal/navigator">
-            <span>
-              <strong>The Navigator</strong>
-              <small>Every issue of the club magazine</small>
-            </span>
-            <ChevronRight size={16} aria-hidden="true" />
-          </Link>
-        </li>
-      </ul>
     </article>
   );
 }

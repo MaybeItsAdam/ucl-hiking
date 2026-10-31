@@ -38,3 +38,17 @@ describe("Handbook tab", () => {
     expect(availablePages(committee, true)).not.toContain("handbook");
   });
 });
+
+describe("Navigator tab", () => {
+  it("is every member's, straight after Events", () => {
+    for (const profile of [member, leader, committee]) expect(availablePages(profile).slice(0, 2)).toEqual(["events", "navigator"]);
+  });
+
+  it("puts a plain member's shared pages together, settings last", () => {
+    expect(availablePages(member, true)).toEqual(["events", "navigator", "handbook", "settings"]);
+  });
+
+  it("isn't there signed out", () => {
+    expect(availablePages(null)).toEqual(["settings"]);
+  });
+});

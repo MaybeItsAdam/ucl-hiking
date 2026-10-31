@@ -1938,6 +1938,13 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
   .app-tabs a.active { color: var(--forest); border: 0; }
   .app-tabs a.active .app-tab-icon { background: color-mix(in srgb, var(--forest) 16%, transparent); }
   .app-tabs a:active .app-tab-icon { transform: scale(.92); }
+  .app-tabs a { min-width: 0; }
+  .app-tab-label { max-width: 100%; padding: 0 2px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  /* The committee's seven tabs on a small phone: a little tighter, still 44px+ wide. */
+  @media (max-width: 400px) {
+    .app-tabs:has(> a:nth-child(7)) a { font-size: 10px; letter-spacing: -.01em; }
+    .app-tabs:has(> a:nth-child(7)) .app-tab-icon { width: 40px; }
+  }
 
   /* Content. The horizontal padding is the phone gutter; the bottom clears the
      tab bar and the home indicator so the last row of a list is never under it. */
@@ -3041,11 +3048,6 @@ button.kit-item-main { cursor: pointer; }
    takes over the screen: facing pages on a wide screen, one page on a phone.
    ========================================================================== */
 
-/* Its entry on the events page sits right under the year map, as a pair. */
-.events-map-link:has(+ .events-map-link) { margin-bottom: 10px; }
-
-.navigator-handbook-link { margin-top: 16px; }
-
 .navigator-library { max-width: 880px; }
 .navigator-intro { margin-bottom: 20px; }
 .navigator-intro .event-eyebrow { margin: 0 0 6px; }
@@ -3079,6 +3081,21 @@ button.kit-item-main { cursor: pointer; }
   padding: 1px 6px; border: 1px solid color-mix(in srgb, var(--forest) 45%, transparent); border-radius: 6px;
   background: color-mix(in srgb, var(--forest) 10%, transparent); color: var(--forest); letter-spacing: .12em;
 }
+/* Each card ends in its own download, lined up along the bottom of the row. */
+.navigator-shelf > li { display: flex; flex-direction: column; gap: 10px; }
+.navigator-card-download { margin-top: auto; display: flex; flex-direction: column; gap: 6px; }
+.navigator-download-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 0 12px;
+  border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink);
+  font: 700 14px var(--font-body); white-space: nowrap;
+  transition: background-color .12s ease, border-color .12s ease;
+}
+.navigator-download-btn:hover { border-color: var(--ink); background: var(--surface-2); }
+.navigator-download-btn:active { background: var(--surface-2); }
+.navigator-download-btn:focus-visible { outline: 2px solid var(--forest); outline-offset: 2px; }
+.navigator-download-size { font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+.navigator-download-note { font-size: 12px; line-height: 1.35; color: var(--warn-fg); }
 .navigator-empty {
   display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 48px 16px; text-align: center;
   border: 1px dashed var(--line-strong); border-radius: 8px; color: var(--muted);
@@ -3088,6 +3105,9 @@ button.kit-item-main { cursor: pointer; }
 @media (max-width: 520px) {
   .navigator-shelf { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 12px; }
   .navigator-card-text strong { font-size: 15px; }
+  /* Two covers abreast leave ~165px a card: the words and the size, no icon. */
+  .navigator-download-btn { padding: 0 8px; font-size: 13px; }
+  .navigator-download-btn svg { display: none; }
 }
 
 /* The reader. Fixed over the whole app, tab bar included, with its own bars. */
@@ -3118,7 +3138,7 @@ button.kit-item-main { cursor: pointer; }
   transition: background-color .12s ease, border-color .12s ease;
 }
 .navigator-icon-btn:hover:not(:disabled) { background: var(--surface-2); border-color: var(--line); }
-.navigator-icon-btn:focus-visible, .navigator-zoom-level:focus-visible, .navigator-thumb:focus-visible, .navigator-side:focus-visible { outline: 2px solid var(--forest); outline-offset: 1px; }
+.navigator-icon-btn:focus-visible, .navigator-zoom-level:focus-visible, .navigator-side:focus-visible { outline: 2px solid var(--forest); outline-offset: 1px; }
 .navigator-icon-btn:disabled { opacity: .35; cursor: default; }
 .navigator-icon-btn.is-on { border-color: color-mix(in srgb, var(--forest) 45%, transparent); background: color-mix(in srgb, var(--forest) 10%, transparent); color: var(--forest); }
 
@@ -3138,14 +3158,62 @@ button.kit-item-main { cursor: pointer; }
 }
 .navigator-pdf-page canvas { display: block; opacity: 0; transition: opacity .18s ease; }
 .navigator-pdf-page.is-drawn canvas { opacity: 1; }
-/* Facing pages meet at a fold: one hairline down the middle, square inner corners. */
-.navigator-view.is-spread .navigator-pdf-page:first-child { border-right: 0; border-radius: 8px 0 0 8px; }
-.navigator-view.is-spread .navigator-pdf-page:last-child { border-radius: 0 8px 8px 0; }
 
-.turn-next { animation: navigator-turn-next .26s cubic-bezier(.2,.8,.2,1); }
-.turn-prev { animation: navigator-turn-prev .26s cubic-bezier(.2,.8,.2,1); }
-@keyframes navigator-turn-next { from { transform: translate3d(32px,0,0); opacity: 0; } }
-@keyframes navigator-turn-prev { from { transform: translate3d(-32px,0,0); opacity: 0; } }
+/* The open magazine. Facing pages sit in two fixed slots, as in print: the cover
+   alone on the right, an even last page alone on the left. */
+.navigator-book { position: relative; flex-shrink: 0; }
+.navigator-slot { position: absolute; top: 0; left: 0; }
+/* Facing pages meet at a fold: one hairline down the middle, square inner corners. */
+.navigator-book.is-spread .is-left .navigator-pdf-page { border-right: 0; border-radius: 8px 0 0 8px; }
+.navigator-book.is-spread .is-right .navigator-pdf-page { border-radius: 0 8px 8px 0; }
+
+/* A page turning. The leaf is a card with a page on each face, hinged at the
+   spine: going forward the right-hand page swings over to become the left; going
+   back, the reverse. A flat tint deepens as it rises off the paper, in place of
+   a shadow. On a phone the single page lifts away from its left edge like a
+   notebook's, or settles back down when turning back. Only transforms and
+   opacity are animated, so it runs on the compositor. */
+.navigator-leaf {
+  position: absolute; top: 0; left: 0; z-index: 2;
+  transform-style: preserve-3d; will-change: transform;
+  pointer-events: none;
+}
+.navigator-leaf-face {
+  position: absolute; inset: 0;
+  -webkit-backface-visibility: hidden; backface-visibility: hidden;
+}
+.navigator-leaf-back { transform: rotateY(180deg); }
+.navigator-leaf-face { overflow: hidden; border-radius: 8px; }
+.navigator-leaf-face.is-left { border-radius: 8px 0 0 8px; }
+.navigator-leaf-face.is-right { border-radius: 0 8px 8px 0; }
+.navigator-leaf-face.is-left .navigator-pdf-page { border-right: 0; border-radius: 8px 0 0 8px; }
+.navigator-leaf-face.is-right .navigator-pdf-page { border-radius: 0 8px 8px 0; }
+/* The back of a page with nothing printed on it: the inside of the cover, say. */
+.navigator-blank-page { display: block; border: 1px solid var(--line); border-radius: inherit; background: var(--surface); }
+.navigator-leaf-shade { position: absolute; inset: 0; border-radius: inherit; background: #000; opacity: 0; pointer-events: none; }
+
+.leaf-spread-next { transform-origin: left center; animation: navigator-flip-next .6s cubic-bezier(.45,.05,.3,1) forwards; }
+.leaf-spread-prev { transform-origin: right center; animation: navigator-flip-prev .6s cubic-bezier(.45,.05,.3,1) forwards; }
+.leaf-spread-next .navigator-leaf-shade, .leaf-spread-prev .navigator-leaf-shade { animation: navigator-leaf-shade .6s ease-in-out forwards; }
+@keyframes navigator-flip-next { from { transform: rotateY(0deg); } to { transform: rotateY(-180deg); } }
+@keyframes navigator-flip-prev { from { transform: rotateY(0deg); } to { transform: rotateY(180deg); } }
+@keyframes navigator-leaf-shade { 50% { opacity: .16; } }
+
+.leaf-single-next { transform-origin: left center; animation: navigator-lift-away .42s cubic-bezier(.4,0,.6,1) forwards; }
+.leaf-single-prev { transform-origin: left center; animation: navigator-lay-down .42s cubic-bezier(.2,.6,.3,1) both; }
+.leaf-single-next .navigator-leaf-shade { animation: navigator-shade-up .42s ease-in forwards; }
+.leaf-single-prev .navigator-leaf-shade { animation: navigator-shade-up .42s ease-out reverse both; }
+@keyframes navigator-lift-away {
+  from { transform: rotateY(0deg); opacity: 1; }
+  70% { opacity: 1; }
+  to { transform: rotateY(-100deg); opacity: 0; }
+}
+@keyframes navigator-lay-down {
+  from { transform: rotateY(-100deg); opacity: 0; }
+  30% { opacity: 1; }
+  to { transform: rotateY(0deg); opacity: 1; }
+}
+@keyframes navigator-shade-up { from { opacity: 0; } to { opacity: .2; } }
 
 .navigator-side {
   position: absolute; top: 50%; z-index: 2; display: none;
@@ -3177,21 +3245,34 @@ button.kit-item-main { cursor: pointer; }
 .navigator-loading svg { animation: navigator-spin 1s linear infinite; }
 @keyframes navigator-spin { to { transform: rotate(360deg); } }
 
-.navigator-strip {
-  display: flex; gap: 8px; overflow-x: auto; overscroll-behavior-x: contain;
-  padding: 10px max(12px, var(--safe-right)) 10px max(12px, var(--safe-left));
+/* The scrubber: a hairline the width of the screen with a knob on it, 44px tall
+   to the finger. Dragging it shows the page number; letting go turns to it. */
+.navigator-scrub {
+  display: flex; align-items: center;
+  padding: 0 max(16px, var(--safe-right)) 0 max(16px, var(--safe-left));
   background: var(--surface); border-top: 1px solid var(--line);
-  scrollbar-width: thin;
 }
-.navigator-thumb {
-  position: relative; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 4px;
-  min-width: 44px; padding: 3px; border: 1px solid transparent; border-radius: 6px;
-  background: none; color: var(--muted); cursor: pointer;
+.navigator-scrub input {
+  -webkit-appearance: none; appearance: none;
+  width: 100%; height: 44px; margin: 0; padding: 0;
+  background: none; cursor: pointer; touch-action: pan-x;
 }
-.navigator-thumb .navigator-pdf-page { border-radius: 3px; }
-.navigator-thumb:hover { border-color: var(--line); }
-.navigator-thumb.is-current { border-color: var(--forest); color: var(--forest); }
-.navigator-thumb-number { font: 700 10px/1 var(--font-body); letter-spacing: .08em; }
+.navigator-scrub input:disabled { opacity: .35; cursor: default; }
+.navigator-scrub input::-webkit-slider-runnable-track { height: 2px; border-radius: 2px; background: var(--line-strong); }
+.navigator-scrub input::-moz-range-track { height: 2px; border-radius: 2px; background: var(--line-strong); }
+.navigator-scrub input::-moz-range-progress { height: 2px; border-radius: 2px; background: var(--forest); }
+.navigator-scrub input::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 18px; height: 18px; margin-top: -8px;
+  border: 2px solid var(--surface); border-radius: 50%; background: var(--forest);
+}
+.navigator-scrub input::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border: 2px solid var(--surface); border-radius: 50%; background: var(--forest);
+}
+.navigator-scrub input:focus-visible { outline: none; }
+.navigator-scrub input:focus-visible::-webkit-slider-thumb { outline: 2px solid var(--forest); outline-offset: 2px; }
+.navigator-scrub input:focus-visible::-moz-range-thumb { outline: 2px solid var(--forest); outline-offset: 2px; }
 
 .navigator-controls {
   justify-content: space-between;
@@ -3200,7 +3281,6 @@ button.kit-item-main { cursor: pointer; }
 }
 .navigator-pager, .navigator-zoom { display: flex; align-items: center; gap: 2px; }
 .navigator-count { min-width: 96px; text-align: center; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.navigator-count .navigator-card-label { margin-right: 2px; }
 .navigator-of { font-weight: 500; color: var(--muted); }
 .navigator-zoom-level {
   min-width: 52px; height: 44px; padding: 0 4px;
@@ -3213,13 +3293,13 @@ button.kit-item-main { cursor: pointer; }
   .navigator-back-text { display: none; }
   .navigator-back, .navigator-reader-actions { min-width: 0; }
   .navigator-back { width: 44px; padding: 0; }
-  .navigator-count .navigator-card-label { display: none; }
   .navigator-count { min-width: 72px; }
   .navigator-zoom-level { min-width: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .turn-next, .turn-prev { animation-duration: .01s; }
+  /* The turn still happens, and still ends (animationend clears it), just at once. */
+  .navigator-leaf, .navigator-leaf-shade { animation-duration: .01s !important; }
   .navigator-loading svg { animation-duration: 3s; }
   .navigator-cover, .navigator-pdf-page canvas, .navigator-icon-btn { transition-duration: .01s; }
 }

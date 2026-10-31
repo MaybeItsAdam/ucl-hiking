@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { BookOpen } from "lucide-react";
-import { issueDateLabel, issueLabel, navigatorIssues } from "@/lib/navigator";
+import { BookOpen, Download } from "lucide-react";
+import { NavigatorDownload } from "@/components/NavigatorDownload";
+import { formatBytes, issueDateLabel, issueLabel, LARGE_DOWNLOAD_BYTES, navigatorIssues } from "@/lib/navigator";
 import { getCurrentMember } from "@/lib/session";
 
 export const metadata: Metadata = { title: "The Navigator | UCL Hiking Club" };
@@ -26,13 +27,17 @@ export default async function NavigatorLibraryPage() {
           {issues.map((issue, i) => (
             <li key={issue.issue}>
               <Link href={`/portal/navigator/${issue.issue}`} className="navigator-card">
-                <span className="navigator-cover">
+                {/* Each cover keeps its own shape: US Letter and A4 issues sit side by side. */}
+                <span
+                  className="navigator-cover"
+                  style={issue.coverSize ? { aspectRatio: `${issue.coverSize.width} / ${issue.coverSize.height}` } : undefined}
+                >
                   {issue.cover ? (
                     <Image
                       src={issue.cover}
                       alt={`Cover of The Navigator, ${issueLabel(issue.issue).toLowerCase()}: ${issue.title}`}
-                      width={640}
-                      height={828}
+                      width={issue.coverSize?.width ?? 640}
+                      height={issue.coverSize?.height ?? 828}
                       sizes="(max-width: 520px) 50vw, 240px"
                       priority={i < 2}
                     />
@@ -54,6 +59,27 @@ export default async function NavigatorLibraryPage() {
                   </span>
                 </span>
               </Link>
+              {issue.bytes ? (
+                <div className="navigator-card-download">
+                  <NavigatorDownload
+                    issue={issue.issue}
+                    directUrl={issue.pdfUrl}
+                    bytes={issue.bytes}
+                    className="navigator-download-btn"
+                  >
+                    <Download size={16} aria-hidden="true" />
+                    <span>
+                      Download <span className="navigator-download-size">· {formatBytes(issue.bytes)}</span>
+                    </span>
+                    <span className="sr-only">
+                      {`, ${issueLabel(issue.issue)}, ${issue.title}, PDF`}
+                    </span>
+                  </NavigatorDownload>
+                  {issue.bytes > LARGE_DOWNLOAD_BYTES ? (
+                    <span className="navigator-download-note">Print quality. Best on Wi-Fi.</span>
+                  ) : null}
+                </div>
+              ) : null}
             </li>
           ))}
         </ul>
