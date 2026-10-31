@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import type { EventPlanView } from "./eventPlans";
 import type { EventRoute } from "./eventRoutes";
 import type { LatLng } from "./places";
+import type { LibraryRoute } from "./routeLibrary";
 import type {
   Equipment,
   EquipmentRequest,
@@ -17,6 +18,7 @@ const devMembers: Member[] = [];
 const devRoutes = new Map<string, EventRoute>();
 const devPlans = new Map<string, EventPlanView>();
 const devPlaces = new Map<string, LatLng>();
+const devLibrary: LibraryRoute[] = [];
 
 /**
  * Demo content for local dev without a database, read once from the JSON file
@@ -31,6 +33,8 @@ interface DevFixtures {
   routes?: EventRoute[];
   plans?: EventPlanView[];
   places?: Record<string, LatLng>;
+  /** The club's OS Maps library (osmaps_routes), for the route catalogue. */
+  library?: LibraryRoute[];
 }
 
 (function seedFromFixtures() {
@@ -44,7 +48,16 @@ interface DevFixtures {
   for (const route of data.routes ?? []) devRoutes.set(route.event_suu_id, route);
   for (const plan of data.plans ?? []) devPlans.set(plan.event_suu_id, plan);
   for (const [place, at] of Object.entries(data.places ?? {})) devPlaces.set(place, at);
+  devLibrary.push(...(data.library ?? []));
 })();
+
+export function getDevLibrary(): LibraryRoute[] {
+  return devLibrary;
+}
+
+export function getDevRoutes(): EventRoute[] {
+  return [...devRoutes.values()];
+}
 
 export function getDevRoute(eventSuuId: string): EventRoute | null {
   return devRoutes.get(eventSuuId) ?? null;

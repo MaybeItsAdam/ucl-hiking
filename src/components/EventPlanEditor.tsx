@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Pencil, Route, Upload } from "lucide-react";
+import { BookOpen, Pencil, Route, Upload } from "lucide-react";
 import { Sheet } from "@/components/Sheet";
 import { formatAscent, formatKm } from "@/lib/eventDetails";
 import type { EventPlanView, PlanPerson } from "@/lib/eventPlans";
@@ -311,6 +312,11 @@ function RouteAttach({
           <span>
             <strong>{route.name ?? route.source_file ?? "GPX route"}</strong>
             <small>{facts}</small>
+            {route.osmaps_route_id ? (
+              <Link className="plan-gpx-catalogue" href={`/portal/events/routes/${encodeURIComponent(route.osmaps_route_id)}`}>
+                See it in Routes
+              </Link>
+            ) : null}
           </span>
           <button
             type="button"
@@ -341,6 +347,11 @@ function RouteAttach({
           <button type="button" className="kit-btn" disabled={busy !== null || !picked} onClick={pick}>
             {busy === "pick" ? "Adding…" : "Use"}
           </button>
+          {picked ? (
+            <Link className="kit-icon-btn" href={`/portal/events/routes/${encodeURIComponent(picked)}`} aria-label="See this route in Routes" title="See this route in Routes">
+              <BookOpen size={16} aria-hidden="true" />
+            </Link>
+          ) : null}
         </div>
       ) : null}
       {hasLibrary && !showFile ? (

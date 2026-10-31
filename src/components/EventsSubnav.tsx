@@ -1,8 +1,8 @@
 import Link from "next/link";
 
-export type EventsSection = "upcoming" | "mine" | "rota" | "leaderboard" | "programme";
+export type EventsSection = "upcoming" | "mine" | "routes" | "rota" | "leaderboard" | "programme";
 
-/** Upcoming · My walks · Rota · Leaders (walk leaders and up) · Programme (committee). */
+/** Upcoming · My walks · Routes · Rota · Leaders (walk leaders and up) · Programme (committee). */
 export function EventsSubnav({
   active,
   showRota,
@@ -15,6 +15,7 @@ export function EventsSubnav({
   const items: { key: EventsSection; href: string; label: string }[] = [
     { key: "upcoming", href: "/portal/events", label: "Upcoming" },
     { key: "mine", href: "/portal/events/mine", label: "My walks" },
+    { key: "routes", href: "/portal/events/routes", label: "Routes" },
   ];
   if (showRota) {
     items.push({ key: "rota", href: "/portal/events/rota", label: "Rota" });

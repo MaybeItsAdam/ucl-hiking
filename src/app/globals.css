@@ -2223,6 +2223,56 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 .events-page > .hike-map { margin: 0 0 20px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .events-page > .event-stats { margin-bottom: 16px; }
 
+/* ===== Route catalogue (/portal/events/routes) =====
+   The club's OS Maps library as one hairline-ruled list: a thumbnail of the
+   line, the name, its length and climb, and when the club last walked it. */
+.routes-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.routes-toolbar .roster-search { flex: 1 1 220px; min-height: 44px; border-radius: 6px; }
+.routes-sort select {
+  min-height: 44px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px;
+  background-color: var(--surface); color: var(--ink); font: 600 14px var(--font-body);
+}
+.routes-toolbar .kit-btn { min-height: 44px; border-radius: 6px; }
+.routes-page .programme-filters > a { min-height: 36px; }
+.route-row { display: grid; grid-template-columns: 72px 1fr 18px; gap: 14px; align-items: center; padding: 12px 14px; }
+.route-row:hover { background: var(--surface-2); }
+.route-thumb { display: block; width: 72px; height: 54px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); }
+.route-thumb path { fill: none; stroke: var(--forest); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.route-row-body { min-width: 0; }
+.route-row-body h3 { margin: 0 0 2px; font: 800 16px/1.3 var(--font-display); overflow-wrap: anywhere; }
+.route-row-facts { margin: 0; font-size: 13.5px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+.route-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; }
+.route-tag {
+  display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2);
+  font: 700 11.5px/18px var(--font-body); color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.route-tag.is-private { border-color: var(--warn-line); background: var(--warn-bg); color: var(--warn-fg); }
+.routes-pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 14px; }
+.routes-pager .kit-btn { min-height: 44px; border-radius: 6px; }
+.routes-pager > span { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.route-page-head h2 { margin: 4px 0 0; font: 800 26px/1.2 var(--font-display); overflow-wrap: anywhere; }
+.route-page .event-stats { grid-template-columns: repeat(3, 1fr); }
+.route-page .event-day-actions .kit-btn { border-radius: 6px; }
+.route-note { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 10px 14px; border-top: 1px solid var(--warn-line); background: var(--warn-bg); color: var(--warn-fg); font-size: 13px; font-weight: 700; line-height: 1.45; }
+.route-note svg { flex-shrink: 0; margin-top: 1px; }
+.route-note.is-plain { border-top-color: var(--line); background: none; color: var(--muted); font-weight: 600; }
+.event-day > .route-note:first-child { border-top: 0; }
+.route-walks a { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 56px; padding: 10px 14px; }
+.route-walks a:hover { background: var(--surface-2); }
+.route-walks a > span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.route-walks strong { font: 800 15px/1.3 var(--font-display); overflow-wrap: anywhere; }
+.route-walks small { font-size: 13px; color: var(--muted); }
+/* "Part of the club's library": the event page's way to the route's own page. */
+.event-route-facts a { color: var(--link); text-decoration: underline; text-underline-offset: 2px; }
+@media (max-width: 768px) {
+  .route-row { grid-template-columns: 64px 1fr 16px; gap: 12px; padding: 12px; }
+  .route-thumb { width: 64px; height: 48px; }
+  .routes-sort select { font-size: 16px; } /* below 16px iOS zooms on focus */
+  .route-page-head h2 { font-size: 22px; }
+}
+
 /* ===== Inbox ===== */
 .inbox { display: grid; gap: 12px; }
 .inbox-all { justify-self: end; display: inline-flex; align-items: center; gap: 6px; }
@@ -2492,6 +2542,8 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 .plan-gpx-current > svg { flex-shrink: 0; color: var(--info-fg); }
 .plan-gpx-current > span { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-wrap: anywhere; }
 .plan-gpx-current small { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.plan-gpx-catalogue { align-self: flex-start; display: inline-flex; align-items: center; min-height: 44px; color: var(--link); font-size: 13px; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+.plan-gpx-url .kit-icon-btn { border-radius: 6px; }
 .plan-gpx-hint { margin: 0; font-size: 13px; color: var(--muted); }
 .plan-gpx-more { align-self: flex-start; min-height: 44px; padding: 0; border: 0; background: none; color: var(--ink); font: inherit; font-size: 13px; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .plan-gpx-controls { display: flex; flex-wrap: wrap; gap: 8px; }
