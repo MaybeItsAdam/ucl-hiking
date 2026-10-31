@@ -104,7 +104,7 @@ function SignIn() {
               width={52}
               height={52}
               alt="Adam's Campus Toolbox"
-              className="rounded-xl shadow-sm"
+              className="auth-brand-logo"
               priority
             />
           </div>
