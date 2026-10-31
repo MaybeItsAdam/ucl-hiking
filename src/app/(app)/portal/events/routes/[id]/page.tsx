@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { ChevronLeft, ChevronRight, Download, ExternalLink, Lock, Route, TriangleAlert } from "lucide-react";
+import { ClubRouteToggle } from "@/components/ClubRouteToggle";
 import { OpenExternal } from "@/components/OpenExternal";
 import { RouteView } from "@/components/RouteView";
 import { profileOf } from "@/lib/access";
@@ -10,7 +11,8 @@ import { eventDetails, formatAscent, formatKm } from "@/lib/eventDetails";
 import { longDate } from "@/lib/eventList";
 import { mapRouteOf } from "@/lib/eventRoutes";
 import { osmapsShareUrl } from "@/lib/osmaps";
-import { canSeeLibraryRoute, routeDisplayName } from "@/lib/routeCatalogue";
+import { isClubRoute } from "@/lib/clubRoutes";
+import { canSeeLibraryRoute, isClubEntry, routeDisplayName } from "@/lib/routeCatalogue";
 import { getLibraryLinks, getLibraryRoute, walksFor } from "@/lib/routeLibrary";
 import { isPlotted } from "@/lib/routeShape";
 import { getCurrentMember } from "@/lib/session";
@@ -29,8 +31,8 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 /**
  * One route from the club's OS Maps library: its line on the map with the
  * climb beneath, the way into OS Maps, the GPX, and the walks that used it.
- * Committee only, and only a route tagged [CLUB] in OS Maps; anyone else, or
- * any other route, gets a 404, as the GPX endpoint does.
+ * Committee only; anyone else gets a 404, as the GPX endpoint does. The star
+ * marks it as a club route, which puts it on the Routes list.
  */
 export default async function RoutePage({ params }: Params) {
   const [member, route] = await Promise.all([getCurrentMember(), params.then(({ id }) => routeFor(id))]);
@@ -60,6 +62,7 @@ export default async function RoutePage({ params }: Params) {
       <header className="route-page-head">
         <span className="event-eyebrow">OS Maps route</span>
         <h2>{routeDisplayName(route.name)}</h2>
+        <ClubRouteToggle key={String(isClubEntry(route))} id={route.id} club={isClubEntry(route)} taggedInName={isClubRoute(route.name)} label />
         {route.private ? (
           <p className="route-tags">
             <span className="route-tag is-private">

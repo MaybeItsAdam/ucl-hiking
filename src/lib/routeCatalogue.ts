@@ -16,6 +16,10 @@ export interface CatalogueEntry {
   distance_m: number;
   ascent_m: number | null;
   private: boolean;
+  /** A club route, marked in the app or named so. */
+  club: boolean;
+  /** Named "… [CLUB]" in OS Maps, so unmarking in the app can't take it off the list. */
+  taggedInName: boolean;
   /** Walks in the app that used it, the viewer's visible ones only. */
   walks: number;
   /** The most recent of those that has started, as an ISO date-time. */
@@ -31,8 +35,9 @@ export interface CatalogueEntry {
 /**
  * The Routes tab is the committee's. The OS Maps library holds every route
  * anyone in the club ever saved, most of them unnamed drafts and many shared
- * publicly, so only the ones the committee has marked as the club's own, by
- * ending the name with [CLUB] in OS Maps, are listed at all.
+ * publicly, so the list shows the club's own: routes marked as such in the
+ * app, or named "… [CLUB]" in OS Maps. "All routes" shows the rest, to find
+ * one to mark.
  */
 export { CLUB_ROUTE_TAG, isClubRoute, routeDisplayName };
 
@@ -41,9 +46,14 @@ export function canSeeRoutes(profile: AccessProfile): boolean {
   return can(profile, "manage_walks");
 }
 
-/** Still in OS Maps, tagged [CLUB], and the viewer is committee. */
-export function canSeeLibraryRoute(row: { present: boolean; name?: string | null }, profile: AccessProfile): boolean {
-  return Boolean(row.present) && canSeeRoutes(profile) && isClubRoute(row.name);
+/** Still in OS Maps, and the viewer is committee. */
+export function canSeeLibraryRoute(row: { present: boolean }, profile: AccessProfile): boolean {
+  return Boolean(row.present) && canSeeRoutes(profile);
+}
+
+/** One of the club's own: marked in the app, or named "… [CLUB]" in OS Maps. */
+export function isClubEntry(row: { name: string | null; club?: boolean | null }): boolean {
+  return Boolean(row.club) || isClubRoute(row.name);
 }
 
 // ---------------------------------------------------------------------------
@@ -80,6 +90,8 @@ export interface CatalogueQuery {
   band: DistanceBand | null;
   sort: CatalogueSort;
   page: number;
+  /** Every route in the library, not only the club's. */
+  all: boolean;
 }
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -96,6 +108,7 @@ export function parseCatalogueQuery(params: SearchParams): CatalogueQuery {
     band: DISTANCE_BANDS.some((b) => b.key === band) ? (band as DistanceBand) : null,
     sort: CATALOGUE_SORTS.some((s) => s.key === sort) ? (sort as CatalogueSort) : "name",
     page: Number.isFinite(page) && page > 1 ? page : 1,
+    all: first(params.show) === "all",
   };
 }
 
@@ -107,6 +120,7 @@ export function catalogueHref(query: CatalogueQuery, change: Partial<CatalogueQu
   if (next.band) params.set("band", next.band);
   if (next.sort !== "name") params.set("sort", next.sort);
   if (next.page > 1) params.set("page", String(next.page));
+  if (next.all) params.set("show", "all");
   const qs = params.toString();
   return `/portal/events/routes${qs ? `?${qs}` : ""}`;
 }
@@ -139,9 +153,10 @@ const SORTERS: Record<CatalogueSort, (a: CatalogueEntry, b: CatalogueEntry) => n
 };
 
 /** Every word of the search somewhere in the name, inside the distance band, in the chosen order. */
-export function filterCatalogue(entries: CatalogueEntry[], query: Pick<CatalogueQuery, "q" | "band" | "sort">): CatalogueEntry[] {
+export function filterCatalogue(entries: CatalogueEntry[], query: Pick<CatalogueQuery, "q" | "band" | "sort"> & { all?: boolean }): CatalogueEntry[] {
   const words = searchKey(query.q).split(" ").filter(Boolean);
   const out = entries.filter((e) => {
+    if (!query.all && !e.club) return false;
     if (query.band && bandOf(e.distance_m) !== query.band) return false;
     if (!words.length) return true;
     const name = searchKey(e.name);

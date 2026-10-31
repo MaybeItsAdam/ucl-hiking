@@ -7,6 +7,7 @@ import {
   canSeeRoutes,
   catalogueHref,
   filterCatalogue,
+  isClubEntry,
   isClubRoute,
   libraryGpx,
   pageOf,
@@ -25,17 +26,34 @@ const leader: AccessProfile = { ...member, isWalkLeader: true };
 const committee: AccessProfile = { ...member, governanceRole: "committee" };
 
 function entry(id: string, name: string, km: number, extra: Partial<CatalogueEntry> = {}): CatalogueEntry {
-  return { id, name, distance_m: km * 1000, ascent_m: null, private: false, walks: 0, lastWalked: null, nextWalk: null, ...extra };
+  return { id, name, distance_m: km * 1000, ascent_m: null, private: false, club: true, taggedInName: false, walks: 0, lastWalked: null, nextWalk: null, ...extra };
 }
 
 describe("access", () => {
-  const club = { present: true, name: "Ramsgate to Margate [CLUB]" };
+  const route = { present: true, name: "Ramsgate to Margate" };
 
-  it("lists a route only when its name ends in [CLUB]", () => {
-    expect(canSeeLibraryRoute(club, committee)).toBe(true);
-    expect(canSeeLibraryRoute({ present: true, name: "Ramsgate to Margate" }, committee)).toBe(false);
-    expect(canSeeLibraryRoute({ present: true, name: "[CLUB] Ramsgate to Margate" }, committee)).toBe(false);
-    expect(canSeeLibraryRoute({ present: true, name: null }, committee)).toBe(false);
+  it("keeps Routes to committee: not members, not walk leaders", () => {
+    expect(canSeeRoutes(member)).toBe(false);
+    expect(canSeeRoutes(leader)).toBe(false);
+    expect(canSeeRoutes(committee)).toBe(true);
+    expect(canSeeRoutes({ ...member, governanceRole: "principal" })).toBe(true);
+    expect(canSeeLibraryRoute(route, member)).toBe(false);
+    expect(canSeeLibraryRoute(route, leader)).toBe(false);
+    expect(canSeeLibraryRoute(route, committee)).toBe(true);
+  });
+
+  it("hides a route gone from OS Maps from everyone", () => {
+    expect(canSeeLibraryRoute({ ...route, present: false }, committee)).toBe(false);
+  });
+});
+
+describe("club routes", () => {
+  it("counts a route marked in the app, or named … [CLUB] in OS Maps", () => {
+    expect(isClubEntry({ name: "Ramsgate to Margate", club: true })).toBe(true);
+    expect(isClubEntry({ name: "Ramsgate to Margate [CLUB]", club: false })).toBe(true);
+    expect(isClubEntry({ name: "Ramsgate to Margate", club: false })).toBe(false);
+    expect(isClubEntry({ name: "Ramsgate to Margate", club: null })).toBe(false);
+    expect(isClubEntry({ name: "[CLUB] Ramsgate to Margate" })).toBe(false);
   });
 
   it("forgives the tag's case and stray spaces", () => {
@@ -44,17 +62,14 @@ describe("access", () => {
     expect(isClubRoute("Box Hill CLUB")).toBe(false);
   });
 
-  it("keeps Routes to committee: not members, not walk leaders", () => {
-    expect(canSeeRoutes(member)).toBe(false);
-    expect(canSeeRoutes(leader)).toBe(false);
-    expect(canSeeRoutes(committee)).toBe(true);
-    expect(canSeeRoutes({ ...member, governanceRole: "principal" })).toBe(true);
-    expect(canSeeLibraryRoute(club, member)).toBe(false);
-    expect(canSeeLibraryRoute(club, leader)).toBe(false);
-  });
-
-  it("hides a route gone from OS Maps from everyone", () => {
-    expect(canSeeLibraryRoute({ ...club, present: false }, committee)).toBe(false);
+  it("lists club routes unless asked for all, and keeps that in the URL", () => {
+    const list = [entry("1", "Box Hill", 14), entry("2", "Chess Valley", 15, { club: false })];
+    expect(filterCatalogue(list, { q: "", band: null, sort: "name" }).map((e) => e.id)).toEqual(["1"]);
+    expect(filterCatalogue(list, { q: "", band: null, sort: "name", all: true }).map((e) => e.id)).toEqual(["1", "2"]);
+    const q = parseCatalogueQuery({ show: "all" });
+    expect(q.all).toBe(true);
+    expect(catalogueHref(q)).toBe("/portal/events/routes?show=all");
+    expect(catalogueHref(q, { all: false })).toBe("/portal/events/routes");
   });
 
   it("drops the tag from the name it shows", () => {
@@ -108,8 +123,8 @@ describe("search, bands and sort", () => {
 
 describe("the list's URL", () => {
   it("reads what it knows and defaults the rest", () => {
-    expect(parseCatalogueQuery({ q: "  box ", band: "long", sort: "climb", page: "3" })).toEqual({ q: "box", band: "long", sort: "climb", page: 3 });
-    expect(parseCatalogueQuery({ band: "huge", sort: "x", page: "-2" })).toEqual({ q: "", band: null, sort: "name", page: 1 });
+    expect(parseCatalogueQuery({ q: "  box ", band: "long", sort: "climb", page: "3" })).toEqual({ q: "box", band: "long", sort: "climb", page: 3, all: false });
+    expect(parseCatalogueQuery({ band: "huge", sort: "x", page: "-2" })).toEqual({ q: "", band: null, sort: "name", page: 1, all: false });
     expect(parseCatalogueQuery({ q: ["a", "b"] }).q).toBe("a");
   });
 

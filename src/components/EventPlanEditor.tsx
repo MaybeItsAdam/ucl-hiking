@@ -8,7 +8,6 @@ import { Sheet } from "@/components/Sheet";
 import { formatAscent, formatKm } from "@/lib/eventDetails";
 import type { EventPlanView, PlanPerson } from "@/lib/eventPlans";
 import type { RouteSummaryRow } from "@/lib/eventRoutes";
-import { isClubRoute } from "@/lib/clubRoutes";
 
 interface Draft {
   leader_member_id: string;
@@ -235,7 +234,7 @@ function RouteAttach({
 }: {
   eventId: string;
   route: RouteSummaryRow | null;
-  /** Committee: the Routes tab is theirs, so link to a [CLUB] route there. */
+  /** Committee: the Routes tab is theirs, so link to the route there. */
   showRoutes: boolean;
   suggestedUrl: string;
   onChange: (route: RouteSummaryRow | null) => void;
@@ -317,7 +316,7 @@ function RouteAttach({
           <span>
             <strong>{route.name ?? route.source_file ?? "GPX route"}</strong>
             <small>{facts}</small>
-            {route.osmaps_route_id && showRoutes && isClubRoute(route.name) ? (
+            {route.osmaps_route_id && showRoutes ? (
               <Link className="plan-gpx-catalogue" href={`/portal/events/routes/${encodeURIComponent(route.osmaps_route_id)}`}>
                 See it in Routes
               </Link>
@@ -352,7 +351,7 @@ function RouteAttach({
           <button type="button" className="kit-btn" disabled={busy !== null || !picked} onClick={pick}>
             {busy === "pick" ? "Adding…" : "Use"}
           </button>
-          {picked && showRoutes && isClubRoute(library!.find((r) => r.id === picked)?.name) ? (
+          {picked && showRoutes ? (
             <Link className="kit-icon-btn" href={`/portal/events/routes/${encodeURIComponent(picked)}`} aria-label="See this route in Routes" title="See this route in Routes">
               <BookOpen size={16} aria-hidden="true" />
             </Link>

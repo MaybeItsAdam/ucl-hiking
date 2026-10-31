@@ -2240,6 +2240,24 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 .routes-page .programme-filters > a { min-height: 36px; }
 .route-row { display: grid; grid-template-columns: 72px 1fr 18px; gap: 14px; align-items: center; padding: 12px 14px; }
 .route-row:hover { background: var(--surface-2); }
+/* A row is the link plus its star, side by side; the star is its own 44px target. */
+.route-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.route-item .club-toggle { margin-right: 8px; }
+.club-toggle {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex-shrink: 0;
+  min-width: 44px; min-height: 44px; padding: 0;
+  border: 1px solid transparent; border-radius: 6px; background: none; color: var(--muted);
+  font: 700 14px var(--font-body); cursor: pointer;
+  transition: color .12s ease, background-color .12s ease, border-color .12s ease;
+}
+.club-toggle:hover:not(:disabled) { background: var(--surface-2); border-color: var(--line); color: var(--ink); }
+.club-toggle:focus-visible { outline: 2px solid var(--forest); outline-offset: 1px; }
+.club-toggle.is-on, .club-toggle.is-on:hover:not(:disabled) { color: var(--warn-fg); }
+.club-toggle:disabled { cursor: default; opacity: .7; }
+.club-toggle.has-label { margin-top: 10px; padding: 0 14px 0 12px; border-color: var(--line); }
+.club-toggle.has-label.is-on { border-color: var(--warn-line); background: var(--warn-bg); }
+.club-toggle.is-error { color: var(--bad-fg); }
+.routes-show { margin-bottom: 4px; }
 .route-thumb { display: block; width: 72px; height: 54px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); }
 .route-thumb path { fill: none; stroke: var(--forest); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
 .route-row-body { min-width: 0; }
