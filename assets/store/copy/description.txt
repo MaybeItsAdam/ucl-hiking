@@ -1,7 +1,10 @@
-The UCL Hiking Club app puts the whole club in your pocket: every walk on the programme, the routes, your club kit and your own hiking year, signed in with your UCL account.
+The UCL Hiking Club app puts the whole club in your pocket: every walk on the programme, the club's routes, your club kit, The Navigator and your own hiking year, signed in with your UCL account.
 
 EVERY WALK, PROPERLY BRIEFED
-Each walk has its own page with the distance, total ascent, difficulty grade, train and fare, meeting point and time, and who's leading and backmarking. The route sits on an Ordnance Survey map, and a 3D view with an elevation profile lets you scrub along the day's climbs before you commit.
+Each walk has its own page with the distance, total ascent, difficulty grade, train and fare, meeting point and time, and who's leading and backmarking. The route sits on an Ordnance Survey map, with an elevation profile you can scrub along to see the day's climbs before you commit.
+
+EVERY CLUB ROUTE
+Routes is a catalogue of the club's OS Maps library. Search by name or filter by distance, then open any route for its map, elevation profile and GPX download, and see the walks that have used it.
 
 YOUR HIKING YEAR
 My Walks shows the trips you're signed up for and the ones you've done, with this year's distance and climbing totals and a map of everywhere you've been. The club walk map shows the whole year's routes, including the longest day and the biggest climb.
@@ -11,6 +14,9 @@ Subscribe to the club calendar so new walks appear in your phone's calendar app.
 
 BORROW CLUB KIT
 Browse the equipment store, from rucksacks and tents to waterproofs, with live stock and condition. Request a loan for your dates and trip, then follow the request from pending to on loan to returned.
+
+THE NAVIGATOR
+Every issue of The Navigator, the club magazine, is in the app. The reader turns pages like a printed copy, with facing pages on a wide screen, and you can download any issue to keep.
 
 FOR WALK LEADERS
 Claim walk slots on the leader rota, see which walks still need a leader, and keep the walk-day register, emergency details and booked kit on your phone, even when signal drops. Read the leader handbook, file expense claims, and see how many walks and kilometres each leader has covered.

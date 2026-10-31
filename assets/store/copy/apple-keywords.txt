@@ -1,1 +1,1 @@
-UCL,hiking,walking,club,equipment,kit,loans,camping,rucksack,tent,student
+walking,trail,trek,map,GPX,student,university,London,outdoors,gear,equipment,camping,tent,Navigator

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { can, profileOf } from "@/lib/access";
+import { fetchAll } from "@/lib/paging";
 import { buildMembershipList, type RosterAccount } from "@/lib/roster";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
@@ -9,21 +10,6 @@ import { fetchToolboxMembers, rosterFromToolbox } from "@/lib/toolboxMembers";
  * GET /api/admin/roster — the committee membership list: Toolbox's SU roster
  * with each person's site account attached, plus accounts not on the roster.
  */
-const PAGE_SIZE = 1000;
-
-/** PostgREST caps each response at 1000 rows, so read a table page by page. */
-async function fetchAll<T>(
-  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
-): Promise<{ rows: T[]; error: { message: string } | null }> {
-  const rows: T[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await page(from, from + PAGE_SIZE - 1);
-    if (error) return { rows, error };
-    rows.push(...(data ?? []));
-    if (!data || data.length < PAGE_SIZE) return { rows, error: null };
-  }
-}
-
 export async function GET() {
   const member = await getCurrentMember();
   if (!member) {
