@@ -96,7 +96,8 @@ export const NAVIGATOR_ISSUES: readonly NavigatorIssue[] = [
     coverSize: { width: 640, height: 906 },
     // Magazine4_HD_FINAL.pdf, the 431 MB print file. Until its web copy is on
     // Drive the app reads this, and the library warns that it's a big download.
-    // Then: drive({ id: "12inNw…", bytes: 430_692_288 }, { id: "<web copy's id>", bytes: <its size> }).
+    // The web copy is 40_444_645 bytes. Once it's on Drive:
+    // drive({ id: "12inNw…", bytes: 430_692_288 }, { id: "<web copy's id>", bytes: 40_444_645 }).
     ...drive({ id: "12inNwa1d5IIovlZHRIVxGS5aSFNR7HwZ", bytes: 430_692_288 }),
   },
 ];
