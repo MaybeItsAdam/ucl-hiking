@@ -1,0 +1,68 @@
+import type { Metadata } from "next";
+import Image from "next/image";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { BookOpen } from "lucide-react";
+import { issueDateLabel, issueLabel, navigatorIssues } from "@/lib/navigator";
+import { getCurrentMember } from "@/lib/session";
+
+export const metadata: Metadata = { title: "The Navigator | UCL Hiking Club" };
+
+/** Every issue of the club magazine, newest first, as a shelf of covers. */
+export default async function NavigatorLibraryPage() {
+  const member = await getCurrentMember();
+  if (!member) redirect("/auth/signin");
+  const issues = navigatorIssues();
+
+  return (
+    <article className="navigator-library">
+      <header className="navigator-intro">
+        <p className="event-eyebrow">The club magazine</p>
+        <p>A magazine by the club, for the club: walks, residentials, photography, art and the people behind it all.</p>
+      </header>
+
+      {issues.length ? (
+        <ul className="navigator-shelf">
+          {issues.map((issue, i) => (
+            <li key={issue.issue}>
+              <Link href={`/portal/navigator/${issue.issue}`} className="navigator-card">
+                <span className="navigator-cover">
+                  {issue.cover ? (
+                    <Image
+                      src={issue.cover}
+                      alt={`Cover of The Navigator, ${issueLabel(issue.issue).toLowerCase()}: ${issue.title}`}
+                      width={640}
+                      height={828}
+                      sizes="(max-width: 520px) 50vw, 240px"
+                      priority={i < 2}
+                    />
+                  ) : (
+                    <span className="navigator-cover-blank" aria-hidden="true">
+                      <BookOpen size={28} />
+                    </span>
+                  )}
+                </span>
+                <span className="navigator-card-text">
+                  <span className="navigator-card-label">
+                    {issueLabel(issue.issue)}
+                    {i === 0 ? <span className="navigator-latest">Latest</span> : null}
+                  </span>
+                  <strong>{issue.title}</strong>
+                  <span className="navigator-card-meta">
+                    {issueDateLabel(issue.date)}
+                    {issue.pages ? ` · ${issue.pages} pages` : ""}
+                  </span>
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="navigator-empty">
+          <BookOpen size={28} aria-hidden="true" />
+          <p>No issues yet. The next one will turn up here.</p>
+        </div>
+      )}
+    </article>
+  );
+}

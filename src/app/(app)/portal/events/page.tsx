@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { after } from "next/server";
-import { ArrowRight, CalendarX2, ChevronRight, Map as MapIcon, MapPin } from "lucide-react";
+import { ArrowRight, BookOpen, CalendarX2, ChevronRight, Map as MapIcon, MapPin } from "lucide-react";
 import { EventFacts, routeLabel } from "@/components/EventFacts";
 import { EventsSubnav } from "@/components/EventsSubnav";
 import { can, profileOf } from "@/lib/access";
@@ -10,6 +10,7 @@ import { eventDetails, formatKm, KIND_LABELS } from "@/lib/eventDetails";
 import { countdown, eventWhen, groupEventsByMonth, isOnToday, joinMultiDayEvents, longDate } from "@/lib/eventList";
 import { getEventsInClubYear, getUpcomingEvents } from "@/lib/events";
 import { clubYear, clubYearLabel, mapHikes, yearStats } from "@/lib/hikeMap";
+import { issueLabel, navigatorIssues } from "@/lib/navigator";
 import { getCurrentMember } from "@/lib/session";
 import type { SUEvent } from "@/lib/types";
 import { viewerOf, visibleEvents, walkRules } from "@/lib/walkVisibility";
@@ -91,6 +92,7 @@ export default async function EventsPage() {
 
   const next = upcoming.find((event) => event.starts_at && event.status !== "cancelled");
   const months = groupEventsByMonth(upcoming.filter((event) => event !== next));
+  const latestIssue = navigatorIssues()[0];
 
   return (
     <article className="events-page">
@@ -111,6 +113,21 @@ export default async function EventsPage() {
         </span>
         <ChevronRight size={18} aria-hidden="true" className="events-map-chevron" />
       </Link>
+
+      {latestIssue ? (
+        <Link href="/portal/navigator" className="events-map-link">
+          <span className="events-map-icon">
+            <BookOpen size={20} aria-hidden="true" />
+          </span>
+          <span className="events-map-text">
+            <strong>The Navigator</strong>
+            <span>
+              The club magazine · {issueLabel(latestIssue.issue)}, {latestIssue.title}
+            </span>
+          </span>
+          <ChevronRight size={18} aria-hidden="true" className="events-map-chevron" />
+        </Link>
+      ) : null}
 
       {!next && months.length === 0 ? (
         <div className="events-empty">
