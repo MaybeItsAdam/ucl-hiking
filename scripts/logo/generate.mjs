@@ -26,8 +26,10 @@
  *
  * Geometry lives in a 1024 "design space" centred on (512, 512). Everything that
  * carries meaning (peaks, snow, trail ends) stays inside a circle of radius
- * SAFE_R there. The Android adaptive foreground draws design space 1:1 into its
- * 108dp layer, where the guaranteed-visible circle is 66dp (r = 313px at 1024).
+ * SAFE_R there. The Android adaptive foreground draws the scene at ADAPTIVE_SCALE
+ * into its 108dp layer, where the guaranteed-visible circle is 66dp (r = 313px at
+ * 1024) and the Android 12+ splash and launcher show r = 341. The outer snow cap
+ * reaches r ~362 unscaled, so 1:1 clipped its tip.
  * Full-bleed icons (iOS, web, legacy Android) scale the scene by FULL_SCALE so
  * the mark fills more of the tile while staying inside the iOS corner mask and
  * the 40% PWA maskable zone.
@@ -54,6 +56,7 @@ export const PALETTE = {
 
 export const SAFE_R = 300; //     meaningful content radius in design space
 export const FULL_SCALE = 1.3; // full-bleed icons: r 300 -> 390 (< 40% of 1024 = 409.6)
+export const ADAPTIVE_SCALE = 0.85; // adaptive foreground: outer cap r ~362 -> ~307 (< 313)
 const C = 512;
 
 // ---------------------------------------------------------------- randomness
@@ -318,7 +321,7 @@ const svg = (inner) => `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 102
 export function render(seed, layer = "full", opts = {}) {
   if (layer === "background") return svg(`<rect width="1024" height="1024" fill="${PALETTE.sky}"/>`);
   const g = build(seed);
-  if (layer === "foreground") return svg(foreground(g, opts));
+  if (layer === "foreground") return svg(scaled(foreground(g, opts), ADAPTIVE_SCALE));
   return svg(`<rect width="1024" height="1024" fill="${PALETTE.sky}"/>${scaled(foreground(g, opts), FULL_SCALE)}`);
 }
 
@@ -449,7 +452,7 @@ const tile = (src, s) => `<img src="${src}" width="${s}" height="${s}" style="bo
 function card(seed, opts) {
   const full = dataUri(render(seed, "full", opts));
   // Adaptive preview: background + foreground, cropped to the visible 72dp, then masked.
-  const fgInner = foreground(build(seed), opts);
+  const fgInner = scaled(foreground(build(seed), opts), ADAPTIVE_SCALE);
   const adaptive = (mask) =>
     dataUri(
       `<svg xmlns="http://www.w3.org/2000/svg" viewBox="170.67 170.67 682.67 682.67"><defs><clipPath id="m">${mask}</clipPath></defs><g clip-path="url(#m)"><rect width="1024" height="1024" fill="${PALETTE.sky}"/>${fgInner}</g></svg>`,
