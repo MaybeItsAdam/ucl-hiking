@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launch splash field: brand teal, the icon's sky. scripts/generate-splash.sh
+         paints the legacy splash.png images the same colour. -->
+    <color name="splash_background">#01A2A6</color>
+</resources>
