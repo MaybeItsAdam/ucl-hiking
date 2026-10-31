@@ -5,61 +5,68 @@ The same seed always gives the same mark, and a new seed re-rolls it. Nothing
 here touches the live icons, the manifest or the store art. Those still come from
 `branding/app_icons/app-icon.svg` via `scripts/generate-app-icons.sh`.
 
+Every seed is drawn in the club crest's mountain style (`branding/Logo.png`, the
+live icon, the Play feature graphic). The seed only varies things inside that
+style.
+
 ## How a mark is built
 
-1. **Ridgeline.** There are always three peaks: a dominant summit near the
-   centre and two lower peaks either side. The seed places each one within
-   narrow ranges. Seeded midpoint displacement fills in the ridge between the
-   peaks and saddles, and is clamped so that no in-between point can rise above
-   the anchors it joins, so the three peaks stay the sharp high points. The seed
-   also chooses whether the whole scene is mirrored.
-2. **Snow caps.** Each peak gets a snowline at a seeded share (40–50%) of its
-   prominence, with a minimum depth so the cap still shows at 29px. The line
-   never drops below the higher saddle. The cap is the ridge above that line,
-   closed by a 2–3 tooth notched lower edge.
-3. **Contours.** Four to six copies of the ridge are offset downwards, each one
-   smoothed and flattened a little more than the last, and clipped to the
-   mountain body.
-4. **Trail.** The trail runs from a fixed trailhead to a fixed end at the foot of
-   the summit snow. Between them it follows a Brownian bridge (a random walk
-   pinned at both ends), smoothed and mixed with a seeded number of
-   switchbacks. It is kept on the rock and inside the safe circle, and drawn as a
-   lime dashed Catmull-Rom curve with a solid trailhead dot.
-5. **Compass.** In about 80% of seeds a lime compass disc goes in the clearest
-   patch of sky that keeps the whole disc in the safe circle, with a seeded
-   bearing.
+1. **Peaks.** There are always three straight-edged triangular peaks. A dominant
+   summit, with a long gentle outer flank and a steep inner one, steps down to
+   two lower peaks. The seed sets each apex position and each flank slope within
+   narrow ranges. There is no roughness or displacement: every edge is a
+   straight line.
+2. **Overlaps.** Where two peaks meet, a slit of sky cuts down between them, as
+   on the crest. The slit runs down the front peak's flank to a seeded tip, then
+   climbs back up a steep back edge until it meets the rear peak's flank. If a
+   seed's slit would cut past the next apex, it is made shallower until it fits.
+3. **Snow caps.** Each cap is an arrowhead whose edges run parallel to the rock,
+   set in from it by a thin rim. Its base is notched about a third of the way
+   across, and the long-flank foot drops lower, which is the crest's own cap
+   shape. The depth is a seeded share of the peak's visible height, with a
+   minimum.
+4. **Trail.** A slim lime trail with even dashes runs from a fixed trailhead to a
+   fixed end at the foot of the summit snow. Between them it follows a Brownian
+   bridge (a random walk pinned at both ends), smoothed and mixed with a seeded
+   number of switchbacks. It is kept on the rock, out of the first slit and
+   inside the safe circle.
+5. **Contours (optional, `--contours`).** Five copies of the ridge, offset
+   downwards, smoothed and flattened progressively and clipped to the rock.
+6. **Mirror.** Half the seeds flip the whole scene, putting the summit on the
+   right.
 
 The seed controls shape only. Colour, peak count, trail ends and contrast are
 fixed. The palette uses the tokens in `src/app/globals.css`: sky `--forest`
-`#08a8ad`, rock `--deep` `#2d4153`, contours `--ink-fill` `#3a5570`, snow white,
-and trail/compass `--lime` `#b9da3b`. All fills are flat, with no gradients and
-no text.
+`#08a8ad`, rock `--deep` `#2d4153`, snow white, and trail `--lime` `#b9da3b`.
+Contours are `#4b6a84`, the rock lifted toward `--ink-fill`. All fills are flat,
+with no gradients, no text and no compass.
 
 ## Safe area
 
 The geometry lives in a 1024 design space. All meaningful content stays inside
-a circle of r = 300 around the centre. The terrain runs past every edge, so a
-mask only ever trims rock.
+a circle of about r = 300 around the centre. The rock runs past the bottom and
+sides, so a mask only ever trims rock or sky.
 
 - **Android adaptive foreground**: drawn 1:1 into the 108dp layer. The circle
   that is guaranteed to be visible is 66dp (r = 313 at 1024).
-- **iOS, web, legacy Android, PWA maskable**: the scene is scaled ×1.3, so the
-  mark reaches r = 390. That is inside the 40% maskable zone (409.6) and well
-  clear of the iOS corner mask.
+- **iOS, web, legacy Android, PWA maskable**: the scene is scaled ×1.3, which
+  keeps the mark inside the 40% maskable zone and clear of the iOS corner mask.
 - **Adaptive background**: a flat sky layer, also written as
   `@color/ic_launcher_background`.
 
 ## Commands
 
 ```sh
-node scripts/logo/generate.mjs --seed 8                     # full icon SVG to stdout
-node scripts/logo/generate.mjs --seed 8 --layer foreground  # adaptive foreground only
-node scripts/logo/generate.mjs --seed 8 --params            # the parameters the seed rolled
-node scripts/logo/generate.mjs --sheet --seeds 1-12 --out /path/sheet.png
-node scripts/logo/generate.mjs --seed 8 --export            # every size -> branding/logo/out/8/
+node scripts/logo/generate.mjs --seed 7                     # full icon SVG to stdout
+node scripts/logo/generate.mjs --seed 7 --contours          # ...with contour lines
+node scripts/logo/generate.mjs --seed 7 --layer foreground  # adaptive foreground only
+node scripts/logo/generate.mjs --seed 7 --params            # the parameters the seed rolled
+node scripts/logo/generate.mjs --sheet --seeds 1-8 --out /path/sheet.png   # each seed with and without contours
+node scripts/logo/generate.mjs --compare 7,1,5 --out /path/vs.png          # against the live icon, 180 and 29px
+node scripts/logo/generate.mjs --seed 7 --export [--contours]              # every size -> branding/logo/out/7/
 ```
 
-The sheet needs headless Chrome (set `CHROME=` if it's not in the usual place).
+The sheets need headless Chrome (set `CHROME=` if it's not in the usual place).
 Export needs `rsvg-convert` and `magick`, the same tools as
 `scripts/generate-app-icons.sh`.
 
@@ -78,13 +85,16 @@ gitignored staging:
 
 ## Shortlist
 
-The full and adaptive-foreground SVGs for each seed are in `top/`.
+`top/` holds the full, adaptive-foreground and with-contours SVGs for each seed.
 
 | Seed | Why |
 |---|---|
-| **8** | The most balanced: a centred, symmetric summit with a broad cap, a compass in clear sky to its right, and a trail that climbs straight to the snow. It reads as a mountain even at 29px. |
-| **2** | The strongest silhouette: a tall summit set against two clearly lower snowy shoulders, and the compass tucked high on the open side. It looks best at 180 and 1024. |
-| **4** | The cleanest option, with no compass: just the peaks, snow and trail. At 29px it holds up best of the three, and it fits if the compass feels like too much. |
+| **7** | The closest to the live icon: a big summit on the left with two clean, deep slits stepping down to the right. It keeps its three-peak silhouette at 29px. |
+| **1** | The same family with a broader summit cap and a gentler second slit. It is the calmest and most even of the set. |
+| **5** | The mirrored option: the summit sits on the right and the trail sweeps up from the left. Pick it if the icon should face the other way. |
 
-Not done yet: an Android 13 themed-icon (`monochrome`) layer. Adding one means
-choosing a single-colour treatment of the snow and trail.
+**Contours: recommend leaving them off.** They vanish below about 60px. At 180
+and 1024 they compete with the trail and blur the crest's flat, large-plane
+look. The crest itself has none.
+
+Not done yet: an Android 13 themed-icon (`monochrome`) layer.
