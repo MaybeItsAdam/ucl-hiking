@@ -6,9 +6,16 @@
  * the reader loads them through /api/navigator/[issue] — and that route only ever
  * fetches a `pdfUrl` from this list, never a URL it was handed.
  *
- * Adding an issue: share the PDF on Drive as "anyone with the link", put its file
- * id into the two URLs below, render page 1 to public/navigator/issue-N.webp
- * (about 640px wide) and add an entry. Order doesn't matter; the library sorts.
+ * Adding an issue: share the PDF on Drive as "anyone with the link", give its
+ * file id and size in bytes to `drive()`, render page 1 to
+ * public/navigator/issue-N.webp (640px wide) and add an entry. Order doesn't
+ * matter; the library sorts.
+ *
+ * A print-resolution PDF (hundreds of MB) is too heavy to read on a phone. Make
+ * a web-weight copy (Ghostscript /ebook, images at 150 dpi, linearised with
+ * qpdf), share it on Drive the same way and pass it as `drive()`'s second
+ * argument: the reader and the download switch to it, and "open the original"
+ * keeps pointing at the full file.
  */
 
 export type NavigatorIssue = {
@@ -20,24 +27,39 @@ export type NavigatorIssue = {
   date: string;
   /** Page count, when known, so the library can show it without opening the PDF. */
   pages?: number;
-  /** A direct download of the PDF. Fetched server-side only, by the proxy route. */
+  /**
+   * A direct download of the PDF the app reads. The reader only ever gets it
+   * through the proxy route; the native app also hands it to the system browser
+   * to download, as that browser has no session to get past the proxy with.
+   */
   pdfUrl: string;
+  /** The size of `pdfUrl` in bytes, for "Download · 50 MB". */
+  bytes?: number;
   /** Where the original lives, for "open original". */
   sourceUrl: string;
   /** Page 1, rendered, under public/. */
   cover?: string;
+  /** The cover image's size, when it isn't the 640 × 828 of a US Letter page. */
+  coverSize?: { width: number; height: number };
 };
 
 /** Hosts the proxy may fetch from. A belt to go with the braces of a fixed list. */
 export const NAVIGATOR_PDF_HOSTS: ReadonlySet<string> = new Set(["drive.usercontent.google.com"]);
 
-const drive = (id: string) => ({
-  pdfUrl: `https://drive.usercontent.google.com/download?id=${id}&export=download&confirm=t`,
-  sourceUrl: `https://drive.google.com/file/d/${id}/view`,
-});
+type DriveFile = { id: string; bytes: number };
 
-// The two issues the old site linked to as /e/navigator/1 and /e/navigator/2
-// (see src/lib/redirects.ts). Titles and dates are from the covers.
+/** An issue on Drive: the original, plus the lighter copy to read and download instead, if it has one. */
+const drive = (original: DriveFile, webCopy: DriveFile | null = null) => {
+  const read = webCopy ?? original;
+  return {
+    pdfUrl: `https://drive.usercontent.google.com/download?id=${read.id}&export=download&confirm=t`,
+    bytes: read.bytes,
+    sourceUrl: `https://drive.google.com/file/d/${original.id}/view`,
+  };
+};
+
+// Issues 1 and 2 are the ones the old site linked to as /e/navigator/1 and
+// /e/navigator/2 (see src/lib/redirects.ts). Titles and dates are from the covers.
 export const NAVIGATOR_ISSUES: readonly NavigatorIssue[] = [
   {
     issue: 1,
@@ -45,7 +67,7 @@ export const NAVIGATOR_ISSUES: readonly NavigatorIssue[] = [
     date: "2025-02",
     pages: 72,
     cover: "/navigator/issue-1.webp",
-    ...drive("1uW8CImkdw_h0-RW_aUxKeByXKPQu1X02"),
+    ...drive({ id: "1uW8CImkdw_h0-RW_aUxKeByXKPQu1X02", bytes: 15_999_651 }),
   },
   {
     issue: 2,
@@ -53,9 +75,43 @@ export const NAVIGATOR_ISSUES: readonly NavigatorIssue[] = [
     date: "2025-12",
     pages: 96,
     cover: "/navigator/issue-2.webp",
-    ...drive("1TDlQ2PB-vZKL5EWHPxxCX4R7VWszUiJz"),
+    ...drive({ id: "1TDlQ2PB-vZKL5EWHPxxCX4R7VWszUiJz", bytes: 67_584_909 }),
+  },
+  {
+    // The "Mini Navigator in Winter": "Edition Three: Let It Snow".
+    issue: 3,
+    title: "Let It Snow",
+    date: "2026-02",
+    pages: 24,
+    cover: "/navigator/issue-3.webp",
+    ...drive({ id: "1JMf5OSrkhFvNGTtESUHzZu_XSUfc4yK_", bytes: 50_230_514 }),
+  },
+  {
+    issue: 4,
+    title: "Discovering Horizons",
+    date: "2026-05",
+    pages: 84,
+    cover: "/navigator/issue-4.webp",
+    // A4 rather than US Letter.
+    coverSize: { width: 640, height: 906 },
+    // Magazine4_HD_FINAL.pdf, the 431 MB print file. Until its web copy is on
+    // Drive the app reads this, and the library warns that it's a big download.
+    // Then: drive({ id: "12inNw…", bytes: 430_692_288 }, { id: "<web copy's id>", bytes: <its size> }).
+    ...drive({ id: "12inNwa1d5IIovlZHRIVxGS5aSFNR7HwZ", bytes: 430_692_288 }),
   },
 ];
+
+/** Over this, the library says a download is large and best left for Wi-Fi. */
+export const LARGE_DOWNLOAD_BYTES = 150_000_000;
+
+/** "16 MB", "431 MB", "1.2 GB": decimal units, the way Drive and phones count. */
+export function formatBytes(bytes: number): string {
+  const trim = (n: number) => n.toFixed(1).replace(/\.0$/, "");
+  if (bytes >= 1e9) return `${trim(bytes / 1e9)} GB`;
+  if (bytes >= 1e7) return `${Math.round(bytes / 1e6)} MB`;
+  if (bytes >= 1e6) return `${trim(bytes / 1e6)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1e3))} KB`;
+}
 
 /** Newest first: by date, then by issue number for two in the same month. */
 export function navigatorIssues(list: readonly NavigatorIssue[] = NAVIGATOR_ISSUES): NavigatorIssue[] {

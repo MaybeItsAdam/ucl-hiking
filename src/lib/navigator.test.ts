@@ -3,6 +3,7 @@ import {
   NAVIGATOR_ISSUES,
   NAVIGATOR_PDF_HOSTS,
   findNavigatorIssue,
+  formatBytes,
   issueDateLabel,
   issueLabel,
   navigatorIssues,
@@ -30,6 +31,12 @@ describe("the issue list", () => {
   it("has unique issue numbers", () => {
     expect(new Set(NAVIGATOR_ISSUES.map((i) => i.issue)).size).toBe(NAVIGATOR_ISSUES.length);
   });
+  it("knows every issue's size and page count, for the library", () => {
+    for (const entry of NAVIGATOR_ISSUES) {
+      expect(entry.bytes).toBeGreaterThan(0);
+      expect(entry.pages).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe("findNavigatorIssue", () => {
@@ -45,6 +52,14 @@ describe("labels", () => {
   it("names the month", () => expect(issueDateLabel("2025-12")).toBe("December 2025"));
   it("leaves a bad date alone", () => expect(issueDateLabel("soon")).toBe("soon"));
   it("pads the issue number", () => expect(issueLabel(2)).toBe("Issue 02"));
+  it("sizes a download the way a phone would", () => {
+    expect(formatBytes(50_230_514)).toBe("50 MB");
+    expect(formatBytes(430_692_288)).toBe("431 MB");
+    expect(formatBytes(4_250_000)).toBe("4.3 MB");
+    expect(formatBytes(1_000_000)).toBe("1 MB");
+    expect(formatBytes(1_230_000_000)).toBe("1.2 GB");
+    expect(formatBytes(900)).toBe("1 KB");
+  });
 });
 
 describe("readerViews", () => {
