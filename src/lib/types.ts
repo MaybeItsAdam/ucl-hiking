@@ -24,6 +24,8 @@ export interface SUEvent {
   status: "upcoming" | "sold_out" | "cancelled" | "completed" | "draft";
   capacity: number;
   tickets_sold: number;
+  /** When the counts were last read from the SU; null until a sync since the scraper's retirement. */
+  tickets_synced_at?: string | null;
   price_pence: number;
   source_reference: string | null;
   synced_at: string;

@@ -2123,6 +2123,7 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 .event-stats dt, .walkmap-stats dt { font: 800 10.5px var(--font-body); letter-spacing: .13em; text-transform: uppercase; color: var(--muted); }
 .event-stats dd, .walkmap-stats dd { margin: 5px 0 0; font: 800 20px/1.2 var(--font-display); font-variant-numeric: tabular-nums; }
 .event-stats dd .event-chip { font-size: 13px; }
+.event-stats dd.event-stat-note { margin-top: 3px; font: 600 12px/1.3 var(--font-body); color: var(--muted); }
 
 .event-page-lead { margin: 20px 0 0; font-size: 16px; line-height: 1.65; overflow-wrap: anywhere; }
 .event-section { margin-top: 24px; }

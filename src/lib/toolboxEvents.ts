@@ -26,8 +26,11 @@ export interface ToolboxEventData {
   /** False when only a date was found; null on rows older than the distinction. */
   timeKnown?: boolean | null;
   status?: string;
-  capacity?: number;
+  /** The SU listing's stock; null when Toolbox couldn't read it. */
+  capacity?: number | null;
   ticketsSold?: number;
+  /** When Toolbox last read the SU's ticket sales for it; absent on an unlinked event. */
+  ticketsSyncedAt?: string | null;
   pricePence?: number;
 }
 
@@ -106,6 +109,9 @@ export function toolboxEventRow(data: ToolboxEventData, syncedAt: string): Toolb
   if (STATUSES.includes(String(data.status))) row.status = String(data.status);
   if (typeof data.capacity === "number") row.capacity = Math.max(0, data.capacity);
   if (typeof data.ticketsSold === "number") row.tickets_sold = Math.max(0, data.ticketsSold);
+  if (typeof data.ticketsSyncedAt === "string" && !Number.isNaN(Date.parse(data.ticketsSyncedAt))) {
+    row.tickets_synced_at = new Date(data.ticketsSyncedAt).toISOString();
+  }
   if (typeof data.pricePence === "number") row.price_pence = Math.max(0, data.pricePence);
 
   // Only a Toolbox-shaped payload (it has `kind`) owns these, and it always sends
