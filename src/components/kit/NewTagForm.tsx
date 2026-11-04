@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { assetCodePrefix, nextAssetCode, normalizeAssetCode, type ItemSummary } from "@/lib/equipmentItems";
+import { assetCodePrefix, equipmentTypeLabel, nextAssetCode, normalizeAssetCode, type ItemSummary } from "@/lib/equipmentItems";
 import { feedback } from "@/lib/nfc";
 import { useKit } from "./KitLender";
 
@@ -33,7 +33,9 @@ export function NewTagForm({
   const [created, setCreated] = useState<ItemSummary | null | undefined>(undefined);
 
   if (!kit) return null;
-  const types = [...kit.equipment].sort((a, b) => a.name.localeCompare(b.name));
+  const types = kit.equipment
+    .map((t) => ({ ...t, label: equipmentTypeLabel(t, kit.equipment) }))
+    .sort((a, b) => a.label.localeCompare(b.label));
   const type = types.find((t) => t.id === equipmentId);
   const taggedOfType = kit.items.filter((i) => i.equipment_id === equipmentId).length;
   // What the server will most likely pick; it has the final say.
@@ -57,7 +59,7 @@ export function NewTagForm({
         label: label.trim() || undefined,
         location: location.trim() || undefined,
       },
-      `Tag new ${type?.name ?? "item"}${code ? ` as ${code.toUpperCase()}` : ""}`,
+      `Tag new ${type?.label ?? "item"}${code ? ` as ${code.toUpperCase()}` : ""}`,
     );
     setBusy(false);
     if (outcome.kind === "error") {
@@ -110,7 +112,7 @@ export function NewTagForm({
           </option>
           {types.map((t) => (
             <option key={t.id} value={t.id}>
-              {t.name}
+              {t.label}
             </option>
           ))}
         </select>

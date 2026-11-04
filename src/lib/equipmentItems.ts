@@ -835,3 +835,19 @@ export async function applyBatchOp(
   }
   return toBatchResult(clientId, await applyItemAction(supabase, itemId, parsed.input, opts));
 }
+
+/**
+ * A kit type as a lender picks it. Types can share a name (the same rucksack
+ * stocked in two colours), so a shared name gets its description's colour, or
+ * the whole description, to tell the stock lines apart.
+ */
+export function equipmentTypeLabel(
+  type: { id: string; name: string; description: string | null },
+  all: { id: string; name: string }[],
+): string {
+  const shared = all.some((t) => t.id !== type.id && t.name.trim().toLowerCase() === type.name.trim().toLowerCase());
+  const description = type.description?.trim();
+  if (!shared || !description) return type.name;
+  const colour = /colou?r:\s*([^|]+)/i.exec(description)?.[1]?.trim();
+  return `${type.name} (${colour || description})`;
+}
