@@ -34,7 +34,9 @@ import { EventPlanEditor } from "@/components/EventPlanEditor";
 import { KitChecklist } from "@/components/KitChecklist";
 import { OpenExternal } from "@/components/OpenExternal";
 import { RouteView } from "@/components/RouteView";
-import { profileOf } from "@/lib/access";
+import { can, profileOf } from "@/lib/access";
+import { ago } from "@/lib/ago";
+import { getAttendees, getTicketListCheck } from "@/lib/attendees";
 import { bookingFor, getSheetSuLink } from "@/lib/booking";
 import { DIFFICULTY_LABELS, eventDetails, formatAscent, formatKm, isHeading, KIND_LABELS } from "@/lib/eventDetails";
 import { countdown, eventWhen, longDate } from "@/lib/eventList";
@@ -46,6 +48,7 @@ import { loadPlaces, type LatLng } from "@/lib/places";
 import { canSeeLibraryRoute } from "@/lib/routeCatalogue";
 import { getLibraryRouteFlags } from "@/lib/routeLibrary";
 import { getCurrentMember } from "@/lib/session";
+import { ticketCount } from "@/lib/ticketCount";
 import type { SUEvent } from "@/lib/types";
 import { canSeeEvent, viewerOf } from "@/lib/walkVisibility";
 import { getWalkForecast, inForecastWindow, walkHours } from "@/lib/weather";
@@ -229,18 +232,28 @@ function ForecastPlaceholder() {
   );
 }
 
+/** The SU ticketholder register's size and age, when Toolbox has sent one. */
+async function ticketRegister(eventSuuId: string): Promise<{ count: number; syncedAt: string } | null> {
+  const [check, attendees] = await Promise.all([getTicketListCheck(eventSuuId), getAttendees(eventSuuId)]);
+  if (check?.status !== "ok" || !check.synced_at) return null;
+  return { count: attendees.filter((a) => a.source === "toolbox" && !a.removed).length, syncedAt: check.synced_at };
+}
+
 export default async function EventPage({ params, searchParams }: Params & { searchParams?: Promise<{ from?: string; walk?: string }> }) {
   const [member, event] = await Promise.all([getCurrentMember(), params.then(({ id }) => getEvent(id))]);
   if (!member) redirect("/auth/signin");
   if (!event || !(await canSeeEvent(event, viewerOf(member)))) notFound();
 
   const details = eventDetails(event);
+  // How many are coming is for the people running walks, not the whole club.
+  const leads = can(profileOf(member), "lead_walks");
   const [places, plan, route, sheetSuLink] = await Promise.all([
     loadPlaces([details.start, details.finish].filter((p): p is string => Boolean(p))),
     getEventPlan(event.suu_event_id),
     getEventRoute(event.suu_event_id),
     getSheetSuLink(event.suu_event_id),
   ]);
+  const tickets = leads && event.suu_event_id ? ticketCount(event, await ticketRegister(event.suu_event_id)) : null;
   const [hike] = mapHikes([event], places);
   const pinned = hike && (hike.start || hike.finish) ? hike : null;
   const mapRoute = route ? mapRouteOf(route) : null;
@@ -293,6 +306,13 @@ export default async function EventPage({ params, searchParams }: Params & { sea
     ascentM !== null ? { label: "Ascent", value: formatAscent(ascentM) } : null,
     details.difficulty ? { label: "Grade", value: DIFFICULTY_LABELS[details.difficulty], difficulty: details.difficulty } : null,
     details.trainFare ? { label: "Train", value: details.trainFare } : null,
+    tickets
+      ? {
+          label: "Tickets",
+          value: tickets.released !== null ? `${tickets.bought} / ${tickets.released}` : String(tickets.bought),
+          note: `${tickets.released !== null ? "bought / released · " : "bought · "}${ago(tickets.asOf)}`,
+        }
+      : null,
   ].filter((s) => s !== null);
 
   const day = [
@@ -374,6 +394,7 @@ export default async function EventPage({ params, searchParams }: Params & { sea
             <div key={stat.label}>
               <dt>{stat.label}</dt>
               <dd>{"difficulty" in stat && stat.difficulty ? <DifficultyChip difficulty={stat.difficulty} /> : stat.value}</dd>
+              {"note" in stat && stat.note ? <dd className="event-stat-note">{stat.note}</dd> : null}
             </div>
           ))}
         </dl>
