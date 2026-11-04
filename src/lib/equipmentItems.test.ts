@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   assetCodePrefix,
+  equipmentTypeLabel,
   clampAt,
   cleanClientId,
   describeDbError,
@@ -312,5 +313,26 @@ describe("toBatchResult", () => {
       uid: "04:A1:2B:3C",
     });
     expect(toBatchResult("c2", { ok: false, status: 409, error: "busy" })).toEqual({ clientId: "c2", ok: false, error: "busy" });
+  });
+});
+
+describe("equipmentTypeLabel", () => {
+  const black = { id: "a", name: "35L Day Rucksack", description: "Colour: Black | Brand: Skysper" };
+  const cyan = { id: "b", name: "35L Day Rucksack", description: "Colour: Cyan | Brand: Skysper" };
+  const tent = { id: "c", name: "Tent", description: "Colour: Green" };
+  const all = [black, cyan, tent];
+
+  it("keeps a unique name as it is", () => {
+    expect(equipmentTypeLabel(tent, all)).toBe("Tent");
+  });
+
+  it("adds the colour when two types share a name", () => {
+    expect(equipmentTypeLabel(black, all)).toBe("35L Day Rucksack (Black)");
+    expect(equipmentTypeLabel(cyan, all)).toBe("35L Day Rucksack (Cyan)");
+  });
+
+  it("falls back to the whole description without a colour", () => {
+    const plain = { id: "d", name: "Tent", description: "2-person" };
+    expect(equipmentTypeLabel(plain, [...all, plain])).toBe("Tent (2-person)");
   });
 });
