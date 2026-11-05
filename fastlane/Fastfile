@@ -291,7 +291,8 @@ platform :android do
   desc "Upload Play Store listing metadata, graphics and screenshots (no build needed)"
   lane :store_assets do
     sh("python3 ../scripts/store-assets/generate.py")
-    json_key = ENV["PLAY_JSON_KEY_FILE"] || File.expand_path("sa-key-play.json", __dir__)
+    # Lanes run from fastlane/, so resolve a relative path (as in .env.secret and CI) from the repo root.
+    json_key = File.expand_path(ENV["PLAY_JSON_KEY_FILE"] || "fastlane/sa-key-play.json", File.expand_path("..", __dir__))
     UI.user_error!("Play Store key not found at #{json_key}") unless File.exist?(json_key)
 
     upload_to_play_store(
