@@ -35,12 +35,28 @@ render_round() {
     -compose CopyOpacity -composite "$output"
 }
 
+# Browser-tab favicons get rounded corners (22% radius, roughly the iOS
+# squircle), matching the sibling UCL apps. Only the tab icons: apple-icon and
+# the PWA/store icons stay square because iOS and Android mask those
+# themselves, and a pre-rounded icon under their mask shows dark corners.
+render_rounded() {
+  local source size output radius
+  source=$1
+  size=$2
+  output=$3
+  radius=$((size * 22 / 100))
+  rsvg-convert -w "$size" -h "$size" "$source" -o "$work/rounded.png"
+  magick "$work/rounded.png" -alpha on \
+    \( -size "${size}x${size}" xc:black -fill white -draw "roundrectangle 0,0 $((size - 1)),$((size - 1)) $radius,$radius" -alpha off \) \
+    -compose CopyOpacity -composite "PNG32:$output"
+}
+
 # Store, installed iOS app, Next metadata and PWA icons.
 render "$master" 1024 "$root/assets/store/apple-app-icon.png"
 render "$master" 512 "$root/assets/store/google-play-icon.png"
 magick "$root/assets/store/google-play-icon.png" -alpha set "PNG32:$root/assets/store/google-play-icon.png"
 render "$master" 1024 "$root/ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png"
-render "$master" 512 "$root/src/app/icon.png"
+render_rounded "$master" 512 "$root/src/app/icon.png"
 render "$master" 180 "$root/src/app/apple-icon.png"
 render "$master" 512 "$root/public/icon-512.png"
 render "$master" 192 "$root/public/icon-192.png"
@@ -53,7 +69,8 @@ render "$master" 180 "$root/branding/app_icons/web/apple-touch-icon.png"
 render "$master" 1024 "$root/branding/app_icons/flutter_react_native/app_icon.png"
 render "$master" 512 "$root/branding/app_icons/android/playstore-icon.png"
 magick "$root/branding/app_icons/android/playstore-icon.png" -alpha set "PNG32:$root/branding/app_icons/android/playstore-icon.png"
-magick "$root/branding/app_icons/web/icon-192.png" -define icon:auto-resize=48,32,16 "$root/branding/app_icons/web/favicon.ico"
+render_rounded "$master" 192 "$work/favicon-192.png"
+magick "$work/favicon-192.png" -define icon:auto-resize=48,32,16 "$root/branding/app_icons/web/favicon.ico"
 cp "$root/branding/app_icons/web/favicon.ico" "$root/src/app/favicon.ico"
 
 # iOS source set retained for projects that use the complete legacy catalog.
