@@ -134,9 +134,18 @@ function nativePlatform(): "ios" | "android" | null {
   return null;
 }
 
-async function capgo() {
-  return (await import("@capgo/capacitor-nfc")).CapacitorNfc;
+/**
+ * The capgo plugin, loaded on first use. Never `return` a Capacitor plugin
+ * from an async function or `await` one: the proxy answers every property,
+ * `then` included, so the promise machinery treats it as a thenable and calls
+ * the native "then" method, which doesn't exist, and the await never settles.
+ * That silently stopped Android from ever entering reader mode. Hence the box.
+ */
+async function capgo(): Promise<{ nfc: CapgoNfc }> {
+  const { CapacitorNfc } = await import("@capgo/capacitor-nfc");
+  return { nfc: CapacitorNfc };
 }
+type CapgoNfc = (typeof import("@capgo/capacitor-nfc"))["CapacitorNfc"];
 
 // Android reader mode flags: NFC-A only (NTAG213 is ISO 14443-A), don't wait
 // for an NDEF check (we only want the UID), and no system beep (we buzz).
@@ -177,7 +186,7 @@ export async function nfcAvailability(): Promise<NfcAvailability> {
       return { support: available ? "native" : "none" };
     }
     if (native === "android") {
-      const { status } = await (await capgo()).getStatus();
+      const { status } = await (await capgo()).nfc.getStatus();
       if (status === "NFC_OK") return { support: "native" };
       return { support: "none", disabled: status === "NFC_DISABLED" };
     }
@@ -197,7 +206,7 @@ export async function nfcSupport(): Promise<NfcSupport> {
 export async function openNfcSettings(): Promise<void> {
   if (nativePlatform() !== "android") return;
   try {
-    await (await capgo()).showSettings();
+    await (await capgo()).nfc.showSettings();
   } catch {
     // Nothing useful to say.
   }
@@ -280,7 +289,7 @@ async function startIos(opts: StartScanningOptions, accept: Accept, continuous: 
 }
 
 async function startAndroid(opts: StartScanningOptions, accept: Accept, continuous: boolean): Promise<ScanSession> {
-  const plugin = await capgo();
+  const { nfc: plugin } = await capgo();
   let stopped = false;
   const handles: PluginListenerHandle[] = [];
 
