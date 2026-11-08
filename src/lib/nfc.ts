@@ -288,16 +288,47 @@ async function startIos(opts: StartScanningOptions, accept: Accept, continuous: 
   };
 }
 
+/**
+ * How long reader mode stays on after a one-shot read. Switching it off the
+ * moment the tag is read hands the tag, still against the phone, straight
+ * back to Android, which opens its own "New tag collected" screen over the
+ * app. Reader mode keeps the tag to us while it stays in range, so holding on
+ * until the phone has been moved away stops that.
+ */
+export const ANDROID_RELEASE_DELAY_MS = 4000;
+
+/** Bumped by every Android session, so a late release can't end a newer one. */
+let androidGeneration = 0;
+
 async function startAndroid(opts: StartScanningOptions, accept: Accept, continuous: boolean): Promise<ScanSession> {
   const { nfc: plugin } = await capgo();
+  const generation = ++androidGeneration;
   let stopped = false;
+  let releaseTimer: ReturnType<typeof setTimeout> | null = null;
   const handles: PluginListenerHandle[] = [];
 
+  const removeListeners = () => Promise.all(handles.splice(0).map((h) => h.remove().catch(() => {})));
+
   const stop = async () => {
-    if (stopped) return;
+    if (releaseTimer) clearTimeout(releaseTimer);
+    releaseTimer = null;
+    if (stopped && generation !== androidGeneration) return;
+    const wasStopped = stopped;
     stopped = true;
-    await plugin.stopScanning().catch(() => {});
-    await Promise.all(handles.splice(0).map((h) => h.remove().catch(() => {})));
+    // A newer session owns reader mode now; leave it on.
+    if (generation === androidGeneration) await plugin.stopScanning().catch(() => {});
+    if (!wasStopped) await removeListeners();
+  };
+
+  /** A one-shot read: report it now, let go of reader mode a little later. */
+  const finishOneShot = () => {
+    stopped = true;
+    void removeListeners();
+    releaseTimer = setTimeout(() => {
+      releaseTimer = null;
+      if (generation === androidGeneration) void plugin.stopScanning().catch(() => {});
+    }, ANDROID_RELEASE_DELAY_MS);
+    opts.onEnd?.("done");
   };
 
   handles.push(
@@ -310,7 +341,7 @@ async function startAndroid(opts: StartScanningOptions, accept: Accept, continuo
       }
       if (!accept(uid)) return;
       opts.onTag(uid);
-      if (!continuous) void stop().then(() => opts.onEnd?.("done"));
+      if (!continuous) finishOneShot();
     }),
     await plugin.addListener("nfcStateChange", (e) => {
       if (stopped || e.enabled) return;
