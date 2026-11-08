@@ -7,7 +7,7 @@ import { feedback } from "@/lib/nfc";
 import { useKit, type ItemView, type Outcome } from "./KitLender";
 import { borrowerOf, CONDITION_LABELS, formatDays, formatWhen } from "./format";
 
-type Panel = "check_in" | "handover" | "flag" | null;
+type Panel = "check_in" | "handover" | "flag" | "delete" | null;
 type Note = { type: "ok" | "queued" | "error"; text: string };
 
 const ACTION_WORDS: Record<string, string> = { check_in: "Check in", check_out: "Hand over", flag: "Flag", audit: "Audit" };
@@ -90,6 +90,20 @@ export function ItemCard({ view }: { view: ItemView }) {
     }
   }
 
+  async function remove() {
+    if (!kit) return;
+    setBusy(true);
+    const error = await kit.removeItem(item.id);
+    setBusy(false);
+    if (error) {
+      feedback("error");
+      setNote({ type: "error", text: error });
+      return;
+    }
+    feedback("ok");
+    kit.close();
+  }
+
   const canCheckIn = item.status === "on_loan" || item.status === "missing";
   const canHandOver = item.status === "available" || item.status === "missing";
 
@@ -166,9 +180,36 @@ export function ItemCard({ view }: { view: ItemView }) {
         >
           Mark audited
         </button>
+        {item.status !== "on_loan" && (
+          <button
+            type="button"
+            className={`kit-btn${panel === "delete" ? " is-open" : " danger-text"}`}
+            disabled={busy}
+            onClick={() => open("delete")}
+          >
+            Delete item
+          </button>
+        )}
       </div>
 
-      {panel && (
+      {panel === "delete" && (
+        <div className="kit-form kit-card-panel">
+          <p className="kit-card-empty">
+            Delete {item.asset_code} and its history? Its tag is freed, so scanning it again starts a new item. Use this
+            for a test tag, a sticker on the wrong thing, or kit that&apos;s gone for good. It can&apos;t be undone.
+          </p>
+          <div className="kit-card-submit">
+            <button type="button" className="kit-btn" onClick={() => setPanel(null)}>
+              Cancel
+            </button>
+            <button type="button" className="kit-btn danger" disabled={busy} onClick={() => void remove()}>
+              {busy ? "Deleting…" : `Delete ${item.asset_code}`}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {panel && panel !== "delete" && (
         <form className="kit-form kit-card-panel" onSubmit={submit}>
           {panel === "check_in" && (
             <>
