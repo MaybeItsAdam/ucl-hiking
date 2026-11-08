@@ -3075,6 +3075,23 @@ button.kit-item-main { cursor: pointer; }
 .kit-tagged { margin-top: 24px; }
 .kit-tagged-empty { margin: 0; font-size: 13px; color: var(--muted); }
 
+/* Problem reports from borrowers: the same status-tag hues, by how bad it is. */
+.kit-tag.is-minor { border-color: var(--warn-line); background: var(--warn-bg); color: var(--warn-fg); }
+.kit-tag.is-unusable { border-color: var(--bad-line); background: var(--bad-bg); color: var(--bad-fg); }
+.kit-tag.is-resolved { border-color: var(--ok-line); background: var(--ok-bg); color: var(--ok-fg); }
+.kit-reports { margin-bottom: 20px; }
+.kit-reports .event-section-title { display: flex; align-items: center; gap: 8px; }
+.kit-report-body { min-width: 0; }
+.kit-report-text { margin: 6px 0 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; white-space: pre-line; }
+.kit-report-mine { margin: 6px 0 0; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.kit-report-reply { display: block; margin-top: 4px; padding-left: 10px; border-left: 2px solid var(--ok-line); color: var(--muted); }
+.kit-card-reports { margin: 0 0 14px; }
+.kit-report-list { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 8px; }
+.kit-report { padding: 10px 12px; }
+.kit-report + .kit-report { border-top: 1px solid var(--line); }
+.kit-report-actions { display: flex; justify-content: flex-end; margin-top: 8px; }
+.kit-choice { margin: 0; }
+
 @media (pointer: coarse) {
   :is(.kit-scan-bar, .kit-card, .kit-mode, .kit-form, .kit-scan-prompt, .kit-nfc-notice) .kit-btn, .kit-btn.kit-handover { min-height: 44px; }
   .kit-queue-dismiss { width: 44px; height: 44px; }

@@ -26,6 +26,7 @@ import {
   type SettledFailure,
 } from "@/lib/kitScan";
 import { nfcAvailability, startScanning, type NfcAvailability, type ScanSession } from "@/lib/nfc";
+import type { ConditionReport } from "@/lib/kitReports";
 import type { Equipment, EquipmentRequest } from "@/lib/types";
 import { Sheet } from "../Sheet";
 import { AuditMode } from "./AuditMode";
@@ -72,6 +73,12 @@ interface KitContext {
   itemsLoaded: boolean;
   equipment: Equipment[];
   requests: LenderRequest[];
+  /** Open problem reports from borrowers (empty until the migration has run). */
+  reports: ConditionReport[];
+  /** Reload the reports after one is resolved. */
+  reportsChanged: () => void;
+  /** Put an item the server just sent back into the list. */
+  itemChanged: (item: ItemSummary | undefined) => void;
   nfc: NfcAvailability | null;
   /** Inside the Android or iOS app (for "update the app" wording). */
   native: boolean;
@@ -172,32 +179,49 @@ export function KitLenderProvider({
   enabled,
   equipment,
   requests,
+  reports = NO_REPORTS,
+  onReportsChanged = noop,
   onChanged,
   children,
 }: {
   enabled: boolean;
   equipment: Equipment[];
   requests: LenderRequest[];
+  reports?: ConditionReport[];
+  onReportsChanged?: () => void;
   /** Reload the page's kit and requests (after a handover or check-in). */
   onChanged: () => void;
   children: ReactNode;
 }) {
   if (!enabled) return <>{children}</>;
   return (
-    <KitLenderInner equipment={equipment} requests={requests} onChanged={onChanged}>
+    <KitLenderInner
+      equipment={equipment}
+      requests={requests}
+      reports={reports}
+      onReportsChanged={onReportsChanged}
+      onChanged={onChanged}
+    >
       {children}
     </KitLenderInner>
   );
 }
 
+const NO_REPORTS: ConditionReport[] = [];
+function noop() {}
+
 function KitLenderInner({
   equipment,
   requests,
+  reports,
+  onReportsChanged,
   onChanged,
   children,
 }: {
   equipment: Equipment[];
   requests: LenderRequest[];
+  reports: ConditionReport[];
+  onReportsChanged: () => void;
   onChanged: () => void;
   children: ReactNode;
 }) {
@@ -580,6 +604,9 @@ function KitLenderInner({
       itemsLoaded,
       equipment,
       requests,
+      reports,
+      reportsChanged: onReportsChanged,
+      itemChanged: mergeItem,
       nfc,
       native,
       scan,
@@ -608,6 +635,9 @@ function KitLenderInner({
       itemsLoaded,
       equipment,
       requests,
+      reports,
+      onReportsChanged,
+      mergeItem,
       nfc,
       native,
       scan,

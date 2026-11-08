@@ -204,6 +204,7 @@ FCM HTTP v1. What sends one:
 | A walk someone is on is cancelled, moved or relocated | Toolbox webhook and daily reconcile (`src/lib/eventChanges.ts`) |
 | Day-before reminder: meet, kit, forecast | `/api/cron/daily`, 17:00 UTC |
 | Kit approved or declined; loan overdue (then weekly) | equipment request PATCH; `/api/cron/daily` |
+| A borrower reports a kit problem (to principals) | `POST /api/equipment/reports` |
 | Made leader or backmarker | walk plan PUT/PATCH |
 | Committee broadcast | Club tab |
 

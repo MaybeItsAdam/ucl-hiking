@@ -21,6 +21,16 @@ import { readCache, writeCache } from "@/lib/client-cache";
 import { useAppRefresh } from "@/lib/refresh";
 import { KitLenderProvider } from "./kit/KitLender";
 import { HandoverButton, KitScanBar, TaggedItemsList } from "./kit/KitControls";
+import { ReportSummary, ResolveReportForm } from "./kit/ConditionReports";
+import {
+  MAX_DESCRIPTION,
+  REPORT_SEVERITIES,
+  SEVERITY_LABELS,
+  canReportOn,
+  type ConditionReport,
+  type LoanItemOption,
+  type ReportSeverity,
+} from "@/lib/kitReports";
 
 type Tab = "catalog" | "requests" | "active_loans" | "my_requests";
 type StockFilter = "all" | "in_stock" | "out_of_stock" | "needs_repair";
@@ -123,6 +133,15 @@ interface BorrowDraft {
   eventSuuId: string;
 }
 
+interface ReportDraft {
+  request: EquipmentRequest;
+  severity: ReportSeverity | "";
+  description: string;
+  itemId: string;
+  /** Tagged items that went out on the loan; null while loading. */
+  items: LoanItemOption[] | null;
+}
+
 /** An upcoming walk kit can be booked against. */
 interface WalkOption {
   suuId: string;
@@ -178,6 +197,9 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
   const [declining, setDeclining] = useState<EquipmentRequest | null>(null);
   const [declineNotes, setDeclineNotes] = useState("");
   const [confirmReturn, setConfirmReturn] = useState<EquipmentRequest | null>(null);
+  const [reports, setReports] = useState<ConditionReport[]>([]);
+  const [reporting, setReporting] = useState<ReportDraft | null>(null);
+  const [resolvingReport, setResolvingReport] = useState<ConditionReport | null>(null);
 
   const [showSheets, setShowSheets] = useState(false);
   const [sheetsUrl, setSheetsUrl] = useState("");
@@ -212,14 +234,31 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
     }
   }, []);
 
+  /**
+   * Problem reports: every open one for a principal, your own for a borrower.
+   * Kept apart from load() so a failure here (or the table not existing yet)
+   * never stops the rest of the page.
+   */
+  const loadReports = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const res = await fetch("/api/equipment/reports", { signal, cache: "no-store" });
+      if (!res.ok) return;
+      const data = (await res.json()) as { reports?: ConditionReport[] };
+      if (!signal?.aborted) setReports(data.reports ?? []);
+    } catch {
+      // Offline or aborted: keep what's shown.
+    }
+  }, []);
+
   useEffect(() => {
     const controller = new AbortController();
-    void Promise.resolve().then(() => load(controller.signal));
+    void Promise.resolve().then(() => Promise.all([load(controller.signal), loadReports(controller.signal)]));
     return () => controller.abort();
-  }, [load]);
+  }, [load, loadReports]);
 
   useAppRefresh(() => {
     void load();
+    void loadReports();
   });
 
   useEffect(() => {
@@ -313,6 +352,38 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
   function checkIn(request: EquipmentRequest) {
     if (request.items?.length) setConfirmReturn(request);
     else void updateStatus(request, "returned");
+  }
+
+  function openReport(request: EquipmentRequest) {
+    setReporting({ request, severity: "", description: "", itemId: "", items: null });
+    fetch(`/api/equipment/requests/${request.id}/items`, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : { items: [] }))
+      .then((body: { items?: LoanItemOption[] }) =>
+        setReporting((draft) => (draft?.request.id === request.id ? { ...draft, items: body.items ?? [] } : draft)),
+      )
+      .catch(() => setReporting((draft) => (draft?.request.id === request.id ? { ...draft, items: [] } : draft)));
+  }
+
+  async function submitReport(event: FormEvent) {
+    event.preventDefault();
+    if (!reporting || !reporting.severity || !reporting.description.trim()) return;
+    setBusy(true);
+    const data = await send(
+      "/api/equipment/reports",
+      "POST",
+      {
+        requestId: reporting.request.id,
+        severity: reporting.severity,
+        description: reporting.description.trim(),
+        itemId: reporting.itemId || undefined,
+      },
+      "Couldn't send the report",
+    );
+    setBusy(false);
+    if (!data) return;
+    setMsg({ type: "success", text: "Reported. A principal will take a look." });
+    setReporting(null);
+    void loadReports();
   }
 
   async function saveItem(event: FormEvent) {
@@ -478,7 +549,7 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
   const tabs: { value: Tab; label: string; count?: number; alert?: boolean }[] = isPrincipal
     ? [
         { value: "catalog", label: "Inventory", count: items.length },
-        { value: "requests", label: "Requests", count: pending.length, alert: pending.length > 0 },
+        { value: "requests", label: "Requests", count: pending.length + reports.length, alert: pending.length + reports.length > 0 },
         { value: "active_loans", label: "On loan", count: onLoan.length },
       ]
     : [
@@ -487,7 +558,14 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
       ];
 
   return (
-    <KitLenderProvider enabled={isPrincipal} equipment={items} requests={requests} onChanged={load}>
+    <KitLenderProvider
+      enabled={isPrincipal}
+      equipment={items}
+      requests={requests}
+      reports={reports}
+      onReportsChanged={loadReports}
+      onChanged={load}
+    >
     <div className="kit-page">
       <KitScanBar />
       <div className="portal-subnav kit-tabs" role="tablist" aria-label="Equipment">
@@ -618,6 +696,25 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
 
       {tab === "requests" && isPrincipal && (
         <section aria-label="Requests">
+          {reports.length > 0 && (
+            <section className="kit-reports" aria-labelledby="kit-reports-title">
+              <p id="kit-reports-title" className="event-section-title">
+                Problems reported <span className="kit-count is-alert">{reports.length}</span>
+              </p>
+              <ul className="kit-list">
+                {reports.map((report) => (
+                  <li key={report.id} className="kit-request">
+                    <ReportSummary report={report} />
+                    <div className="kit-request-actions">
+                      <button type="button" className="kit-btn" onClick={() => setResolvingReport(report)}>
+                        Resolve
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           <div className="roster-filters kit-filters" role="group" aria-label="Filter requests">
             {REQUEST_FILTERS.map(({ value, label }) => (
               <button
@@ -731,9 +828,26 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
                       >
                         Cancel request
                       </button>
+                    ) : canReportOn(request) ? (
+                      <button type="button" className="kit-btn" disabled={busy} onClick={() => openReport(request)}>
+                        Report a problem
+                      </button>
                     ) : null
                   }
-                />
+                >
+                  {reports
+                    .filter((r) => r.request_id === request.id)
+                    .map((r) => (
+                      <p key={r.id} className="kit-report-mine">
+                        <span className={`kit-tag is-${r.status === "open" ? r.severity : "resolved"}`}>
+                          {r.status === "open" ? SEVERITY_LABELS[r.severity] : "Resolved"}
+                        </span>{" "}
+                        {r.item ? `${r.item.asset_code}: ` : ""}
+                        {r.description}
+                        {r.resolution_note ? <span className="kit-report-reply">{r.resolution_note}</span> : null}
+                      </p>
+                    ))}
+                </RequestRow>
               ))}
             </ul>
           )}
@@ -983,6 +1097,86 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
         </Sheet>
       )}
 
+      {reporting && (
+        <Sheet onClose={() => setReporting(null)} labelledBy="report-sheet">
+          <h3 id="report-sheet">Report a problem</h3>
+          <p>
+            With {reporting.request.quantity > 1 ? `${reporting.request.quantity}× ` : ""}
+            {reporting.request.equipment?.name ?? "this kit"}. A principal will see it and sort it out.
+          </p>
+          <form className="kit-form" onSubmit={submitReport}>
+            <Field label="What's wrong?">
+              <textarea
+                rows={3}
+                maxLength={MAX_DESCRIPTION}
+                placeholder="e.g. One pole section is bent and the fly has a small tear"
+                value={reporting.description}
+                onChange={(e) => setReporting({ ...reporting, description: e.target.value })}
+                required
+              />
+            </Field>
+            <div className="kit-field">
+              <span id="report-severity">How bad is it?</span>
+              <div className="roster-filters kit-filters kit-choice" role="radiogroup" aria-labelledby="report-severity">
+                {REPORT_SEVERITIES.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    role="radio"
+                    aria-checked={reporting.severity === s}
+                    className={reporting.severity === s ? "active" : ""}
+                    onClick={() => setReporting({ ...reporting, severity: s })}
+                  >
+                    {SEVERITY_LABELS[s]}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {reporting.items && reporting.items.length > 0 && (
+              <Field label="Which item (optional)">
+                <select value={reporting.itemId} onChange={(e) => setReporting({ ...reporting, itemId: e.target.value })}>
+                  <option value="">Not sure, or all of them</option>
+                  {reporting.items.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.asset_code}
+                      {i.label ? ` · ${i.label}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
+            <div className="modal-actions">
+              <button type="button" className="kit-btn" onClick={() => setReporting(null)}>
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="kit-btn primary"
+                disabled={busy || !reporting.severity || !reporting.description.trim()}
+              >
+                {busy ? "Sending…" : "Send report"}
+              </button>
+            </div>
+          </form>
+        </Sheet>
+      )}
+
+      {resolvingReport && (
+        <Sheet onClose={() => setResolvingReport(null)} labelledBy="resolve-sheet">
+          <h3 id="resolve-sheet">Resolve report</h3>
+          <ReportSummary report={resolvingReport} />
+          <ResolveReportForm
+            report={resolvingReport}
+            onCancel={() => setResolvingReport(null)}
+            onResolved={() => {
+              setResolvingReport(null);
+              setMsg({ type: "success", text: "Report resolved" });
+              void loadReports();
+            }}
+          />
+        </Sheet>
+      )}
+
       {showSheets && (
         <Sheet onClose={() => setShowSheets(false)} labelledBy="sheets-sheet">
           <h3 id="sheets-sheet">Google Sheets</h3>
@@ -1141,11 +1335,14 @@ function RequestRow({
   view,
   today,
   actions,
+  children,
 }: {
   request: EquipmentRequest;
   view: "committee" | "mine";
   today: string;
   actions: ReactNode;
+  /** Extra lines under the request, e.g. problems the borrower reported. */
+  children?: ReactNode;
 }) {
   const item = request.equipment?.name ?? "Equipment item";
   const overdue = request.status === "approved" && today !== "" && request.end_date < today;
@@ -1176,6 +1373,7 @@ function RequestRow({
         </p>
         {request.purpose && <p className="kit-request-purpose">{request.purpose}</p>}
         {request.notes && <p className="kit-request-note">{request.notes}</p>}
+        {children}
         {view === "committee" && email && (
           <a className="kit-request-email" href={`mailto:${email}`}>
             {email}
