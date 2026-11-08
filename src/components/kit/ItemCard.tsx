@@ -5,6 +5,7 @@ import { ITEM_CONDITIONS, itemName, type ItemCondition, type ItemSummary, type T
 import { handoverProgress, plural, requestsWithRoom, STATUS_LABELS } from "@/lib/kitScan";
 import { feedback } from "@/lib/nfc";
 import { useKit, type ItemView, type Outcome } from "./KitLender";
+import { ReportSummary, ResolveReportForm } from "./ConditionReports";
 import { borrowerOf, CONDITION_LABELS, formatDays, formatWhen } from "./format";
 
 type Panel = "check_in" | "handover" | "flag" | "delete" | null;
@@ -28,8 +29,10 @@ export function ItemCard({ view }: { view: ItemView }) {
   const [condition, setCondition] = useState<ItemCondition | "">("");
   const [text, setText] = useState("");
   const [requestId, setRequestId] = useState("");
+  const [resolving, setResolving] = useState<string | null>(null);
 
   if (!kit) return null;
+  const reports = kit.reports.filter((r) => r.item_id === item.id);
   const name = itemName(item);
   const loan: TagLookup["loan"] | ItemSummary["loan"] = view.loan && item.loan?.request_id === view.loan.request_id ? view.loan : item.loan;
   const loanRequest = loan ? kit.requests.find((r) => r.id === loan.request_id) : undefined;
@@ -38,6 +41,7 @@ export function ItemCard({ view }: { view: ItemView }) {
 
   function open(next: Panel) {
     setPanel(panel === next ? null : next);
+    setResolving(null);
     setNote(null);
     setCondition(next === "flag" ? item.condition : "");
     setText("");
@@ -157,6 +161,51 @@ export function ItemCard({ view }: { view: ItemView }) {
           </div>
         )}
       </dl>
+
+      {reports.length > 0 && (
+        <section className="kit-card-reports" aria-labelledby="kit-card-reports-title">
+          <p id="kit-card-reports-title" className="event-section-title">
+            {reports.length === 1 ? "Problem reported" : `${reports.length} problems reported`}
+          </p>
+          <ul className="kit-report-list">
+            {reports.map((report) => (
+              <li key={report.id} className="kit-report">
+                <ReportSummary report={report} showKit={false} />
+                {resolving === report.id ? (
+                  <ResolveReportForm
+                    report={report}
+                    onCancel={() => setResolving(null)}
+                    onResolved={(changed) => {
+                      setResolving(null);
+                      if (changed) {
+                        setItem(changed);
+                        kit.itemChanged(changed);
+                      }
+                      setNote({ type: "ok", text: "Report resolved." });
+                      kit.reportsChanged();
+                    }}
+                  />
+                ) : (
+                  <div className="kit-report-actions">
+                    <button
+                      type="button"
+                      className="kit-btn"
+                      disabled={busy}
+                      onClick={() => {
+                        setResolving(report.id);
+                        setPanel(null);
+                        setNote(null);
+                      }}
+                    >
+                      Resolve
+                    </button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <div className="kit-card-actions" role="group" aria-label="Actions">
         {canCheckIn && (
