@@ -101,6 +101,11 @@ interface KitContext {
     body: { tagUid?: string; equipmentId: string; assetCode?: string; label?: string; location?: string },
     label: string,
   ) => Promise<Outcome>;
+  /**
+   * Delete a tagged item for good, freeing its tag (principals only; online
+   * only, since it can't be undone). Resolves to an error message, or null.
+   */
+  removeItem: (itemId: string) => Promise<string | null>;
   flush: () => Promise<void>;
   dismissFailures: () => void;
 }
@@ -241,6 +246,26 @@ function KitLenderInner({
       storeItems(next);
       return next;
     });
+  }, []);
+
+  const removeItem = useCallback(async (itemId: string): Promise<string | null> => {
+    if (!navigator.onLine) return "You're offline. Deleting an item needs a signal.";
+    try {
+      const res = await fetch(`/api/equipment/items/${itemId}`, { method: "DELETE" });
+      // 404: already gone, which is what was asked for.
+      if (!res.ok && res.status !== 404) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string };
+        return data.error || "Couldn't delete the item. Try again.";
+      }
+    } catch {
+      return "Couldn't reach the server. Try again.";
+    }
+    setItems((list) => {
+      const next = list.filter((i) => i.id !== itemId);
+      storeItems(next);
+      return next;
+    });
+    return null;
   }, []);
 
   // ---- offline queue --------------------------------------------------------
@@ -574,6 +599,7 @@ function KitLenderInner({
       act,
       scanOp,
       commission,
+      removeItem,
       flush,
       dismissFailures,
     }),
@@ -601,6 +627,7 @@ function KitLenderInner({
       act,
       scanOp,
       commission,
+      removeItem,
       flush,
       dismissFailures,
     ],
