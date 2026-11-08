@@ -2715,7 +2715,7 @@ button.kit-item-main { cursor: pointer; }
 .kit-item-chevron { flex-shrink: 0; margin-left: -4px; color: var(--muted); pointer-events: none; }
 .kit-item .kit-btn { min-width: 84px; }
 
-.kit-tag { display: inline-flex; align-items: center; padding: 1px 8px; border: 1px solid var(--line); border-radius: 999px; font-size: 11px; font-weight: 700; white-space: nowrap; line-height: 18px; }
+.kit-tag { display: inline-flex; align-items: center; padding: 1px 8px; border: 1px solid var(--line); border-radius: 6px; font-size: 11px; font-weight: 700; white-space: nowrap; line-height: 18px; }
 .kit-tag.is-fair, .kit-tag.is-pending { border-color: var(--warn-line); background: var(--warn-bg); color: var(--warn-fg); }
 .kit-tag.is-needs_repair, .kit-tag.is-rejected, .kit-tag.is-overdue { border-color: var(--bad-line); background: var(--bad-bg); color: var(--bad-fg); }
 .kit-tag.is-approved { border-color: var(--info-line); background: var(--info-bg); color: var(--info-fg); }

@@ -14,7 +14,7 @@ export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 export const NOTIFICATION_LABELS: Record<NotificationKind, { label: string; hint: string; optional: boolean }> = {
   event_changed: { label: "Walk changes", hint: "A walk you're on is moved or cancelled.", optional: false },
   reminder: { label: "Day-before reminders", hint: "Meet time, kit and the forecast.", optional: true },
-  kit: { label: "Kit", hint: "Your request is approved or declined, or a loan is overdue.", optional: true },
+  kit: { label: "Kit", hint: "Your request is approved or declined, a loan is overdue, or (for kit principals) someone reports a problem.", optional: true },
   leader: { label: "Leading", hint: "You're made leader or backmarker of a walk.", optional: true },
   broadcast: { label: "Club news", hint: "Messages from the committee.", optional: true },
 };
