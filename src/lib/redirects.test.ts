@@ -11,13 +11,18 @@ describe("legacyRedirects", () => {
   });
 
   it("contains valid sources and destinations", () => {
-    expect(legacyRedirects.length).toBeGreaterThan(80);
+    expect(legacyRedirects.length).toBeGreaterThan(5);
 
     for (const r of legacyRedirects) {
       expect(r.source.startsWith("/")).toBe(true);
       expect(r.destination.length).toBeGreaterThan(0);
       expect(r.permanent).toBe(true);
     }
+  });
+
+  it("leaves the short-link prefixes to the committee's club_links", () => {
+    // A static redirect here would shadow a link the committee edits in the app.
+    for (const r of legacyRedirects) expect(r.source).not.toMatch(/^\/(e|media)\//i);
   });
 
   it("matches key club redirects correctly", () => {
@@ -39,19 +44,7 @@ describe("legacyRedirects", () => {
     expect(matchPath("/merch")?.destination).toBe(
       "https://studentsunionucl.org/clubs-societies/hiking-club/products"
     );
-    expect(matchPath("/e/WL/about")?.destination).toContain(
-      "studentsunionucl.org/clubs-societies/hiking-club#BasicsofbeingaWalkLeader"
-    );
-    expect(matchPath("/e/events")?.destination).toBe(
-      "https://studentsunionucl.org/clubs-societies/hiking-club/events"
-    );
-    expect(matchPath("/e/instagram")?.destination).toBe(
-      "https://www.instagram.com/uclhiking"
-    );
     expect(matchPath("/feedback")?.destination).toBe("/e/feedback");
-    expect(matchPath("/e/feedback")?.destination).toBe(
-      "https://forms.gle/y1xoSeErSeUZ2mYN7"
-    );
     expect(matchPath("/wl")?.destination).toBe(
       "https://linktr.ee/ucl_walk_leaders"
     );
