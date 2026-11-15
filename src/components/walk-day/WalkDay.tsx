@@ -28,8 +28,17 @@ import {
   type DaySnapshot,
 } from "@/lib/dayOffline";
 import { INCIDENT_KINDS, INCIDENT_LABELS, type IncidentKind } from "@/lib/incidents";
+import { keepWalkDayOffline } from "@/lib/keepOffline";
 
 const clock = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit" });
+const dayWhen = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/London",
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+});
 
 interface Found {
   id: string;
@@ -80,8 +89,15 @@ export default function WalkDay({ eventId }: { eventId: string }) {
       const res = await fetch(`/api/events/${eventId}/day`, { cache: "no-store" });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "The register didn't load.");
-      keep(body as DaySnapshot);
+      const fresh = body as DaySnapshot;
+      keep(fresh);
       setError(null);
+      // Save the page itself too, so it opens on the hill with no signal.
+      keepWalkDayOffline({
+        name: fresh.event.title,
+        when: fresh.event.starts_at ? dayWhen.format(new Date(fresh.event.starts_at)) : "",
+        expires: expiryFor(fresh.event),
+      });
     } catch (e) {
       // Offline with a stored register is the normal case on a hill; say nothing.
       if (navigator.onLine) setError(e instanceof Error ? e.message : "The register didn't load.");

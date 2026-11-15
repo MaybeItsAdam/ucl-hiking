@@ -1,11 +1,118 @@
 <!doctype html>
-<html lang="en">
+<!--
+  The app's error page (server.errorPath in capacitor.config.ts). The app is a
+  shell around the live site, so when a page can't load (no signal, the site is
+  down, or on Android any HTTP error on a whole page) Capacitor shows this from
+  the app bundle instead of the WebView's own ERR_INTERNET_DISCONNECTED screen.
+
+  It's served from the app (https://localhost, capacitor://localhost), not the
+  site, so it can't see the site's storage or know which page failed: it goes
+  back to the home page. Changing it needs `npx cap sync` and a store release.
+-->
+<html lang="en-GB">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
     <title>UCL Hiking Club</title>
+    <style>
+      :root {
+        --paper: #f7f7f3;
+        --ink: #2f4355;
+        --muted: #64748b;
+        --primary: #08a8ad;
+        --on-primary: #2f4355;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --paper: #121a21;
+          --ink: #e3eaf0;
+          --muted: #94a3b8;
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; background: var(--paper); color: var(--ink); }
+      body {
+        min-height: 100vh; min-height: 100dvh;
+        display: grid; place-items: center; text-align: center;
+        padding: calc(24px + env(safe-area-inset-top)) calc(24px + env(safe-area-inset-right))
+          calc(24px + env(safe-area-inset-bottom)) calc(24px + env(safe-area-inset-left));
+        font: 400 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+        -webkit-user-select: none; user-select: none;
+      }
+      main { max-width: 22rem; }
+      img { display: block; margin: 0 auto 20px; width: 72px; height: 72px; border-radius: 16px; }
+      .eyebrow { font-size: 10px; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+      h1 { font-size: 24px; line-height: 1.2; margin: 0 0 8px; }
+      p { margin: 0 0 24px; color: var(--muted); }
+      .quip { margin: -12px 0 24px; font-style: italic; }
+      button {
+        font: inherit; font-weight: 600; color: var(--on-primary); background: var(--primary);
+        border: 1px solid var(--primary); border-radius: 6px; min-height: 44px; padding: 10px 22px;
+      }
+      button:disabled { opacity: .6; }
+      .status { margin: 16px 0 0; font-size: 14px; min-height: 1.5em; }
+    </style>
   </head>
   <body>
-    <p>The UCL Hiking Club app needs a network connection for its first launch.</p>
+    <main>
+      <img src="icon.svg" alt="" />
+      <p class="eyebrow" id="eyebrow">No connection</p>
+      <h1 id="title">You're offline</h1>
+      <p id="body">The Hiking Club app needs the internet to load. It'll come back by itself when you're connected.</p>
+      <p class="quip" id="quip"></p>
+      <button type="button" id="retry">Try again</button>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </main>
+    <script>
+      (function () {
+        var START = "https://ucl-hiking.vercel.app/";
+        var $ = function (id) { return document.getElementById(id); };
+        var leaving = false;
+
+        function go() {
+          if (leaving) return;
+          leaving = true;
+          $("retry").disabled = true;
+          $("status").textContent = "Loading…";
+          location.replace(START);
+        }
+
+        // Offline, or online but the site isn't answering (down, captive wifi,
+        // or an error page on Android, which lands here too).
+        function render() {
+          if (navigator.onLine) {
+            $("eyebrow").textContent = "Can't reach the club";
+            $("title").textContent = "Something's in the way";
+            $("body").textContent = "You seem to be online, but the site isn't answering. If you're on wifi that needs a sign-in, open a browser first.";
+          } else {
+            $("eyebrow").textContent = "No connection";
+            $("title").textContent = "You're offline";
+            $("body").textContent = "The Hiking Club app needs the internet to load. It'll come back by itself when you're connected.";
+          }
+        }
+
+        // Reload only after seeing the site unreachable and then reachable, so
+        // a server error doesn't bounce between the site and this page.
+        var unreachable = false;
+        function probe() {
+          if (leaving || !navigator.onLine) { unreachable = true; return; }
+          fetch(START, { mode: "no-cors", cache: "no-store" }).then(
+            function () { if (unreachable) go(); },
+            function () { unreachable = true; }
+          );
+        }
+
+        $("retry").addEventListener("click", go);
+        window.addEventListener("online", function () { render(); setTimeout(go, 600); });
+        window.addEventListener("offline", render);
+        document.addEventListener("visibilitychange", function () { if (!document.hidden) probe(); });
+        var QUIPS = ["Classic hill.", "Zero bars. You must be somewhere lovely.", "The internet stayed in London.", "Out of signal, hopefully not out of snacks."];
+      document.getElementById("quip").textContent = QUIPS[Math.floor(Math.random() * QUIPS.length)];
+      render();
+        probe();
+        setInterval(probe, 8000);
+      })();
+    </script>
   </body>
 </html>
