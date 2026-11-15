@@ -3432,3 +3432,50 @@ button.kit-item-main { cursor: pointer; }
   .navigator-loading svg, .navigator-spin { animation-duration: 3s; }
   .navigator-cover, .navigator-leaf img, .navigator-icon-btn, .navigator-save-bar { transition-duration: .01s; }
 }
+
+/* ── Offline banner and dead ends ──
+   The banner floats above the tab bar (OfflineBanner measures it into
+   --offline-lift) while the phone has no connection, then briefly says when
+   it's back. Dead ends are the 404 and error cards. */
+.offline-banner {
+  position: fixed; z-index: 90;
+  left: max(12px, var(--safe-left)); right: max(12px, var(--safe-right));
+  bottom: calc(var(--offline-lift, 0px) + max(12px, var(--safe-bottom)));
+  margin: 0 auto; max-width: 440px;
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--warn-line); border-radius: 8px;
+  background: var(--surface); background-image: linear-gradient(var(--warn-bg), var(--warn-bg));
+  color: var(--ink); font-size: 13px; line-height: 1.4;
+  animation: offline-in .2s ease-out;
+}
+.offline-banner > svg { flex: none; margin-top: 1px; color: var(--warn-fg); }
+.offline-banner.is-back { border-color: var(--ok-line); background-image: linear-gradient(var(--ok-bg), var(--ok-bg)); }
+.offline-banner.is-back > svg { color: var(--ok-fg); }
+.offline-banner-text { flex: 1; min-width: 0; }
+.offline-banner-text > span { color: var(--muted); }
+.offline-banner-close {
+  position: relative; flex: none; display: grid; place-items: center;
+  width: 22px; height: 22px; margin: -2px -4px 0 0; padding: 0;
+  border: 0; border-radius: 6px; background: none; color: var(--muted); cursor: pointer;
+}
+.offline-banner-close::after { content: ""; position: absolute; inset: -11px; } /* 44px hit area */
+@keyframes offline-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .offline-banner { animation-duration: 1ms; } }
+
+.dead-end {
+  max-width: 600px; margin: 80px auto; padding: 48px 32px; text-align: center;
+  background: var(--surface); border: 2px solid var(--ink); border-radius: 24px;
+}
+.dead-end-icon {
+  width: 56px; height: 56px; border-radius: 50%; margin: 0 auto 20px;
+  display: grid; place-items: center; background: var(--cream); color: var(--forest);
+}
+.dead-end-label {
+  display: inline-block; margin-bottom: 8px;
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: var(--peach);
+}
+.dead-end h1 { font: 800 32px var(--font-display); margin: 0 0 12px; color: var(--ink); }
+.dead-end-quip { margin: 0 0 28px; font-size: 15px; line-height: 1.6; color: var(--muted); }
+.dead-end-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+@media (max-width: 640px) { .dead-end { margin: 32px 16px; padding: 36px 20px; } }

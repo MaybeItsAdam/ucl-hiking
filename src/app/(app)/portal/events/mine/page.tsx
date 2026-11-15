@@ -159,10 +159,13 @@ function WalkList({
               </Link>
               {dayLinks && role && event.suu_event_id ? (
                 <div className="event-day-actions">
-                  <Link className="kit-btn" href={`/portal/events/${event.id}/day`}>
+                  {/* A full page load, not a <Link>: with no signal the service
+                      worker opens its saved copy, where a soft navigation
+                      would wait for the connection (useOffline). */}
+                  <a className="kit-btn" href={`/portal/events/${event.id}/day`}>
                     <ClipboardCheck size={15} aria-hidden="true" />
                     On the day<span className="sr-only">: {details.name}</span>
-                  </Link>
+                  </a>
                 </div>
               ) : null}
             </li>

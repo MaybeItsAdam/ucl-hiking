@@ -16,6 +16,11 @@ const config: CapacitorConfig = {
   server: {
     url: appUrl,
     cleartext: appUrl.startsWith("http://"),
+    // Shown from the app bundle (capacitor-dist) whenever a whole page fails to
+    // load (no signal, the site down; on Android any HTTP error too), instead of
+    // the WebView's own ERR_INTERNET_DISCONNECTED screen. Retries by itself once
+    // back online.
+    errorPath: "index.html",
   },
   plugins: {
     Browser: { presentationStyle: "popover" },
