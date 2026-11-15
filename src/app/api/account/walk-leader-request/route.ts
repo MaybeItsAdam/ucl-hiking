@@ -79,7 +79,7 @@ export async function POST(request: Request) {
       kind: "leader",
       title: `${member.full_name || member.email} asked for walk leader access`,
       body: wlName ? `They say they're "${wlName}" on the WL calendar.` : "They aren't on the WL calendar yet.",
-      url: "/portal/members",
+      url: `/portal/members?request=${data.id}`,
     },
   );
   return NextResponse.json({ request: data });
