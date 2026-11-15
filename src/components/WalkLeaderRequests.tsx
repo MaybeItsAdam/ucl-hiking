@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { WalkLeaderRequest } from "@/lib/walkLeaderRequests";
 
 type Row = WalkLeaderRequest & { member: { full_name: string | null; email: string } | null };
@@ -10,10 +10,22 @@ const dateFormat = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "sh
 /**
  * Open walk leader requests. Principals, admins and the named committee
  * members approve or decline them; the rest of the committee only sees them.
- * Hidden when there are none.
+ * Hidden when there are none, unless a notification sent the viewer here for
+ * one request (`focusId`): that one is highlighted and scrolled to, or, if
+ * someone has already dealt with it, they're told so.
  */
-export function WalkLeaderRequests({ viewerId, canApprove }: { viewerId: string; canApprove: boolean }) {
+export function WalkLeaderRequests({
+  viewerId,
+  canApprove,
+  focusId = null,
+}: {
+  viewerId: string;
+  canApprove: boolean;
+  focusId?: string | null;
+}) {
   const [rows, setRows] = useState<Row[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const focusRef = useRef<HTMLLIElement>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: "ok" | "bad"; text: string } | null>(null);
 
@@ -21,8 +33,14 @@ export function WalkLeaderRequests({ viewerId, canApprove }: { viewerId: string;
     fetch("/api/admin/walk-leader-requests")
       .then((res) => (res.ok ? res.json() : { requests: [] }))
       .then((body) => setRows(body.requests ?? []))
-      .catch(() => setRows([]));
+      .catch(() => setRows([]))
+      .finally(() => setLoaded(true));
   }, []);
+
+  const focusPending = focusId !== null && rows.some((r) => r.id === focusId);
+  useEffect(() => {
+    if (loaded && focusPending) focusRef.current?.scrollIntoView({ block: "center" });
+  }, [loaded, focusPending]);
 
   async function decide(row: Row, decision: "approve" | "decline") {
     setBusy(row.id);
@@ -49,7 +67,10 @@ export function WalkLeaderRequests({ viewerId, canApprove }: { viewerId: string;
     }
   }
 
-  if (!rows.length && !message) return null;
+  // Sent here for a request that's no longer open: someone got there first.
+  const focusGone = loaded && focusId !== null && !focusPending && !message;
+
+  if (!rows.length && !message && !focusGone) return null;
 
   return (
     <section className="wl-requests" aria-labelledby="wl-requests-title">
@@ -59,7 +80,11 @@ export function WalkLeaderRequests({ viewerId, canApprove }: { viewerId: string;
       {rows.length ? (
         <ul>
           {rows.map((row) => (
-            <li key={row.id}>
+            <li
+              key={row.id}
+              ref={row.id === focusId ? focusRef : undefined}
+              className={row.id === focusId ? "is-focused" : undefined}
+            >
               <div className="wl-request-who">
                 <strong>{row.member?.full_name || row.member?.email}</strong>
                 <span>
@@ -86,6 +111,7 @@ export function WalkLeaderRequests({ viewerId, canApprove }: { viewerId: string;
           ))}
         </ul>
       ) : null}
+      {focusGone ? <p className="account-note">That request has already been dealt with.</p> : null}
       {message ? <p className={message.tone === "bad" ? "kit-form-error" : "account-note"}>{message.text}</p> : null}
     </section>
   );
