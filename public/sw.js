@@ -1,26 +1,31 @@
 /*
- * UCL Hiking Club service worker: keeps walk-day registers openable with no
- * signal. The register's data already lives in localStorage (src/lib/dayOffline.ts);
- * what was missing was the page itself, which needs its HTML and scripts.
+ * UCL Hiking Club service worker: keeps the pages used where there's no signal
+ * openable offline: a walk's "On the day" register (on the hill) and the kit
+ * lender's Equipment page (scanning kit in the kit room or the car park).
+ * Their data already lives in localStorage (src/lib/dayOffline.ts,
+ * src/components/kit/KitLender.tsx); this worker keeps the pages themselves,
+ * which need their HTML and scripts.
  *
- * - When a leader opens a walk's "On the day" page with signal, the page asks
- *   this worker (a "keep-walk-day" message) to save that page's HTML and every
- *   /_next/static file it uses. Nothing else is saved.
- * - Opening a saved walk-day page goes to the network first; with no signal,
- *   or no answer within a few seconds, the saved copy opens instead.
+ * - When one of those pages loads with signal, it asks this worker (a
+ *   "keep-page" message) to save its HTML and every /_next/static file it
+ *   uses. No other page is saved.
+ * - Opening a saved page goes to the network first; with no signal, or no
+ *   answer within a few seconds, the saved copy opens instead.
  * - Any other page that can't load offline gets a small page listing the
- *   saved walks, rather than the browser's ERR_INTERNET_DISCONNECTED.
- * - Saved walks go a day after the walk ends (as the register does), and all
- *   of them on sign-out.
+ *   saved ones, rather than the browser's ERR_INTERNET_DISCONNECTED.
+ * - Each saved page goes when the page says (a walk: a day after it ends;
+ *   kit: two weeks after it was last opened), and all of them on sign-out.
  *
- * Registered in production only (ServiceWorker.tsx). Phone browsers and the
- * Android app run it; the iOS app's WKWebView doesn't run service workers.
+ * Registered in production only (ServiceWorker.tsx). Phone browsers, the
+ * Android app and the iOS app (through app-bound domains) run it.
  */
 
 const STATIC = "hiking-static-v1";
 const PAGES = "hiking-walk-days-v1";
 const INDEX = "/__walk-days.json"; // kept in PAGES: [{ path, name, when, expires, assets }]
-const DAY = /^\/portal\/events\/[^/]+\/day\/?$/;
+/** The only pages this worker will save. */
+const KEEPABLE = [/^\/portal\/events\/[^/]+\/day\/?$/, /^\/portal\/equipment\/?$/];
+const keepable = (path) => KEEPABLE.some((re) => re.test(path));
 const NETWORK_WAIT_MS = 4000;
 
 const QUIPS = [
@@ -46,7 +51,8 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("message", (event) => {
   const data = event.data;
-  if (data && data.type === "keep-walk-day") event.waitUntil(keep(data));
+  // "keep-walk-day" is the older name, still sent by pages saved before the rename.
+  if (data && (data.type === "keep-page" || data.type === "keep-walk-day")) event.waitUntil(keep(data));
 });
 
 self.addEventListener("fetch", (event) => {
@@ -76,7 +82,7 @@ self.addEventListener("fetch", (event) => {
 });
 
 async function navigate(request, url) {
-  const saved = DAY.test(url.pathname) ? await (await caches.open(PAGES)).match(url.pathname) : undefined;
+  const saved = keepable(url.pathname) ? await (await caches.open(PAGES)).match(url.pathname) : undefined;
   const network = fetch(request);
   try {
     if (!saved) return await network;
@@ -92,9 +98,9 @@ async function navigate(request, url) {
   }
 }
 
-/** Save a walk-day page and its build files, as asked by the page itself. */
+/** Save a page and its build files, as asked by the page itself. */
 async function keep({ path, name, when, expires, assets }) {
-  if (typeof path !== "string" || !DAY.test(path) || !(expires > Date.now())) return;
+  if (typeof path !== "string" || !keepable(path) || !(expires > Date.now())) return;
   let res;
   try {
     res = await fetch(path, { credentials: "same-origin", cache: "no-store" });
@@ -131,7 +137,7 @@ async function keep({ path, name, when, expires, assets }) {
 
   await (await caches.open(PAGES)).put(path, res);
   const list = (await readIndex()).filter((e) => e.path !== path);
-  list.push({ path, name: String(name || "Walk"), when: String(when || ""), expires, assets: [...files] });
+  list.push({ path, name: String(name || "Saved page"), when: String(when || ""), expires, assets: [...files] });
   await writeIndex(list);
   await prune();
 }
@@ -210,7 +216,7 @@ button{font:inherit;font-weight:700;color:#2f4355;background:var(--forest);borde
 <body><main>
 <p class="eyebrow">No signal</p>
 <h1>You’re offline</h1>
-<p>${esc(quip)} ${walks.length ? "Saved registers still open below." : "This page needs a connection."}</p>
+<p>${esc(quip)} ${walks.length ? "Saved pages still open below." : "This page needs a connection."}</p>
 ${list}
 <button type="button" onclick="location.reload()">Try again</button>
 </main>

@@ -19,6 +19,10 @@ import { londonDay } from "@/lib/weather";
 import { Sheet } from "./Sheet";
 import { readCache, writeCache } from "@/lib/client-cache";
 import { useAppRefresh } from "@/lib/refresh";
+import { fetchWithin } from "@/lib/fetchWithin";
+import { keepPageOffline } from "@/lib/keepOffline";
+import { LENDER_KEEP_MS, readLenderSnapshot, storeLenderSnapshot } from "@/lib/kitOffline";
+import { looksOffline } from "@/lib/kitScan";
 import { KitLenderProvider } from "./kit/KitLender";
 import { HandoverButton, KitScanBar, TaggedItemsList } from "./kit/KitControls";
 import { ReportSummary, ResolveReportForm } from "./kit/ConditionReports";
@@ -167,6 +171,8 @@ interface EquipmentPortalProps {
  * card view kept in step.
  */
 const EQUIPMENT_CACHE_KEY = "equipment";
+/** How long to wait for the lists before falling back to the saved copy. */
+const LOAD_MS = 10000;
 type EquipmentCache = { items: Equipment[]; requests: EquipmentRequest[] };
 
 export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog", onTabChange }: EquipmentPortalProps) {
@@ -207,11 +213,24 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
   const [sheetsConfigured, setSheetsConfigured] = useState(false);
   const [syncing, setSyncing] = useState<"push" | "pull" | null>(null);
 
+  /**
+   * With no signal, a lender's phone falls back to the kit types and approved
+   * loans it saved last time, so scanning and handover still work after a
+   * cold start in the kit room. True if there was a copy to show.
+   */
+  const fallBackToSaved = useCallback(() => {
+    const saved = isPrincipal ? readLenderSnapshot(localStorage) : null;
+    if (!saved) return false;
+    setItems((now) => (now.length ? now : saved.equipment));
+    setRequests((now) => (now.length ? now : saved.requests));
+    return true;
+  }, [isPrincipal]);
+
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
       const [eqRes, reqRes] = await Promise.all([
-        fetch("/api/equipment", { signal }),
-        fetch("/api/equipment/requests", { signal }),
+        fetchWithin("/api/equipment", { signal }, LOAD_MS),
+        fetchWithin("/api/equipment/requests", { signal }, LOAD_MS),
       ]);
       const [eqData, reqData] = await Promise.all([
         eqRes.ok ? eqRes.json() : null,
@@ -222,17 +241,24 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
       if (reqData) setRequests(reqData.requests ?? []);
       if (eqData && reqData) {
         writeCache<EquipmentCache>(EQUIPMENT_CACHE_KEY, { items: eqData.equipment ?? [], requests: reqData.requests ?? [] });
+        if (isPrincipal) {
+          // Keep the page and what it needs on the phone, for scanning with no signal.
+          storeLenderSnapshot(localStorage, eqData.equipment ?? [], reqData.requests ?? []);
+          keepPageOffline({ name: "Kit scanner", when: "Equipment · scans work offline", expires: Date.now() + LENDER_KEEP_MS });
+        }
       }
       if (!eqRes.ok || !reqRes.ok) setMsg({ type: "error", text: "Couldn't load all of the equipment. Pull down to try again." });
-    } catch {
-      if (!signal?.aborted) setMsg({ type: "error", text: NETWORK_ERROR });
+    } catch (err) {
+      if (signal?.aborted) return;
+      // No signal: a lender carries on from the saved copy, and the scan bar says so.
+      if (!(looksOffline(navigator.onLine, err) && fallBackToSaved())) setMsg({ type: "error", text: NETWORK_ERROR });
     } finally {
       if (!signal?.aborted) {
         setToday(localToday());
         setLoaded(true);
       }
     }
-  }, []);
+  }, [isPrincipal, fallBackToSaved]);
 
   /**
    * Problem reports: every open one for a principal, your own for a borrower.

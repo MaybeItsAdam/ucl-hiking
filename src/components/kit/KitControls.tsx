@@ -26,6 +26,12 @@ export function KitScanBar() {
           Audit shelf
         </button>
       </div>
+      {waiting === 0 && !kit.online && (
+        <div className="kit-queue" role="status">
+          <CloudOff size={15} aria-hidden="true" />
+          <span>No signal. Scans still work: they&apos;re saved on this phone and sent when you&apos;re back.</span>
+        </div>
+      )}
       {waiting > 0 && (
         <div className="kit-queue" role="status">
           <CloudOff size={15} aria-hidden="true" />
@@ -64,7 +70,7 @@ export function KitScanBar() {
 export function HandoverButton({ request }: { request: LenderRequest }) {
   const kit = useKit();
   if (!kit || request.status !== "approved") return null;
-  const progress = handoverProgress(request.quantity, request.items?.length ?? 0);
+  const progress = handoverProgress(request.quantity, request.items?.length ?? 0, kit?.queuedOut.get(request.id) ?? 0);
   if (progress.complete) {
     return (
       <span className="kit-handover-done" title={progress.label}>

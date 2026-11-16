@@ -192,6 +192,21 @@ reconcile recreates event rows with new uuids.
 - **The day page** (`/portal/events/:id/day`) keeps its register in
   `localStorage` for offline use and replays check-ins when back online. The
   copy is deleted 24 h after the walk.
+- **Offline kit scanning.** A lender's Equipment page keeps the tagged items
+  (no borrower names), the kit types and the approved loans (each borrower's
+  name only) on the phone for two weeks, and the service worker keeps the page
+  itself, so it opens cold in the kit room. With no signal, or no answer
+  within a few seconds, a scan is judged on the phone with the server's own
+  rules (`planAction`): the wrong kind of kit is refused there and then, a
+  likely refusal is saved with a warning, and the rest wait in
+  `hiking:kit:outbox`. The lists show the kit as it will be once those
+  scans are sent (`projectQueue` in `src/lib/kitScan.ts`), and they're retried
+  every 30 s while the page is open. Every write carries a `clientId` that the
+  server deduplicates on, so resending is always safe.
+- **Service worker on iOS.** WKWebView runs `public/sw.js` only for app-bound
+  domains: `ios.limitsNavigationsToAppBoundDomains` in `capacitor.config.ts`
+  and `WKAppBoundDomains` in `ios/App/App/Info.plist`. A new
+  `CAPACITOR_APP_URL` host must be added to that list.
 
 ## Notifications
 

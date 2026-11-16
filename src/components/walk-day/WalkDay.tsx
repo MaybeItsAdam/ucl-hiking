@@ -28,7 +28,14 @@ import {
   type DaySnapshot,
 } from "@/lib/dayOffline";
 import { INCIDENT_KINDS, INCIDENT_LABELS, type IncidentKind } from "@/lib/incidents";
-import { keepWalkDayOffline } from "@/lib/keepOffline";
+import { fetchWithin } from "@/lib/fetchWithin";
+import { keepPageOffline } from "@/lib/keepOffline";
+import { looksOffline } from "@/lib/kitScan";
+
+/** How long to wait on a hillside connection before treating it as none. */
+const LOAD_MS = 10000;
+const SEND_MS = 15000;
+const RETRY_MS = 30000;
 
 const clock = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", hour: "2-digit", minute: "2-digit" });
 const dayWhen = new Intl.DateTimeFormat("en-GB", {
@@ -86,21 +93,23 @@ export default function WalkDay({ eventId }: { eventId: string }) {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/events/${eventId}/day`, { cache: "no-store" });
+      const res = await fetchWithin(`/api/events/${eventId}/day`, { cache: "no-store" }, LOAD_MS);
+      setOnline(true);
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "The register didn't load.");
       const fresh = body as DaySnapshot;
       keep(fresh);
       setError(null);
       // Save the page itself too, so it opens on the hill with no signal.
-      keepWalkDayOffline({
+      keepPageOffline({
         name: fresh.event.title,
         when: fresh.event.starts_at ? dayWhen.format(new Date(fresh.event.starts_at)) : "",
         expires: expiryFor(fresh.event),
       });
     } catch (e) {
       // Offline with a stored register is the normal case on a hill; say nothing.
-      if (navigator.onLine) setError(e instanceof Error ? e.message : "The register didn't load.");
+      if (looksOffline(navigator.onLine, e)) setOnline(false);
+      else setError(e instanceof Error ? e.message : "The register didn't load.");
     }
   }, [eventId, keep]);
 
@@ -110,22 +119,34 @@ export default function WalkDay({ eventId }: { eventId: string }) {
     if (!pending.length || flushing.current || !navigator.onLine) return;
     flushing.current = true;
     try {
-      const res = await fetch(`/api/events/${eventId}/attendance`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ops: pending }),
-      });
+      const res = await fetchWithin(
+        `/api/events/${eventId}/attendance`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ops: pending }) },
+        SEND_MS,
+      );
+      setOnline(true);
       if (!res.ok) return;
       // Keep anything tapped while the request was in flight.
       const now = read<AttendanceOp[]>(localStorage, outboxKey(eventId)) ?? [];
       queue(now.slice(pending.length));
       await load();
-    } catch {
-      // Still offline; the queue waits.
+    } catch (e) {
+      // Still no signal; the queue waits for the next try.
+      if (looksOffline(navigator.onLine, e)) setOnline(false);
     } finally {
       flushing.current = false;
     }
   }, [eventId, load, queue]);
+
+  // While taps are waiting, keep trying: a phone with one bar never fires "online".
+  const waiting = outbox.length > 0;
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void flush();
+    }, RETRY_MS);
+    return () => clearInterval(timer);
+  }, [waiting, flush]);
 
   useEffect(() => {
     const t = setTimeout(() => void flush().then(load), 0);
@@ -134,12 +155,18 @@ export default function WalkDay({ eventId }: { eventId: string }) {
       void flush();
     };
     const down = () => setOnline(false);
+    // Back from the pocket: send what's waiting straight away.
+    const visible = () => {
+      if (document.visibilityState === "visible") void flush();
+    };
     window.addEventListener("online", up);
     window.addEventListener("offline", down);
+    document.addEventListener("visibilitychange", visible);
     return () => {
       clearTimeout(t);
       window.removeEventListener("online", up);
       window.removeEventListener("offline", down);
+      document.removeEventListener("visibilitychange", visible);
     };
   }, [flush, load]);
 

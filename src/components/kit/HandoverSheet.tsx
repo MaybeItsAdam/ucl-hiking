@@ -24,8 +24,11 @@ export interface LogEntry {
  */
 export function HandoverSheet({ request }: { request: LenderRequest }) {
   const kit = useKit();
-  const [itemsOut, setItemsOut] = useState(request.items?.length ?? 0);
-  const [queued, setQueued] = useState(0);
+  const [itemsOutSeen, setItemsOut] = useState(request.items?.length ?? 0);
+  // The page reloads the request after waiting scans are sent; take whichever is newer.
+  const itemsOut = Math.max(itemsOutSeen, request.items?.length ?? 0);
+  // Scans waiting to send count towards the handover, even from an earlier visit.
+  const queued = kit?.queuedOut.get(request.id) ?? 0;
   const [log, setLog] = useState<LogEntry[]>([]);
   const handled = useRef(new Set<string>());
 
@@ -40,9 +43,13 @@ export function HandoverSheet({ request }: { request: LenderRequest }) {
 
   function settle(key: string, title: string, outcome: Outcome) {
     if (outcome.kind === "queued") {
-      feedback("ok");
-      setQueued((n) => n + 1);
-      record({ key, title, type: "queued", text: "No signal: saved, and sent when you're back online." });
+      feedback(outcome.warning ? "unknown" : "ok");
+      record({
+        key,
+        title,
+        type: "queued",
+        text: outcome.warning ? `Saved with no signal, but may be refused: ${outcome.warning}` : "No signal: saved, and sent when you're back online.",
+      });
       return;
     }
     if (outcome.kind === "error") {

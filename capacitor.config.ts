@@ -8,6 +8,14 @@ const config: CapacitorConfig = {
   webDir: "capacitor-dist",
   // Lets the site tell the app from a phone browser (see src/proxy.ts).
   appendUserAgent: "UCLHikingApp",
+  ios: {
+    // WKWebView only runs service workers (public/sw.js: walk-day registers and
+    // the kit scanner opening with no signal) for app-bound domains, listed
+    // under WKAppBoundDomains in ios/App/App/Info.plist. Any CAPACITOR_APP_URL
+    // host must be on that list too, or the app won't load it. Links to other
+    // sites already leave the app (Capacitor opens them in Safari).
+    limitsNavigationsToAppBoundDomains: true,
+  },
   android: {
     // Draw behind the status and navigation bars. MainActivity passes the bars'
     // sizes to the page as --android-inset-* so it can pad around them itself.
