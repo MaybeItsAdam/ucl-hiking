@@ -37,7 +37,7 @@ export function ItemCard({ view }: { view: ItemView }) {
   const loan: TagLookup["loan"] | ItemSummary["loan"] = view.loan && item.loan?.request_id === view.loan.request_id ? view.loan : item.loan;
   const loanRequest = loan ? kit.requests.find((r) => r.id === loan.request_id) : undefined;
   const borrower = loan?.borrower || (loanRequest ? borrowerOf(loanRequest) : null);
-  const openRequests = requestsWithRoom(kit.requests, item.equipment_id);
+  const openRequests = requestsWithRoom(kit.requests, item.equipment_id, kit.queuedOut);
 
   function open(next: Panel) {
     setPanel(panel === next ? null : next);
@@ -62,7 +62,13 @@ export function ItemCard({ view }: { view: ItemView }) {
     feedback("ok");
     setPanel(null);
     if (outcome.kind === "queued") {
-      setNote({ type: "queued", text: "No signal: saved on this phone, and sent when you're back online." });
+      if (outcome.item) setItem(outcome.item);
+      setNote({
+        type: "queued",
+        text: outcome.warning
+          ? `Saved on this phone with no signal, but the server may refuse it: ${outcome.warning}`
+          : "No signal: saved on this phone, and sent when you're back online.",
+      });
       return;
     }
     const { result } = outcome;

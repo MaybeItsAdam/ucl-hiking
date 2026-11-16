@@ -13,11 +13,15 @@ import {
 import { Capacitor } from "@capacitor/core";
 import type { BatchOpResult, ItemSummary, TagLookup } from "@/lib/equipmentItems";
 import { MAX_BATCH_OPS } from "@/lib/equipmentItems";
+import { fetchWithin } from "@/lib/fetchWithin";
 import {
   chunk,
   enqueue,
+  isPendingItem,
   looksOffline,
   mergeAfterFlush,
+  previewScan,
+  projectQueue,
   readQueue,
   settleQueue,
   writeQueue,
@@ -49,7 +53,12 @@ export type LenderRequest = EquipmentRequest;
 export type Outcome =
   | { kind: "ok"; result: Omit<BatchOpResult, "clientId" | "ok"> }
   | { kind: "error"; error: string; unregistered?: boolean; uid?: string }
-  | { kind: "queued" };
+  /**
+   * Saved on the phone to send later. `item` is the item as it will be once
+   * sent; `warning` says why the server may refuse it, judged on what the
+   * phone last saw.
+   */
+  | { kind: "queued"; item?: ItemSummary; warning?: string };
 
 export type ItemView = { item: ItemSummary; loan?: TagLookup["loan"]; offline?: boolean };
 
@@ -69,7 +78,10 @@ export interface ScanState {
 type OpBody = BatchOp extends infer T ? (T extends BatchOp ? Omit<T, "clientId" | "at"> : never) : never;
 
 interface KitContext {
+  /** Every tagged item, with the scans still waiting to send already applied. */
   items: ItemSummary[];
+  /** Check-outs waiting to send, per request id. */
+  queuedOut: Map<string, number>;
   itemsLoaded: boolean;
   equipment: Equipment[];
   requests: LenderRequest[];
@@ -85,6 +97,7 @@ interface KitContext {
   scan: ScanState;
   queue: QueuedScan[];
   failures: SettledFailure[];
+  /** False with no signal, and for a short while after a request got no answer. */
   online: boolean;
 
   openScan: () => void;
@@ -127,6 +140,15 @@ export function useKit(): KitContext | null {
 const ITEMS_KEY = "hiking:kit:items";
 const ITEMS_KEEP_MS = 14 * 24 * 60 * 60 * 1000;
 const NETWORK_ERROR = "Couldn't reach the server. Try again.";
+/** How long to wait for an answer before saving the scan for later. */
+const LOOKUP_MS = 5000;
+const ACTION_MS = 8000;
+const BATCH_MS = 20000;
+/** After a request gets no answer, scans skip the network for this long. */
+const QUIET_MS = 30000;
+/** How often to try sending waiting scans while the page is open. */
+const RETRY_MS = 30000;
+const PENDING_ERROR = "This item was tagged on this phone and hasn't been sent yet. Try again once it has.";
 
 function newClientId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -158,12 +180,12 @@ function storedItems(): ItemSummary[] | null {
   }
 }
 
-async function postJson(url: string, body: unknown): Promise<{ status: number; data: Record<string, unknown> }> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+async function postJson(url: string, body: unknown, ms = ACTION_MS): Promise<{ status: number; data: Record<string, unknown> }> {
+  const res = await fetchWithin(
+    url,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+    ms,
+  );
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   return { status: res.status, data };
 }
@@ -240,27 +262,44 @@ function KitLenderInner({
   const handler = useRef<((uid: string) => void) | null>(null);
   const buffered = useRef<string[]>([]);
   const flushing = useRef(false);
+  /** Until when scans skip the network, after one got no answer (lie-fi). */
+  const quietUntil = useRef(0);
   const onChangedRef = useRef(onChanged);
   useEffect(() => {
     onChangedRef.current = onChanged;
   }, [onChanged]);
 
+  // ---- signal ----------------------------------------------------------------
+
+  /** No signal, or there was none a moment ago: go straight to the queue. */
+  const offlineNow = useCallback(() => !navigator.onLine || Date.now() < quietUntil.current, []);
+  const reached = useCallback(() => {
+    quietUntil.current = 0;
+    setOnline(true);
+  }, []);
+  const unreachable = useCallback(() => {
+    quietUntil.current = Date.now() + QUIET_MS;
+    setOnline(false);
+  }, []);
+
   // ---- items ---------------------------------------------------------------
 
   const loadItems = useCallback(async () => {
     try {
-      const res = await fetch("/api/equipment/items", { cache: "no-store" });
+      const res = await fetchWithin("/api/equipment/items", { cache: "no-store" }, BATCH_MS);
+      reached();
       if (!res.ok) return;
       const data = (await res.json()) as { items?: ItemSummary[] };
       const list = data.items ?? [];
       setItems(list);
       storeItems(list);
-    } catch {
+    } catch (err) {
       // Offline: keep the stored copy.
+      if (looksOffline(navigator.onLine, err)) unreachable();
     } finally {
       setItemsLoaded(true);
     }
-  }, []);
+  }, [reached, unreachable]);
 
   /** Put an item the server just sent back into the list. */
   const mergeItem = useCallback((item: ItemSummary | undefined) => {
@@ -302,7 +341,8 @@ function KitLenderInner({
     let saved = 0;
     try {
       for (const batch of chunk(pending, MAX_BATCH_OPS)) {
-        const { status, data } = await postJson("/api/equipment/items/batch", { ops: batch.map((q) => q.op) });
+        const { status, data } = await postJson("/api/equipment/items/batch", { ops: batch.map((q) => q.op) }, BATCH_MS);
+        reached();
         if (status !== 200 || !Array.isArray(data.results)) {
           setFailures((f) => [
             ...f.filter((x) => x.clientId !== "batch"),
@@ -319,8 +359,9 @@ function KitLenderInner({
         if (settled.failures.length) setFailures((f) => [...f.filter((x) => x.clientId !== "batch"), ...settled.failures]);
         else setFailures((f) => f.filter((x) => x.clientId !== "batch"));
       }
-    } catch {
-      // Still offline; the queue waits.
+    } catch (err) {
+      // Still no signal; the queue waits for the next try.
+      if (looksOffline(navigator.onLine, err)) unreachable();
     } finally {
       flushing.current = false;
     }
@@ -328,11 +369,40 @@ function KitLenderInner({
       void loadItems();
       onChangedRef.current();
     }
-  }, [loadItems, mergeItem]);
+  }, [loadItems, mergeItem, reached, unreachable]);
 
-  const queueOp = useCallback((op: BatchOp, label: string) => {
+  // While scans are waiting, keep trying: the "online" event alone misses a
+  // phone that never lost its connection, only its signal.
+  const waiting = queue.length > 0;
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") void flush();
+    }, RETRY_MS);
+    return () => clearInterval(timer);
+  }, [waiting, flush]);
+
+  // The kit as it will be once the waiting scans are sent.
+  const projection = useMemo(() => projectQueue(items, queue, requests, equipment), [items, queue, requests, equipment]);
+  const projectionRef = useRef(projection);
+  useEffect(() => {
+    projectionRef.current = projection;
+  }, [projection]);
+
+  /**
+   * Save a scan for later, after judging it on the phone: a repeat scan isn't
+   * queued again, the wrong kind of kit is refused there and then, and
+   * anything the server looks likely to refuse comes back with a warning.
+   */
+  const queueOp = useCallback((op: BatchOp, label: string): Outcome => {
+    const { items: now, queuedOut } = projectionRef.current;
+    const preview = previewScan(now, op, requests, queuedOut);
+    if (preview.verdict === "refuse") return { kind: "error", error: preview.error };
+    if (preview.verdict === "noop") return { kind: "ok", result: { item: preview.item, noop: true, message: preview.message } };
     setQueue(enqueue(localStorage, { op, label }));
-  }, []);
+    if (preview.verdict === "doubt") return { kind: "queued", item: preview.item, warning: preview.error };
+    return { kind: "queued", item: preview.verdict === "apply" ? preview.item : undefined };
+  }, [requests]);
 
   // Mount: stored items and queue, then the network; NFC support; online events.
   useEffect(() => {
@@ -352,6 +422,7 @@ function KitLenderInner({
     };
     checkNfc();
     const up = () => {
+      quietUntil.current = 0;
       setOnline(true);
       void flush();
     };
@@ -361,6 +432,7 @@ function KitLenderInner({
       if (document.visibilityState === "visible") {
         checkNfc();
         void flush();
+        void loadItems();
       }
     };
     window.addEventListener("online", up);
@@ -487,12 +559,20 @@ function KitLenderInner({
   const lookupTag = useCallback(
     async (uid: string): Promise<View | { kind: "error"; error: string }> => {
       const offlineAnswer = (): View => {
-        const item = items.find((i) => i.tag_uid === uid);
+        const item = projectionRef.current.items.find((i) => i.tag_uid === uid);
         return item ? { kind: "item", item, offline: true } : { kind: "new", uid, offline: true };
       };
-      if (!navigator.onLine) return offlineAnswer();
+      if (offlineNow()) return offlineAnswer();
+      // Tagged on this phone and not sent yet: the server can't know it.
+      const pending = projectionRef.current.items.find((i) => i.tag_uid === uid && isPendingItem(i));
+      if (pending) return { kind: "item", item: pending, offline: true };
       try {
-        const res = await fetch(`/api/equipment/items/by-tag/${encodeURIComponent(uid)}`, { cache: "no-store" });
+        const res = await fetchWithin(
+          `/api/equipment/items/by-tag/${encodeURIComponent(uid)}`,
+          { cache: "no-store" },
+          LOOKUP_MS,
+        );
+        reached();
         const data = (await res.json().catch(() => ({}))) as Partial<TagLookup> & { unregistered?: boolean; error?: string };
         if (res.ok && data.item) {
           mergeItem(data.item);
@@ -501,11 +581,14 @@ function KitLenderInner({
         if (res.status === 404 && data.unregistered) return { kind: "new", uid };
         return { kind: "error", error: data.error || "Couldn't look up that tag." };
       } catch (err) {
-        if (looksOffline(navigator.onLine, err)) return offlineAnswer();
+        if (looksOffline(navigator.onLine, err)) {
+          unreachable();
+          return offlineAnswer();
+        }
         return { kind: "error", error: NETWORK_ERROR };
       }
     },
-    [items, mergeItem],
+    [mergeItem, offlineNow, reached, unreachable],
   );
 
   const afterOk = useCallback(
@@ -520,12 +603,11 @@ function KitLenderInner({
   const act = useCallback(
     async (itemId: string, body: OpBody, label: string): Promise<Outcome> => {
       const op = { ...body, itemId, clientId: newClientId(), at: new Date().toISOString() } as BatchOp;
-      if (!navigator.onLine) {
-        queueOp(op, label);
-        return { kind: "queued" };
-      }
+      if (itemId.startsWith("queued:")) return { kind: "error", error: PENDING_ERROR };
+      if (offlineNow()) return queueOp(op, label);
       try {
         const { status, data } = await postJson(`/api/equipment/items/${encodeURIComponent(itemId)}/actions`, op);
+        reached();
         if (status >= 200 && status < 300) {
           const outcome = fromResult(data);
           afterOk(outcome, body.action);
@@ -534,24 +616,25 @@ function KitLenderInner({
         return { kind: "error", error: (data.error as string) || "Couldn't save that." };
       } catch (err) {
         if (looksOffline(navigator.onLine, err)) {
-          queueOp(op, label);
-          return { kind: "queued" };
+          unreachable();
+          return queueOp(op, label);
         }
         return { kind: "error", error: NETWORK_ERROR };
       }
     },
-    [afterOk, queueOp],
+    [afterOk, queueOp, offlineNow, reached, unreachable],
   );
 
   const scanOp = useCallback(
     async (body: OpBody, label: string): Promise<Outcome> => {
       const op = { ...body, clientId: newClientId(), at: new Date().toISOString() } as BatchOp;
-      if (!navigator.onLine) {
-        queueOp(op, label);
-        return { kind: "queued" };
-      }
+      // A tag tagged on this phone is only known here; keep its scans in order behind it.
+      const uid = "uid" in op ? op.uid : undefined;
+      const pending = uid && projectionRef.current.items.some((i) => i.tag_uid === uid && isPendingItem(i));
+      if (offlineNow() || pending) return queueOp(op, label);
       try {
         const { status, data } = await postJson("/api/equipment/items/batch", { ops: [op] });
+        reached();
         const result = Array.isArray(data.results) ? (data.results[0] as BatchOpResult | undefined) : undefined;
         if (status !== 200 || !result) return { kind: "error", error: (data.error as string) || "Couldn't save that scan." };
         if (!result.ok) {
@@ -562,26 +645,24 @@ function KitLenderInner({
         return outcome;
       } catch (err) {
         if (looksOffline(navigator.onLine, err)) {
-          queueOp(op, label);
-          return { kind: "queued" };
+          unreachable();
+          return queueOp(op, label);
         }
         return { kind: "error", error: NETWORK_ERROR };
       }
     },
-    [afterOk, queueOp],
+    [afterOk, queueOp, offlineNow, reached, unreachable],
   );
 
   const commission = useCallback<KitContext["commission"]>(
     async (body, label) => {
       const clientId = newClientId();
       const at = new Date().toISOString();
-      const queueIt = (): Outcome => {
-        queueOp({ action: "tagged", clientId, at, ...body, uid: body.tagUid }, label);
-        return { kind: "queued" };
-      };
-      if (!navigator.onLine) return queueIt();
+      const queueIt = (): Outcome => queueOp({ action: "tagged", clientId, at, ...body, uid: body.tagUid }, label);
+      if (offlineNow()) return queueIt();
       try {
         const { status, data } = await postJson("/api/equipment/items", { ...body, clientId, at });
+        reached();
         if (status >= 200 && status < 300) {
           const outcome = fromResult(data);
           afterOk(outcome, "tagged");
@@ -589,18 +670,22 @@ function KitLenderInner({
         }
         return { kind: "error", error: (data.error as string) || "Couldn't tag that item." };
       } catch (err) {
-        if (looksOffline(navigator.onLine, err)) return queueIt();
+        if (looksOffline(navigator.onLine, err)) {
+          unreachable();
+          return queueIt();
+        }
         return { kind: "error", error: NETWORK_ERROR };
       }
     },
-    [afterOk, queueOp],
+    [afterOk, queueOp, offlineNow, reached, unreachable],
   );
 
   const dismissFailures = useCallback(() => setFailures([]), []);
 
   const value = useMemo<KitContext>(
     () => ({
-      items,
+      items: projection.items,
+      queuedOut: projection.queuedOut,
       itemsLoaded,
       equipment,
       requests,
@@ -631,7 +716,7 @@ function KitLenderInner({
       dismissFailures,
     }),
     [
-      items,
+      projection,
       itemsLoaded,
       equipment,
       requests,

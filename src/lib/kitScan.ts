@@ -1,4 +1,12 @@
-import type { BatchOpResult, ItemStatus, ItemSummary } from "@/lib/equipmentItems";
+import {
+  planAction,
+  type ActionInput,
+  type BatchOpResult,
+  type ItemPatch,
+  type ItemStatus,
+  type ItemSummary,
+} from "@/lib/equipmentItems";
+import { isTimeout } from "@/lib/fetchWithin";
 
 /**
  * The pure half of the lender's scanning screens: the offline queue of scans,
@@ -145,9 +153,16 @@ export interface LoanForHandover {
 }
 
 /** Approved requests for a kit type that still have room for another tagged item. */
-export function requestsWithRoom<T extends LoanForHandover>(requests: T[], equipmentId: string): T[] {
+export function requestsWithRoom<T extends LoanForHandover>(
+  requests: T[],
+  equipmentId: string,
+  queuedOut: Map<string, number> = new Map(),
+): T[] {
   return requests.filter(
-    (r) => r.status === "approved" && r.equipment_id === equipmentId && (r.items?.length ?? 0) < r.quantity,
+    (r) =>
+      r.status === "approved" &&
+      r.equipment_id === equipmentId &&
+      (r.items?.length ?? 0) + (queuedOut.get(r.id) ?? 0) < r.quantity,
   );
 }
 
@@ -218,8 +233,187 @@ export function matchItems<T extends Pick<ItemSummary, "asset_code" | "label" | 
   return scored.slice(0, limit).map((s) => s.item);
 }
 
-/** True when a fetch failure means "no connection" rather than "the server said no". */
+/**
+ * True when a fetch failure means "no connection" rather than "the server said
+ * no": the phone says it's offline, the request never got out, or it got no
+ * answer in time (fetchWithin).
+ */
 export function looksOffline(online: boolean, error?: unknown): boolean {
   if (!online) return true;
-  return error instanceof TypeError;
+  return error instanceof TypeError || isTimeout(error);
+}
+
+// ---------------------------------------------------------------------------
+// The queue, played over the phone's copy of the kit
+// ---------------------------------------------------------------------------
+
+/** A request as the projection needs it (EquipmentRequest fits). */
+export interface ProjectionRequest {
+  id: string;
+  status: string;
+  equipment_id: string;
+  quantity: number;
+  start_date: string;
+  end_date: string;
+  equipment?: { name: string } | null;
+  items?: { id: string }[];
+}
+
+/** A kit type as the projection needs it (Equipment fits). */
+export interface ProjectionKind {
+  id: string;
+  name: string;
+  category?: string | null;
+}
+
+/** Items tagged on this phone that the server hasn't seen yet carry this id prefix. */
+export const PENDING_ITEM = "queued:";
+
+export function isPendingItem(item: Pick<ItemSummary, "id">): boolean {
+  return item.id.startsWith(PENDING_ITEM);
+}
+
+export interface Projection {
+  /** The kit as it will be once the waiting scans are sent. */
+  items: ItemSummary[];
+  /** Check-outs waiting to send, per request id. */
+  queuedOut: Map<string, number>;
+}
+
+/** What a scan would come to, judged on the phone with no signal. */
+export type Preview =
+  /** Not on the phone's list (an untagged uid, say): the server will decide. */
+  | { verdict: "unknown" }
+  | { verdict: "apply"; item: ItemSummary }
+  /** Already done (a repeat scan): nothing to queue. */
+  | { verdict: "noop"; item: ItemSummary; message: string }
+  /** Certain to be refused, whatever has changed since: don't queue it. */
+  | { verdict: "refuse"; error: string }
+  /** Would be refused on what the phone last saw, which may be out of date. */
+  | { verdict: "doubt"; item: ItemSummary; error: string };
+
+function locate(items: ItemSummary[], op: Pick<BatchOp, "itemId" | "uid">): number {
+  if (op.itemId) return items.findIndex((i) => i.id === op.itemId);
+  if (op.uid) return items.findIndex((i) => i.tag_uid === op.uid);
+  return -1;
+}
+
+function patched(item: ItemSummary, patch: ItemPatch, at: string, request?: ProjectionRequest): ItemSummary {
+  const next: ItemSummary = { ...item, updated_at: at };
+  if (patch.status) next.status = patch.status;
+  if (patch.condition) next.condition = patch.condition;
+  if (patch.location !== undefined) next.location = patch.location;
+  if (patch.notes !== undefined) next.notes = patch.notes;
+  if (patch.last_audited_at) next.last_audited_at = patch.last_audited_at;
+  if (patch.loan_request_id === null) next.loan = null;
+  else if (patch.loan_request_id) {
+    next.loan = {
+      request_id: patch.loan_request_id,
+      borrower: null,
+      start_date: request?.start_date ?? "",
+      end_date: request?.end_date ?? "",
+    };
+  }
+  return next;
+}
+
+/** The item a queued "tagged" op will create, as the lists show it until it's sent. */
+function pendingItem(op: Extract<BatchOp, { action: "tagged" }>, kinds: ProjectionKind[]): ItemSummary {
+  const kind = kinds.find((k) => k.id === op.equipmentId);
+  return {
+    id: `${PENDING_ITEM}${op.clientId}`,
+    equipment_id: op.equipmentId,
+    equipment_name: kind?.name ?? "Kit",
+    category: kind?.category ?? "",
+    tag_uid: op.tagUid ?? op.uid ?? null,
+    asset_code: op.assetCode?.trim() || "New item",
+    label: op.label?.trim() || null,
+    location: op.location?.trim() || null,
+    status: "available",
+    condition: "good",
+    last_audited_at: op.at,
+    notes: op.notes?.trim() || null,
+    updated_at: op.at,
+    loan: null,
+  };
+}
+
+/**
+ * Judge one scan against the kit as it stands, using the server's own rules
+ * (planAction). Only a check-out of the wrong kind of kit is refused outright,
+ * since an item's kind doesn't change; anything that turns on status could be
+ * out of date, so it's queued with a warning instead.
+ */
+export function previewScan(
+  items: ItemSummary[],
+  op: BatchOp,
+  requests: ProjectionRequest[],
+  queuedOut: Map<string, number> = new Map(),
+): Preview {
+  if (op.action === "tagged") return { verdict: "unknown" };
+  const index = locate(items, op);
+  if (index < 0) return { verdict: "unknown" };
+  const item = items[index];
+
+  let request: ProjectionRequest | undefined;
+  if (op.action === "check_out") {
+    request = requests.find((r) => r.id === op.requestId);
+    if (request && request.equipment_id !== item.equipment_id) {
+      const wanted = request.equipment?.name ?? "something else";
+      return { verdict: "refuse", error: `${item.asset_code} is a ${item.equipment_name}, but this request is for ${wanted}.` };
+    }
+  }
+
+  const plan = planAction(
+    { ...item, loan_request_id: item.loan?.request_id ?? null },
+    op as ActionInput,
+    op.at,
+    request
+      ? {
+          id: request.id,
+          status: request.status,
+          equipment_id: request.equipment_id,
+          equipment_name: request.equipment?.name ?? "",
+          quantity: request.quantity,
+          borrower: null,
+          itemsOut: (request.items?.length ?? 0) + (queuedOut.get(request.id) ?? 0),
+        }
+      : null,
+  );
+  if (!plan.ok) {
+    // A request missing from the phone's copy may just be newer than it.
+    return { verdict: "doubt", item, error: plan.error };
+  }
+  if (plan.noop) return { verdict: "noop", item, message: plan.message };
+  return { verdict: "apply", item: patched(item, plan.patch, op.at, request) };
+}
+
+/**
+ * Play the waiting scans over the phone's copy of the kit, in order, so the
+ * lists, the item card and the next offline scan all see them: a handed-over
+ * tent shows "On loan", and a tag tagged offline is that item, not a new tag.
+ * Scans that will be refused leave the item as it was.
+ */
+export function projectQueue(
+  items: ItemSummary[],
+  queue: QueuedScan[],
+  requests: ProjectionRequest[],
+  kinds: ProjectionKind[],
+): Projection {
+  const queuedOut = new Map<string, number>();
+  if (!queue.length) return { items, queuedOut };
+  const list = items.slice();
+  for (const { op } of queue) {
+    if (op.action === "tagged") {
+      const tag = op.tagUid ?? op.uid;
+      if (tag && list.some((i) => i.tag_uid === tag)) continue;
+      list.push(pendingItem(op, kinds));
+      continue;
+    }
+    const preview = previewScan(list, op, requests, queuedOut);
+    if (preview.verdict !== "apply") continue;
+    list[locate(list, op)] = preview.item;
+    if (op.action === "check_out") queuedOut.set(op.requestId, (queuedOut.get(op.requestId) ?? 0) + 1);
+  }
+  return { items: list, queuedOut };
 }

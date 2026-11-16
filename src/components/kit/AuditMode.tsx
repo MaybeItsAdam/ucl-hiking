@@ -35,7 +35,16 @@ export function AuditMode() {
   function settle(uid: string, title: string, outcome: Outcome) {
     if (outcome.kind === "queued") {
       feedback("ok");
-      record({ key: uid, title, type: "queued", text: "No signal: saved, and sent when you're back online." });
+      const item = outcome.item;
+      if (item) setSeenIds((list) => (list.includes(item.id) ? list : [...list, item.id]));
+      record({
+        key: uid,
+        title: item ? `${item.asset_code}${item.label ? ` · ${item.label}` : ""}` : title,
+        type: "queued",
+        text: item
+          ? `${item.equipment_name} · no signal: saved, sent when you're back online`
+          : "No signal: saved, and sent when you're back online. Not on this phone's list, so it may be an untagged tag.",
+      });
       return;
     }
     if (outcome.kind === "error") {

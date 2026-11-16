@@ -6,14 +6,20 @@ import {
   enqueue,
   handoverProgress,
   looksOffline,
+  isPendingItem,
   matchItems,
   mergeAfterFlush,
+  previewScan,
+  projectQueue,
   readQueue,
   requestsWithRoom,
   settleQueue,
   writeQueue,
+  type BatchOp,
+  type ProjectionRequest,
   type QueuedScan,
 } from "./kitScan";
+import type { ItemSummary } from "./equipmentItems";
 
 class MemoryStorage implements Storage {
   private map = new Map<string, string>();
@@ -160,5 +166,183 @@ describe("offline detection", () => {
     expect(looksOffline(false)).toBe(true);
     expect(looksOffline(true, new TypeError("Failed to fetch"))).toBe(true);
     expect(looksOffline(true, new Error("boom"))).toBe(false);
+    expect(looksOffline(true, new DOMException("No answer in time", "TimeoutError"))).toBe(true);
+    expect(looksOffline(true, new DOMException("Aborted", "AbortError"))).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The queue played over the phone's copy of the kit
+// ---------------------------------------------------------------------------
+
+const AT = "2026-11-16T09:00:00Z";
+const item = (id: string, over: Partial<ItemSummary> = {}): ItemSummary => ({
+  id,
+  equipment_id: "tent",
+  equipment_name: "Tent",
+  category: "Camping",
+  tag_uid: `TAG-${id}`,
+  asset_code: `TENT-${id}`,
+  label: null,
+  location: "Kit room",
+  status: "available",
+  condition: "good",
+  last_audited_at: null,
+  notes: null,
+  updated_at: "2026-11-01T00:00:00Z",
+  loan: null,
+  ...over,
+});
+const loan = (over: Partial<ProjectionRequest> = {}): ProjectionRequest => ({
+  id: "req",
+  status: "approved",
+  equipment_id: "tent",
+  quantity: 2,
+  start_date: "2026-11-20",
+  end_date: "2026-11-22",
+  equipment: { name: "Tent" },
+  items: [],
+  ...over,
+});
+const kinds = [{ id: "tent", name: "Tent", category: "Camping" }, { id: "stove", name: "Stove" }];
+type Without<K extends keyof BatchOp> = BatchOp extends infer T ? (T extends BatchOp ? Omit<T, K> : never) : never;
+const q = (op: Without<"at">): QueuedScan => ({ op: { at: AT, ...op } as BatchOp, label: op.clientId });
+
+describe("projectQueue", () => {
+  it("returns the list untouched with nothing waiting", () => {
+    const items = [item("01")];
+    expect(projectQueue(items, [], [loan()], kinds).items).toBe(items);
+  });
+
+  it("shows a queued handover as on loan, against that request, and counts it", () => {
+    const { items, queuedOut } = projectQueue(
+      [item("01"), item("02")],
+      [q({ clientId: "a", action: "check_out", uid: "TAG-01", requestId: "req" })],
+      [loan()],
+      kinds,
+    );
+    expect(items[0]).toMatchObject({ status: "on_loan", loan: { request_id: "req", start_date: "2026-11-20" }, updated_at: AT });
+    expect(items[1].status).toBe("available");
+    expect(queuedOut.get("req")).toBe(1);
+  });
+
+  it("plays scans in order: out, then back in needing repair", () => {
+    const { items, queuedOut } = projectQueue(
+      [item("01")],
+      [
+        q({ clientId: "a", action: "check_out", itemId: "01", requestId: "req" }),
+        q({ clientId: "b", action: "check_in", uid: "TAG-01", condition: "needs_repair" }),
+      ],
+      [loan()],
+      kinds,
+    );
+    expect(items[0]).toMatchObject({ status: "maintenance", condition: "needs_repair", loan: null });
+    expect(queuedOut.get("req")).toBe(1);
+  });
+
+  it("stops counting a request once it is full, and leaves refused scans as they were", () => {
+    const { items, queuedOut } = projectQueue(
+      [item("01"), item("02"), item("03")],
+      [
+        q({ clientId: "a", action: "check_out", uid: "TAG-01", requestId: "req" }),
+        q({ clientId: "b", action: "check_out", uid: "TAG-02", requestId: "req" }),
+        q({ clientId: "c", action: "check_out", uid: "TAG-03", requestId: "req" }),
+      ],
+      [loan({ quantity: 2 })],
+      kinds,
+    );
+    expect(items.map((i) => i.status)).toEqual(["on_loan", "on_loan", "available"]);
+    expect(queuedOut.get("req")).toBe(2);
+  });
+
+  it("marks audited items seen, moves them, and finds missing ones", () => {
+    const { items } = projectQueue(
+      [item("01", { status: "missing" })],
+      [q({ clientId: "a", action: "audit", uid: "TAG-01", location: "Shelf B" })],
+      [],
+      kinds,
+    );
+    expect(items[0]).toMatchObject({ status: "available", location: "Shelf B", last_audited_at: AT });
+  });
+
+  it("lists a tag tagged offline as a pending item, so scanning it again finds it", () => {
+    const { items } = projectQueue(
+      [item("01")],
+      [q({ clientId: "t1", action: "tagged", uid: "NEW", tagUid: "NEW", equipmentId: "stove", label: "Blue" })],
+      [],
+      kinds,
+    );
+    expect(items).toHaveLength(2);
+    expect(items[1]).toMatchObject({ tag_uid: "NEW", equipment_name: "Stove", category: "", label: "Blue", status: "available" });
+    expect(isPendingItem(items[1])).toBe(true);
+    expect(isPendingItem(items[0])).toBe(false);
+  });
+
+  it("doesn't list a queued tag that is already on an item", () => {
+    const { items } = projectQueue(
+      [item("01")],
+      [q({ clientId: "t1", action: "tagged", tagUid: "TAG-01", equipmentId: "tent" })],
+      [],
+      kinds,
+    );
+    expect(items).toHaveLength(1);
+  });
+
+  it("applies later scans to a pending item by its tag", () => {
+    const { items } = projectQueue(
+      [],
+      [
+        q({ clientId: "t1", action: "tagged", tagUid: "NEW", equipmentId: "tent" }),
+        q({ clientId: "a", action: "flag", uid: "NEW", condition: "needs_repair" }),
+      ],
+      [],
+      kinds,
+    );
+    expect(items[0]).toMatchObject({ status: "maintenance", condition: "needs_repair" });
+  });
+});
+
+describe("previewScan", () => {
+  const op = (body: Without<"at" | "clientId">) => ({ clientId: "x", at: AT, ...body }) as BatchOp;
+
+  it("leaves tags it doesn't know to the server", () => {
+    expect(previewScan([item("01")], op({ action: "audit", uid: "STRANGER" }), [])).toEqual({ verdict: "unknown" });
+  });
+
+  it("refuses the wrong kind of kit outright", () => {
+    const stove = item("09", { equipment_id: "stove", equipment_name: "Stove", asset_code: "STOVE-09" });
+    expect(previewScan([stove], op({ action: "check_out", uid: "TAG-09", requestId: "req" }), [loan()])).toEqual({
+      verdict: "refuse",
+      error: "STOVE-09 is a Stove, but this request is for Tent.",
+    });
+  });
+
+  it("says a repeat handover is already done rather than queueing it", () => {
+    const out = item("01", { status: "on_loan", loan: { request_id: "req", borrower: null, start_date: "", end_date: "" } });
+    const preview = previewScan([out], op({ action: "check_out", uid: "TAG-01", requestId: "req" }), [loan()]);
+    expect(preview.verdict).toBe("noop");
+  });
+
+  it("doubts, but doesn't refuse, what may be out of date", () => {
+    const elsewhere = item("01", { status: "on_loan", loan: { request_id: "other", borrower: null, start_date: "", end_date: "" } });
+    expect(previewScan([elsewhere], op({ action: "check_out", uid: "TAG-01", requestId: "req" }), [loan()]).verdict).toBe("doubt");
+    // A request newer than the phone's copy.
+    expect(previewScan([item("01")], op({ action: "check_out", uid: "TAG-01", requestId: "new" }), [loan()]).verdict).toBe("doubt");
+    // Full, counting what's already queued.
+    const full = previewScan([item("01")], op({ action: "check_out", uid: "TAG-01", requestId: "req" }), [loan({ quantity: 1 })], new Map([["req", 1]]));
+    expect(full.verdict).toBe("doubt");
+  });
+
+  it("returns the item as it will be", () => {
+    const preview = previewScan([item("01")], op({ action: "check_out", itemId: "01", requestId: "req" }), [loan()]);
+    expect(preview).toMatchObject({ verdict: "apply", item: { status: "on_loan" } });
+  });
+});
+
+describe("requestsWithRoom", () => {
+  it("counts handovers waiting to send", () => {
+    const r = { id: "req", status: "approved", equipment_id: "tent", quantity: 2, items: [{ id: "01" }] };
+    expect(requestsWithRoom([r], "tent")).toHaveLength(1);
+    expect(requestsWithRoom([r], "tent", new Map([["req", 1]]))).toHaveLength(0);
   });
 });

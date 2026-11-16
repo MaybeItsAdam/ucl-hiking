@@ -3,9 +3,10 @@
 import { useEffect } from "react";
 
 /**
- * Registers public/sw.js, which keeps walk-day registers openable with no
- * signal. Production only: in development it would serve stale build files.
- * The iOS app's WKWebView has no service workers, so there this does nothing.
+ * Registers public/sw.js, which keeps walk-day registers and the kit scanner
+ * openable with no signal. Production only: in development it would serve
+ * stale build files. The iOS app runs it through app-bound domains
+ * (capacitor.config.ts); a build from before that has no service worker.
  */
 export function ServiceWorker() {
   useEffect(() => {

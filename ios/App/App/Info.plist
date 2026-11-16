@@ -58,6 +58,13 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>WKAppBoundDomains</key>
+	<array>
+		<string>ucl-hiking.vercel.app</string>
+		<string>uclhiking.org</string>
+		<string>www.uclhiking.org</string>
+		<string>localhost</string>
+	</array>
 	<key>NFCReaderUsageDescription</key>
 	<string>Scan the NFC tags on club kit to check it in and out.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
