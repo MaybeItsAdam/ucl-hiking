@@ -1,18 +1,23 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ClubMark } from "@/components/ClubMark";
+import { JsonLd } from "@/components/JsonLd";
+import { breadcrumbs, pageMetadata } from "@/lib/seo";
 import { KIT_COOL_OFF_DAYS } from "@/lib/kitLoans";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Privacy policy | UCL Hiking Club",
-  description: "How MaybeItsSoftware handles information in the UCL Hiking Club website and app.",
-};
+  description:
+    "How MaybeItsSoftware handles personal information in the UCL Hiking Club website and mobile app: what is collected, why, and how to delete it.",
+  path: "/privacy",
+});
 
 const contactEmail = process.env.NEXT_PUBLIC_PRIVACY_CONTACT_EMAIL || "privacy@uclhiking.org";
 
 export default function PrivacyPage() {
   return (
     <main className="privacy-page">
+      <JsonLd data={breadcrumbs("Privacy policy", "/privacy")} />
       <header className="privacy-header">
         <Link href="/" className="privacy-brand" aria-label="UCL Hiking Club home">
           <ClubMark size={42} />

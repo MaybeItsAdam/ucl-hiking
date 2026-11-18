@@ -1,15 +1,20 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ClubMark } from "@/components/ClubMark";
+import { JsonLd } from "@/components/JsonLd";
+import { breadcrumbs, pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "App support | UCL Hiking Club",
-  description: "Help with UCL Hiking Club sign-in, equipment requests and the mobile app.",
-};
+  description:
+    "Help with the UCL Hiking Club website and iOS and Android app: signing in with your UCL account, membership, equipment requests and contacting support.",
+  path: "/support",
+});
 
 export default function SupportPage() {
   return (
     <main className="privacy-page">
+      <JsonLd data={breadcrumbs("App support", "/support")} />
       <header className="privacy-header">
         <Link href="/" className="privacy-brand" aria-label="UCL Hiking Club home">
           <ClubMark size={42} />

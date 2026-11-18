@@ -1,13 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ClubMark } from "@/components/ClubMark";
+import { JsonLd } from "@/components/JsonLd";
+import { breadcrumbs, pageMetadata } from "@/lib/seo";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { parseNumber, type Values } from "@/lib/walkSheet";
 
-export const metadata: Metadata = {
-  title: "Upcoming walks | UCL Hiking Club",
-  description: "Walks and hikes from UCL Hiking Club that anyone can come on.",
-};
+export const metadata: Metadata = pageMetadata({
+  title: "Upcoming walks open to everyone | UCL Hiking Club",
+  description:
+    "Upcoming UCL Hiking Club walks that anyone can come on: date, distance, meeting time and place, with tickets on the Students' Union UCL website.",
+  path: "/walks",
+});
 
 export const revalidate = 600;
 
@@ -44,6 +48,7 @@ export default async function PublicWalksPage() {
 
   return (
     <main className="privacy-page public-walks">
+      <JsonLd data={breadcrumbs("Upcoming walks", "/walks")} />
       <header className="privacy-header">
         <Link href="/" className="privacy-brand" aria-label="UCL Hiking Club home">
           <ClubMark size={42} />

@@ -16,8 +16,16 @@ const nextConfig: NextConfig = {
     return legacyRedirects;
   },
   async headers() {
-    // The service worker must never come from a cache, or fixes to it stall.
-    return [{ source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }] }];
+    // Only the canonical host (src/lib/seo.ts) is indexed: previews and the
+    // *.vercel.app host the app shell loads say noindex on every response.
+    const noindex = [{ key: "X-Robots-Tag", value: "noindex, nofollow" }];
+    return [
+      // The service worker must never come from a cache, or fixes to it stall.
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }] },
+      process.env.VERCEL_ENV === "preview"
+        ? { source: "/:path*", headers: noindex }
+        : { source: "/:path*", has: [{ type: "host", value: ".*\\.vercel\\.app" }], headers: noindex },
+    ];
   },
 };
 

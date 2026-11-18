@@ -3,12 +3,28 @@ import { NativeAuthBridge } from "@/components/NativeAuthBridge";
 import { NativeSystemBars } from "@/components/NativeSystemBars";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { ServiceWorker } from "@/components/ServiceWorker";
+import { IS_PREVIEW, SITE_NAME, SITE_URL } from "@/lib/seo";
 import { themeScript } from "@/lib/theme";
 import "./globals.css";
 
+const googleVerification = process.env.GOOGLE_SITE_VERIFICATION;
+const bingVerification = process.env.BING_SITE_VERIFICATION;
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title: "UCL Hiking Club — London out, wild in",
   description: "Weekend walks, mountain weekends and good company. Open to every UCL student.",
+  applicationName: SITE_NAME,
+  openGraph: { siteName: SITE_NAME, locale: "en_GB", type: "website" },
+  twitter: { card: "summary_large_image" },
+  // Previews never get indexed; ucl-hiking.vercel.app is kept out by robots.ts
+  // and the X-Robots-Tag header in next.config.ts.
+  ...(IS_PREVIEW ? { robots: { index: false, follow: false } } : {}),
+  // Optional HTML-tag verification for Search Console / Bing Webmaster (DNS works too).
+  verification: {
+    ...(googleVerification ? { google: googleVerification } : {}),
+    ...(bingVerification ? { other: { "msvalidate.01": bingVerification } } : {}),
+  },
 };
 
 export const viewport = {
@@ -23,7 +39,7 @@ export const viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en-GB" suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>

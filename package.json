@@ -14,7 +14,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "env:check": "node scripts/check-env.mjs"
+    "env:check": "node scripts/check-env.mjs",
+    "indexnow": "node scripts/indexnow.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^7.1.0",

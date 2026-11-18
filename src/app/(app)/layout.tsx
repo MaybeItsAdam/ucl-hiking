@@ -1,6 +1,10 @@
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/AppShell";
 import { NativePush } from "@/components/NativePush";
+import { noIndex } from "@/lib/seo";
+
+/** Members only, behind UCL sign-in: kept out of search. */
+export const metadata = noIndex;
 
 /**
  * The signed-in tabs share one frame. Living in a layout, it is rendered once
