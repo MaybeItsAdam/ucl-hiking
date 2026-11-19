@@ -17,6 +17,19 @@ export interface WalkLeaderRequest {
 
 export const REQUEST_COLUMNS = "id, member_id, wl_name, note, status, decided_at, created_at";
 
+/** A member's latest request that they haven't withdrawn, if any. */
+export async function latestWalkLeaderRequest(memberId: string): Promise<WalkLeaderRequest | null> {
+  const { data } = await getSupabaseAdmin()
+    .from("walk_leader_requests")
+    .select(REQUEST_COLUMNS)
+    .eq("member_id", memberId)
+    .neq("status", "withdrawn")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as WalkLeaderRequest | null) ?? null;
+}
+
 /**
  * Roster names nobody has claimed: active rows with no email, which is every
  * leader the sync added from the calendar until someone links them.

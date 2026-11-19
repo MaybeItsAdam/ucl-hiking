@@ -1,5 +1,37 @@
-/* My walks › Walks you led. Kept here, not in globals.css, as it's only this list. */
+/* My walks › Reimbursements. Kept here, not in globals.css, as it's only this list. */
+.section { margin-bottom: 8px; }
 .summary { margin: 0 0 10px; }
+
+/* Micro-label: section eyebrows and the claimed list's toggle. */
+.label { margin: 0; font: 800 10px var(--font-body); letter-spacing: .15em; text-transform: uppercase; color: var(--muted); }
+
+/* A bordered note above the list: walks to claim, or "which one is you?". */
+.callout {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.callout :global(.kit-form) { margin: 4px 0 0; }
+.due { display: block; border-color: var(--warn-line); background: var(--warn-bg); color: var(--warn-fg); font-size: 15px; }
+.due strong { font-weight: 800; }
+
+/* Walks already claimed: folded away under the ones still to do. */
+.claimed { margin-top: 12px; }
+.claimed > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  cursor: pointer;
+  list-style: none;
+}
+.claimed > summary::-webkit-details-marker { display: none; }
+.claimed > summary::before { content: "▸"; margin-right: 6px; font-size: 12px; }
+.claimed[open] > summary::before { content: "▾"; }
+.claimed > summary:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; border-radius: 6px; }
 /* The summary line's stand-in while the list loads: one line of event-meta text. */
 .summarySkeleton { display: block; width: 46%; height: 11px; margin: 4px 0 13px; }
 

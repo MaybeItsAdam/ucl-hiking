@@ -4,7 +4,7 @@ import { audit } from "@/lib/audit";
 import { notify } from "@/lib/notify";
 import { getRealMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
-import { findUnlinked, REQUEST_COLUMNS, unlinkedRosterNames, type WalkLeaderRequest } from "@/lib/walkLeaderRequests";
+import { findUnlinked, latestWalkLeaderRequest, REQUEST_COLUMNS, unlinkedRosterNames } from "@/lib/walkLeaderRequests";
 
 // getRealMember, not getCurrentMember: an admin previewing another role is
 // still themselves, and asks (or doesn't) as themselves.
@@ -13,17 +13,7 @@ function unavailable() {
   return NextResponse.json({ error: "Requests need the database." }, { status: 503 });
 }
 
-async function latestRequest(memberId: string): Promise<WalkLeaderRequest | null> {
-  const { data } = await getSupabaseAdmin()
-    .from("walk_leader_requests")
-    .select(REQUEST_COLUMNS)
-    .eq("member_id", memberId)
-    .neq("status", "withdrawn")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return (data as WalkLeaderRequest | null) ?? null;
-}
+const latestRequest = latestWalkLeaderRequest;
 
 /** GET — the member's latest request, and the calendar names they can pick from. */
 export async function GET() {
