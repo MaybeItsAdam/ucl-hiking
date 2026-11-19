@@ -1,11 +1,13 @@
 [
   {
-    "relation": ["delegate_permission/common.handle_all_urls"],
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
     "target": {
       "namespace": "android_app",
       "package_name": "org.uclhiking.app",
       "sha256_cert_fingerprints": [
-        "REPLACE_ME_PLAY_APP_SIGNING_KEY_SHA256 (Play Console > Test and release > App integrity > App signing key certificate)"
+        "93:1E:8E:96:2D:31:15:11:6E:1C:A5:DF:7A:D8:52:5D:DF:D1:C4:AF:81:ED:07:FC:89:87:7B:45:13:4D:A8:8C"
       ]
     }
   }
