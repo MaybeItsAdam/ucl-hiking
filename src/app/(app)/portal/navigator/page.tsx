@@ -6,18 +6,21 @@ import { BookOpen, Download } from "lucide-react";
 import { NavigatorDownload } from "@/components/NavigatorDownload";
 import { NavigatorSave } from "@/components/NavigatorSave";
 import { formatBytes, issueDateLabel, issueLabel, LARGE_DOWNLOAD_BYTES, navigatorIssues, navigatorVersion } from "@/lib/navigator";
-import { getCurrentMember } from "@/lib/session";
+import { NavigatorSubnav } from "@/components/NavigatorSubnav";
+import { getArchiveViewer } from "@/lib/archiveViewer";
 
 export const metadata: Metadata = { title: "The Navigator | UCL Hiking Club" };
 
 /** Every issue of the club magazine, newest first, as a shelf of covers. */
 export default async function NavigatorLibraryPage() {
-  const member = await getCurrentMember();
-  if (!member) redirect("/auth/signin");
+  // Alumni too (lib/alumni): the Navigator is one of the two things they keep.
+  const viewer = await getArchiveViewer();
+  if (!viewer) redirect("/auth/signin");
   const issues = navigatorIssues();
 
   return (
     <article className="navigator-library">
+      <NavigatorSubnav active="magazine" />
       <header className="navigator-intro">
         <p className="event-eyebrow">The club magazine</p>
         <p>A magazine by the club, for the club: walks, residentials, photography, art and the people behind it all.</p>

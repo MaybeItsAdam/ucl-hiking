@@ -15,6 +15,10 @@ export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || "https://www.uclhik
 export const SITE_HOST = new URL(SITE_URL).host;
 export const SITE_NAME = "UCL Hiking Club";
 
+/** The app on the stores (also in the home page's structured data). */
+export const APP_STORE_URL = "https://apps.apple.com/gb/app/ucl-hiking-club/id6808703192";
+export const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=org.uclhiking.app";
+
 /** Vercel preview builds are never indexed. Production serves several hosts; robots.ts sorts those out. */
 export const IS_PREVIEW = process.env.VERCEL_ENV === "preview";
 
@@ -117,9 +121,9 @@ export function homeGraph() {
           "Every walk on the programme, the club's routes, club kit, The Navigator and your own hiking year, signed in with your UCL account.",
         applicationCategory: "SportsApplication",
         operatingSystem: "iOS, Android",
-        downloadUrl: "https://apps.apple.com/gb/app/ucl-hiking-club/id6808703192",
-        installUrl: "https://play.google.com/store/apps/details?id=org.uclhiking.app",
-        sameAs: ["https://apps.apple.com/gb/app/ucl-hiking-club/id6808703192", "https://play.google.com/store/apps/details?id=org.uclhiking.app"],
+        downloadUrl: APP_STORE_URL,
+        installUrl: PLAY_STORE_URL,
+        sameAs: [APP_STORE_URL, PLAY_STORE_URL],
         offers: { "@type": "Offer", price: "0", priceCurrency: "GBP" },
         inLanguage: "en-GB",
         provider: { "@id": ids.club },

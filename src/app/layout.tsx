@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { NativeAuthBridge } from "@/components/NativeAuthBridge";
+import { KitLinkBridge } from "@/components/KitLinkBridge";
 import { NativeSystemBars } from "@/components/NativeSystemBars";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { ServiceWorker } from "@/components/ServiceWorker";
@@ -45,6 +46,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       </head>
       <body>
         <NativeAuthBridge />
+        <KitLinkBridge />
         <NativeSystemBars />
         {children}
         <OfflineBanner />

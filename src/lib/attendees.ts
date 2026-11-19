@@ -171,13 +171,26 @@ export async function getAttendees(eventSuuId: string): Promise<Attendee[]> {
   return error ? [] : ((data ?? []) as Attendee[]);
 }
 
-/** Every walk a member was on, for their log. */
-export async function getMemberAttendance(memberId: string): Promise<Attendee[]> {
+/** A PostgREST `or` filter for a member's attendance: their id, and their email on rows not linked to anyone. */
+export function attendanceFilter(memberId: string, email: string | null | undefined): string {
+  const e = email?.trim().toLowerCase() ?? "";
+  // Only a plain address goes into the filter string; anything odd falls back to the id alone.
+  if (!/^[^\s@",()]+@[^\s@",()]+\.[^\s@",()]+$/.test(e)) return `member_id.eq.${memberId}`;
+  return `member_id.eq.${memberId},and(member_id.is.null,email.eq."${e}")`;
+}
+
+/**
+ * Every walk a member was on, for their log. A ticket links to a member when
+ * the list syncs, so one bought before they had an account (or before the
+ * membership sync knew them) has no member yet: its email still finds it
+ * until the 7-day purge clears ticket emails.
+ */
+export async function getMemberAttendance(memberId: string, email?: string | null): Promise<Attendee[]> {
   if (!isSupabaseConfigured()) return [];
   const { data, error } = await getSupabaseAdmin()
     .from("event_attendees")
     .select(ATTENDEE_COLUMNS)
-    .eq("member_id", memberId)
+    .or(attendanceFilter(memberId, email))
     .eq("removed", false);
   return error ? [] : ((data ?? []) as Attendee[]);
 }

@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     // restrict_violation: the members trigger caught kit the function didn't see.
     if (error.code === "23001") {
       return NextResponse.json(
-        { error: "You still have club kit out on loan. Return it to a principal first, then delete your account." },
+        { error: "You still have club kit out on loan. Give it back to a committee member first, then delete your account." },
         { status: 409 },
       );
     }

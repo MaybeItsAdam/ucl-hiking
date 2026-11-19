@@ -1,5 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { collapseOps, fetchToolboxAttendees, headcount, parseAttendanceOps, planAttendeeSync, walkRole, type Attendee } from "./attendees";
+import { attendanceFilter, collapseOps, fetchToolboxAttendees, headcount, parseAttendanceOps, planAttendeeSync, walkRole, type Attendee } from "./attendees";
+
+describe("attendanceFilter", () => {
+  it("finds their rows by id, and unlinked tickets by their email", () => {
+    expect(attendanceFilter("m1", " Ada@UCL.ac.uk ")).toBe('member_id.eq.m1,and(member_id.is.null,email.eq."ada@ucl.ac.uk")');
+  });
+  it("falls back to the id alone for a missing or odd email", () => {
+    expect(attendanceFilter("m1", null)).toBe("member_id.eq.m1");
+    expect(attendanceFilter("m1", 'a"),or(x@y.z')).toBe("member_id.eq.m1");
+  });
+});
 
 const row = (over: Partial<Attendee>): Attendee => ({
   id: "a",

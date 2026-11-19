@@ -2225,6 +2225,9 @@ button.roster-stat:not(:disabled):hover { background: var(--surface-2); }
 
 .my-walk-in { gap: 3px; margin-left: 8px; border: 1px solid var(--ok-line); background: var(--ok-bg); color: var(--ok-fg); vertical-align: middle; }
 .my-walk-role { margin-left: 8px; border: 1px solid var(--info-line); background: var(--info-bg); color: var(--info-fg); vertical-align: middle; }
+/* My walks › Walk leading: the "Apply to be a walk leader" panel. */
+.my-walks-apply { margin: 0 0 18px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.my-walks-apply .event-meta { margin: 0 0 10px; }
 .events-list .event-day-actions .kit-btn { display: inline-flex; align-items: center; gap: 6px; }
 .events-page > .hike-map { margin: 0 0 20px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .events-page > .event-stats { margin-bottom: 16px; }
@@ -2735,7 +2738,14 @@ button.kit-item-main { cursor: pointer; }
 .kit-request-purpose { margin: 6px 0 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .kit-request-note { margin: 6px 0 0; padding-left: 10px; border-left: 2px solid var(--warn-line); font-size: 13px; line-height: 1.45; color: var(--warn-fg); }
 .kit-request-email { display: inline-block; margin-top: 4px; font-size: 12px; color: var(--muted); text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
-.kit-request-actions { display: flex; gap: 8px; }
+.kit-request-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.kit-request-pickup { margin: 6px 0 0; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.kit-request-pickup-label { margin-right: 4px; font: 700 10px var(--font-body); letter-spacing: .15em; text-transform: uppercase; color: var(--muted); }
+/* Booked is confirmed: success. Restricted kit wears the purple identity accent. */
+.kit-tag.is-booked { border-color: var(--ok-line); background: var(--ok-bg); color: var(--ok-fg); }
+.kit-tag.is-restricted { border-color: color-mix(in srgb, #7a4de8 40%, transparent); background: color-mix(in srgb, #7a4de8 10%, transparent); color: #7a4de8; }
+.kit-held { margin-bottom: 20px; }
+.kit-member-chosen { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; }
 
 .kit-empty .kit-btn { margin-top: 12px; }
 .kit-empty p { display: flex; flex-direction: column; align-items: center; }
@@ -3434,6 +3444,18 @@ button.kit-item-main { cursor: pointer; }
   .navigator-cover, .navigator-leaf img, .navigator-icon-btn, .navigator-save-bar { transition-duration: .01s; }
 }
 
+/* ── Photo archive ──
+   The trips' Google Photos albums, under the Navigator tab. Flat rows on
+   hairlines; the actions wrap under the name on a phone. */
+.photo-trip { flex-wrap: wrap; padding: 10px 14px; }
+.photo-trip-main { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.photo-trip-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.photo-trip-actions .kit-btn { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.photo-archive-note { margin-top: 24px; max-width: 560px; }
+.alumni-admin .kit-list, .alumni-admin .roster-toolbar { margin-top: 12px; }
+.alumni-admin > .member-note, .alumni-admin > .day-note { margin-top: 10px; max-width: 620px; }
+.alumni-admin .photo-trip-main small { font-size: 12px; color: var(--muted); }
+
 /* ── Offline banner and dead ends ──
    The banner floats above the tab bar (OfflineBanner measures it into
    --offline-lift) while the phone has no connection, then briefly says when
@@ -3480,3 +3502,25 @@ button.kit-item-main { cursor: pointer; }
 .dead-end-quip { margin: 0 0 28px; font-size: 15px; line-height: 1.6; color: var(--muted); }
 .dead-end-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 @media (max-width: 640px) { .dead-end { margin: 32px 16px; padding: 36px 20px; } }
+
+/* Writing a kit tag's link (components/kit/TagWriter.tsx). */
+.kit-tag-writer .kit-field-hint { margin: 0 0 10px; }
+.kit-tag-writer-url { display: inline-block; overflow-wrap: anywhere; font-size: 12px; color: var(--muted); }
+.kit-tag-writer-status { margin: 0 0 10px; font-size: 14px; font-weight: 700; }
+
+/* What a kit tag opens outside the app (app/kit/[id]). */
+.kit-public-content { margin-top: 48px; }
+.kit-public-content h1 { overflow-wrap: anywhere; }
+.kit-public-name { margin: 8px 0 0; font: 700 20px/1.3 var(--font-display); color: var(--muted); }
+.kit-public-facts { margin: 28px 0 8px; border-top: 1px solid var(--line); }
+.kit-public-facts > div { display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.kit-public-facts dt { padding-top: 3px; font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.kit-public-facts dd { margin: 0; }
+.kit-public-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; overflow-wrap: anywhere; }
+.kit-public-actions, .kit-public-stores { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 14px; }
+.privacy-content a.kit-btn { color: var(--ink); font-weight: 700; text-decoration: none; }
+.privacy-content a.kit-btn.primary { color: #fff; }
+@media (max-width: 640px) {
+  .kit-public-facts > div { grid-template-columns: 1fr; gap: 2px; }
+  .kit-public-actions .kit-btn, .kit-public-stores .kit-btn { flex: 1 1 auto; min-height: 44px; }
+}

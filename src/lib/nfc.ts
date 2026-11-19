@@ -19,6 +19,7 @@
  * support simply reports "none" here.
  */
 import { Capacitor, registerPlugin, type PluginListenerHandle } from "@capacitor/core";
+import { kitTagRecords, kitTagWebMessage, type NdefRecordBytes } from "@/lib/kitTag";
 
 export type NfcSupport = "native" | "web" | "none";
 
@@ -113,6 +114,8 @@ interface HikingNfcPlugin {
   isAvailable(): Promise<{ available: boolean }>;
   startScanning(options: { alertMessage: string; continuous: boolean }): Promise<void>;
   stopScanning(): Promise<void>;
+  /** Not in app builds up to 1.0.1: check iosCanWrite() first. */
+  writeTag(options: { records: NdefRecordBytes[]; expectedUid?: string; alertMessage: string }): Promise<{ uid: number[] }>;
   addListener(event: "tag", cb: (e: { uid: number[] }) => void): Promise<PluginListenerHandle>;
   addListener(
     event: "sessionEnded",
@@ -160,6 +163,7 @@ interface NdefReadingEvent extends Event {
 }
 interface NdefReaderLike extends EventTarget {
   scan(options?: { signal?: AbortSignal }): Promise<void>;
+  write?(message: unknown, options?: { overwrite?: boolean; signal?: AbortSignal }): Promise<void>;
 }
 type NdefReaderCtor = new () => NdefReaderLike;
 
@@ -217,7 +221,29 @@ export async function openNfcSettings(): Promise<void> {
 
 const INERT: ScanSession = { stop: async () => {} };
 
+/** When the app's own reader last read a tag (see msSinceInAppTag). */
+let lastInAppTagAt = 0;
+
+/**
+ * Milliseconds since the app's own reader last read or wrote a tag. A tag
+ * written with a kit URL that is still against an Android phone when reader
+ * mode lets go gets dispatched again, and with App Links that opens this very
+ * app at /kit/<id>: the link handler (NativeLinkBridge) ignores links that
+ * arrive this soon after a read.
+ */
+export function msSinceInAppTag(now: number = Date.now()): number {
+  return lastInAppTagAt ? now - lastInAppTagAt : Number.POSITIVE_INFINITY;
+}
+
 export async function startScanning(opts: StartScanningOptions): Promise<ScanSession> {
+  const onTag = opts.onTag;
+  opts = {
+    ...opts,
+    onTag: (uid) => {
+      lastInAppTagAt = Date.now();
+      onTag(uid);
+    },
+  };
   const accept = createDebouncer(opts.debounceMs ?? DEFAULT_DEBOUNCE_MS);
   const continuous = opts.continuous ?? false;
   const native = nativePlatform();
@@ -418,6 +444,236 @@ function webErrorMessage(err: unknown): string {
   if (name === "NotReadableError") return "NFC is switched off. Turn it on in Settings to scan kit.";
   if (name === "AbortError") return "Scanning was stopped.";
   return "Couldn't start the NFC reader. Try again.";
+}
+
+// ---------------------------------------------------------------------------
+// Writing the kit link onto a tag
+
+/**
+ * Whether this device can write a kit tag. "update": the iOS app is a build
+ * from before writing (its HikingNfc plugin has no writeTag), so the page
+ * should say to update the app rather than hide the option.
+ */
+export type WriteSupport = "native" | "web" | "update" | "none";
+
+type PluginHeader = { name: string; methods?: { name: string }[] };
+
+/** Whether the installed iOS build's HikingNfc plugin has writeTag (the shell loads the live site, so it may be older). */
+function iosCanWrite(): boolean {
+  const cap = (Capacitor as unknown as { PluginHeaders?: PluginHeader[] }).PluginHeaders
+    ? (Capacitor as unknown as { PluginHeaders: PluginHeader[] })
+    : (window as unknown as { Capacitor?: { PluginHeaders?: PluginHeader[] } }).Capacitor;
+  const header = cap?.PluginHeaders?.find((h) => h.name === "HikingNfc");
+  return Boolean(header?.methods?.some((m) => m.name === "writeTag"));
+}
+
+export async function nfcWriteSupport(): Promise<WriteSupport> {
+  const { support } = await nfcAvailability();
+  if (support === "none") return "none";
+  if (support === "web") {
+    const Reader = webNfc();
+    return Reader && "write" in Reader.prototype ? "web" : "none";
+  }
+  if (nativePlatform() === "ios") return iosCanWrite() ? "native" : "update";
+  return "native";
+}
+
+export interface WriteKitTagOptions {
+  item: { id: string; asset_code?: string | null };
+  /**
+   * The tag's UID ("04:A1:…") when we know which tag it should be: any other
+   * tag is passed over (onHint), so the link can't land on the wrong kit.
+   */
+  expectedUid?: string | null;
+  /**
+   * Still waiting, with something to say: another tag was held to the phone,
+   * or the tag moved away mid-write. (iOS says it on its own sheet instead.)
+   */
+  onHint?: (message: string) => void;
+  /** Stops waiting (the Cancel button). The promise then settles as cancelled. */
+  signal?: AbortSignal;
+}
+
+export type WriteResult = { ok: true } | { ok: false; cancelled?: boolean; error: string };
+
+/**
+ * Write an item's NDEF message (kitTagRecords: its URL, then a line of text)
+ * on the next tag held to the phone. Resolves once written, or with what went
+ * wrong. Must start from a tap (Web NFC may ask for permission).
+ */
+export async function writeKitTag(opts: WriteKitTagOptions): Promise<WriteResult> {
+  if (opts.signal?.aborted) return { ok: false, cancelled: true, error: "Cancelled." };
+  const support = await nfcWriteSupport();
+  let result: WriteResult;
+  if (support === "native" && nativePlatform() === "ios") result = await writeIos(opts);
+  else if (support === "native" && nativePlatform() === "android") result = await writeAndroid(opts);
+  else if (support === "web") result = await writeWeb(webNfc()!, opts);
+  else if (support === "update") result = { ok: false, error: "Update the app from the App Store to write kit tags." };
+  else result = { ok: false, error: "This device can't write NFC tags." };
+  if (result.ok) lastInAppTagAt = Date.now();
+  return result;
+}
+
+const CANCELLED: WriteResult = { ok: false, cancelled: true, error: "Cancelled." };
+const WRONG_TAG = "That's a different tag. Hold the phone to the one you just tagged.";
+const MOVED_AWAY = "The tag moved away before it was written. Hold it still against the phone.";
+
+function writeErrorMessage(err: unknown): WriteResult {
+  const code = (err as { code?: string } | null)?.code;
+  if (code === "CANCELLED") return CANCELLED;
+  if (code === "TIMEOUT") return { ok: false, error: "No tag was found in time. Try again." };
+  if (code === "UNIMPLEMENTED") return { ok: false, error: "Update the app to write kit tags." };
+  const message = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+  if (/read.?only|locked/i.test(message)) return { ok: false, error: "This tag is locked, so it can't be written." };
+  if (/capacity|too small/i.test(message)) return { ok: false, error: "This tag is too small for the link." };
+  if (/does not support NDEF|isn't formatted|NOT_NDEF/i.test(message)) {
+    return { ok: false, error: "This tag can't hold a link (it isn't NDEF formatted)." };
+  }
+  return { ok: false, error: message || "Couldn't write the tag. Hold it still and try again." };
+}
+
+async function writeIos(opts: WriteKitTagOptions): Promise<WriteResult> {
+  const plugin = iosPlugin();
+  const onAbort = () => void plugin.stopScanning().catch(() => {});
+  opts.signal?.addEventListener("abort", onAbort, { once: true });
+  try {
+    await plugin.writeTag({
+      records: kitTagRecords(opts.item),
+      expectedUid: opts.expectedUid ?? undefined,
+      alertMessage: IOS_ALERT_MESSAGE,
+    });
+    return { ok: true };
+  } catch (err) {
+    return opts.signal?.aborted ? CANCELLED : writeErrorMessage(err);
+  } finally {
+    opts.signal?.removeEventListener("abort", onAbort);
+  }
+}
+
+// Reader mode for writing: NFC-A with the NDEF check left on, so Android
+// connects the tag's Ndef tech for the write; still no system beep.
+const ANDROID_WRITE_FLAGS = FLAG_READER_NFC_A | FLAG_READER_NO_PLATFORM_SOUNDS;
+
+async function writeAndroid(opts: WriteKitTagOptions): Promise<WriteResult> {
+  const { nfc: plugin } = await capgo();
+  const generation = ++androidGeneration;
+  const handles: PluginListenerHandle[] = [];
+  let busy = false;
+
+  return new Promise<WriteResult>((resolve) => {
+    let settled = false;
+    const finish = (result: WriteResult, releaseLater: boolean) => {
+      if (settled) return;
+      settled = true;
+      opts.signal?.removeEventListener("abort", onAbort);
+      void Promise.all(handles.splice(0).map((h) => h.remove().catch(() => {})));
+      // As after a one-shot read: hold reader mode until the tag has been
+      // moved away, or Android dispatches the freshly written URL itself.
+      const release = () => {
+        if (generation === androidGeneration) void plugin.stopScanning().catch(() => {});
+      };
+      if (releaseLater) setTimeout(release, ANDROID_RELEASE_DELAY_MS);
+      else release();
+      resolve(result);
+    };
+    const onAbort = () => finish(CANCELLED, false);
+    opts.signal?.addEventListener("abort", onAbort, { once: true });
+
+    void (async () => {
+      handles.push(
+        await plugin.addListener("nfcEvent", (e) => {
+          if (settled || busy) return;
+          const uid = e.tag?.id ? formatUid(e.tag.id) : null;
+          if (opts.expectedUid && uid !== opts.expectedUid) {
+            opts.onHint?.(WRONG_TAG);
+            return;
+          }
+          if (e.tag?.isWritable === false) {
+            finish({ ok: false, error: "This tag is locked, so it can't be written." }, true);
+            return;
+          }
+          busy = true;
+          plugin
+            .write({ records: kitTagRecords(opts.item), allowFormat: true })
+            .then(
+              () => finish({ ok: true }, true),
+              (err) => {
+                busy = false;
+                const result = writeErrorMessage(err);
+                // A tag pulled away mid-write: let them hold it there again.
+                if (!result.ok && /lost|IOException|Failed to write/i.test(result.error)) {
+                  opts.onHint?.(MOVED_AWAY);
+                  return;
+                }
+                finish(result, true);
+              },
+            );
+        }),
+        await plugin.addListener("nfcStateChange", (e) => {
+          if (!e.enabled) finish({ ok: false, error: "NFC was switched off. Turn it on in Settings to write tags." }, false);
+        }),
+      );
+      if (settled) {
+        await Promise.all(handles.splice(0).map((h) => h.remove().catch(() => {})));
+        return;
+      }
+      try {
+        await plugin.startScanning({ androidReaderModeFlags: ANDROID_WRITE_FLAGS });
+      } catch (err) {
+        finish(writeErrorMessage(err), false);
+      }
+    })();
+  });
+}
+
+async function writeWeb(Reader: NdefReaderCtor, opts: WriteKitTagOptions): Promise<WriteResult> {
+  const controller = new AbortController();
+  const reader = new Reader();
+  const onAbort = () => controller.abort();
+  opts.signal?.addEventListener("abort", onAbort, { once: true });
+
+  return new Promise<WriteResult>((resolve) => {
+    let settled = false;
+    let writing = false;
+    const finish = (result: WriteResult) => {
+      if (settled) return;
+      settled = true;
+      opts.signal?.removeEventListener("abort", onAbort);
+      controller.abort();
+      resolve(result);
+    };
+    controller.signal.addEventListener("abort", () => finish(CANCELLED), { once: true });
+
+    // Read first, to see which tag it is, then write while it's still there.
+    reader.addEventListener(
+      "reading",
+      (event) => {
+        if (settled || writing) return;
+        const uid = formatUid((event as NdefReadingEvent).serialNumber ?? "");
+        if (opts.expectedUid && uid && uid !== opts.expectedUid) {
+          opts.onHint?.(WRONG_TAG);
+          return;
+        }
+        writing = true;
+        reader.write!(kitTagWebMessage(opts.item), { overwrite: true, signal: controller.signal }).then(
+          () => finish({ ok: true }),
+          (err) => {
+            writing = false;
+            if (settled) return;
+            const name = (err as { name?: string } | null)?.name;
+            if (name === "AbortError") finish(CANCELLED);
+            else if (name === "NetworkError") opts.onHint?.(MOVED_AWAY);
+            else finish({ ok: false, error: webErrorMessage(err) });
+          },
+        );
+      },
+      { signal: controller.signal },
+    );
+
+    reader.scan({ signal: controller.signal }).catch((err) => {
+      if (!settled) finish({ ok: false, error: webErrorMessage(err) });
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------

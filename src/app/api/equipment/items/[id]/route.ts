@@ -1,9 +1,26 @@
 import { can, profileOf } from "@/lib/access";
+import { lookupById, toPublicView } from "@/lib/equipmentItems";
 import { getCurrentMember } from "@/lib/session";
-import { json, requireLender } from "../lender";
+import { json, requireLender, requireMember } from "../lender";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/** One item by id, as the tag lookup gives it: the full view for kit handlers, the public one for anyone else. */
+export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireMember();
+  if (!auth.ok) return auth.response;
+  const { id } = await params;
+  try {
+    const found = await lookupById(auth.supabase, id);
+    if (!found) return json({ error: "That item isn't registered." }, 404);
+    if (auth.handlesKit) return json(found);
+    return json(toPublicView(found.item, { id: auth.member.id, role: auth.member.governance_role }));
+  } catch (err) {
+    console.error(`[equipment/items] lookup failed: ${err instanceof Error ? err.message : String(err)}`);
+    return json({ error: "Failed to look up the item" }, 500);
+  }
+}
 
 /**
  * Delete a tagged item, which also frees its tag to be tagged again. For a

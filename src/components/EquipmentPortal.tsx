@@ -7,13 +7,23 @@ import {
   ChevronDown,
   ChevronRight,
   Loader2,
+  Nfc,
   Package,
   Plus,
   FileSpreadsheet,
   Search,
   X,
 } from "lucide-react";
+import type { GovernanceRole } from "@/lib/access";
 import type { Equipment, EquipmentCondition, EquipmentRequest, EquipmentRequestStatus, SUEvent } from "@/lib/types";
+import {
+  mayHold,
+  RESTRICTION_PRESET_LABELS,
+  RESTRICTION_PRESETS,
+  restrictionLabel,
+  restrictionPreset,
+  type RestrictionPreset,
+} from "@/lib/kitCustody";
 import { eventDetails } from "@/lib/eventDetails";
 import { londonDay } from "@/lib/weather";
 import { Sheet } from "./Sheet";
@@ -24,7 +34,9 @@ import { keepPageOffline } from "@/lib/keepOffline";
 import { LENDER_KEEP_MS, readLenderSnapshot, storeLenderSnapshot } from "@/lib/kitOffline";
 import { looksOffline } from "@/lib/kitScan";
 import { KitLenderProvider } from "./kit/KitLender";
-import { HandoverButton, KitScanBar, TaggedItemsList } from "./kit/KitControls";
+import { HandoverButton, ItemLinkOpener, KitScanBar, TaggedItemsList } from "./kit/KitControls";
+import { MemberPicker, type PickedMember } from "./kit/MemberPicker";
+import { MemberScan } from "./kit/MemberScan";
 import { ReportSummary, ResolveReportForm } from "./kit/ConditionReports";
 import {
   MAX_DESCRIPTION,
@@ -38,7 +50,7 @@ import {
 
 type Tab = "catalog" | "requests" | "active_loans" | "my_requests";
 type StockFilter = "all" | "in_stock" | "out_of_stock" | "needs_repair";
-type RequestFilter = "pending" | "approved" | "returned" | "rejected" | "all";
+type RequestFilter = "pending" | "booked" | "approved" | "returned" | "rejected" | "all";
 type Message = { type: "success" | "error"; text: string };
 
 const CATEGORIES = [
@@ -68,6 +80,7 @@ const CONDITION_HINTS: Record<EquipmentCondition, string> = {
 
 const STATUS_LABELS: Record<EquipmentRequestStatus, string> = {
   pending: "Pending",
+  booked: "Booked",
   approved: "On loan",
   rejected: "Declined",
   returned: "Returned",
@@ -83,6 +96,7 @@ const STOCK_FILTERS: { value: StockFilter; label: string; test: (item: Equipment
 
 const REQUEST_FILTERS: { value: RequestFilter; label: string }[] = [
   { value: "pending", label: "Pending" },
+  { value: "booked", label: "Booked" },
   { value: "approved", label: "On loan" },
   { value: "returned", label: "Returned" },
   { value: "rejected", label: "Declined" },
@@ -92,6 +106,59 @@ const REQUEST_FILTERS: { value: RequestFilter; label: string }[] = [
 const NETWORK_ERROR = "Couldn't reach the server. Check your connection and try again.";
 
 const shortDate = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
+const pickupFormat = new Intl.DateTimeFormat("en-GB", {
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "Europe/London",
+});
+
+/** "Fri 21 Nov, 18:30 · Main quad · with Sam": a booked pickup in one line. */
+function pickupLine(request: EquipmentRequest): string | null {
+  if (!request.pickup_at) return null;
+  const when = pickupFormat.format(new Date(request.pickup_at));
+  const withName = request.pickup_with?.full_name;
+  return [when, request.pickup_location, withName ? `with ${withName}` : null].filter(Boolean).join(" · ");
+}
+
+/** A datetime-local value for London wall-clock time, rounded to the next half hour. */
+function nextHalfHour(): string {
+  const t = new Date(Math.ceil(Date.now() / (30 * 60 * 1000)) * 30 * 60 * 1000);
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/London",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(t)
+      .map((p) => [p.type, p.value]),
+  );
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
+
+/** A stored pickup time back as a datetime-local value (London). */
+function toLocalInput(iso: string): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/London",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(new Date(iso))
+      .map((p) => [p.type, p.value]),
+  );
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
 
 /** "3–5 Oct", "30 Sept – 2 Oct": the month once when both ends share it. */
 function formatRange(start: string, end: string): string {
@@ -117,6 +184,8 @@ interface ItemDraft {
   total: number;
   available: number;
   condition: EquipmentCondition;
+  /** Who may take it out. "custom" is a restriction set some other way, left as it is. */
+  restriction: RestrictionPreset | "custom";
 }
 
 const BLANK_ITEM: ItemDraft = {
@@ -126,7 +195,25 @@ const BLANK_ITEM: ItemDraft = {
   total: 2,
   available: 2,
   condition: "good",
+  restriction: "anyone",
 };
+
+interface BookingDraft {
+  request: EquipmentRequest;
+  /** datetime-local, London time. */
+  at: string;
+  location: string;
+  with: PickedMember | null;
+}
+
+/** Tagged kit in your hands, from GET /api/equipment/items/held. */
+interface HeldItem {
+  id: string;
+  asset_code: string;
+  label: string | null;
+  equipment_name: string;
+  loan: { request_id: string; borrower: string | null; end_date: string } | null;
+}
 
 interface BorrowDraft {
   item: Equipment;
@@ -156,9 +243,14 @@ interface WalkOption {
 
 interface EquipmentPortalProps {
   memberId: string;
-  /** Principals manage the kit and review loans; everyone else here borrows it. */
+  /** For restricted kit: whether this member may borrow it. */
+  memberRole?: GovernanceRole | null;
+  /** Principals keep the inventory (and write off loans); everyone else here borrows it. */
   isPrincipal: boolean;
-  /** May scan tagged kit (committee, or granted by a principal); true for principals too. */
+  /**
+   * Handles kit: committee, principals, admins and anyone granted it. Books
+   * pickups, scans kit out of storage and back in, hands it to people.
+   */
   isKitHandler?: boolean;
   /** May ask to borrow (explorers and committee). False for a member who only scans. */
   canBorrow?: boolean;
@@ -183,6 +275,7 @@ const NO_REPORTS: ConditionReport[] = [];
 
 export function EquipmentPortal({
   memberId,
+  memberRole = null,
   isPrincipal,
   isKitHandler = false,
   canBorrow = true,
@@ -221,6 +314,12 @@ export function EquipmentPortal({
   const [reports, setReports] = useState<ConditionReport[]>([]);
   const [reporting, setReporting] = useState<ReportDraft | null>(null);
   const [resolvingReport, setResolvingReport] = useState<ConditionReport | null>(null);
+  const [booking, setBooking] = useState<BookingDraft | null>(null);
+  const [held, setHeld] = useState<HeldItem[]>([]);
+  /** The member's scanner (anyone who doesn't handle kit); `itemId` opens on an item. */
+  const [memberScan, setMemberScan] = useState<{ itemId: string | null } | null>(null);
+  /** `?item=<id>`: a link to one item (from a tag or a notification). */
+  const [linkItem, setLinkItem] = useState<string | null>(null);
 
   const [showSheets, setShowSheets] = useState(false);
   const [sheetsUrl, setSheetsUrl] = useState("");
@@ -291,15 +390,40 @@ export function EquipmentPortal({
     }
   }, []);
 
+  /** Tagged kit in this member's hands, including anything passed to them. */
+  const loadHeld = useCallback(async (signal?: AbortSignal) => {
+    try {
+      const res = await fetch("/api/equipment/items/held", { signal, cache: "no-store" });
+      if (!res.ok) return;
+      const data = (await res.json()) as { items?: HeldItem[] };
+      if (!signal?.aborted) setHeld(data.items ?? []);
+    } catch {
+      // Offline or aborted: keep what's shown.
+    }
+  }, []);
+
   useEffect(() => {
     const controller = new AbortController();
-    void Promise.resolve().then(() => Promise.all([load(controller.signal), loadReports(controller.signal)]));
+    void Promise.resolve().then(() =>
+      Promise.all([load(controller.signal), loadReports(controller.signal), loadHeld(controller.signal)]),
+    );
     return () => controller.abort();
-  }, [load, loadReports]);
+  }, [load, loadReports, loadHeld]);
+
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("item");
+    if (!id) return;
+    const t = setTimeout(() => {
+      setLinkItem(id);
+      if (!scans) setMemberScan({ itemId: id });
+    }, 0);
+    return () => clearTimeout(t);
+  }, [scans]);
 
   useAppRefresh(() => {
     void load();
     void loadReports();
+    void loadHeld();
   });
 
   useEffect(() => {
@@ -368,15 +492,22 @@ export function EquipmentPortal({
     void load();
   }
 
-  async function updateStatus(request: EquipmentRequest, status: EquipmentRequestStatus, notes?: string) {
+  async function updateStatus(
+    request: EquipmentRequest,
+    status: EquipmentRequestStatus,
+    notes?: string,
+    extra: Record<string, unknown> = {},
+  ) {
     setBusy(true);
-    const data = await send(`/api/equipment/requests/${request.id}`, "PATCH", { status, notes }, "Couldn't update the request");
+    const data = await send(`/api/equipment/requests/${request.id}`, "PATCH", { status, notes, ...extra }, "Couldn't update the request");
     setBusy(false);
     if (!data) return;
     const name = request.equipment?.name ?? "Kit";
     const text =
-      status === "approved"
-        ? `Approved — ${name} is on loan`
+      status === "booked"
+        ? `Pickup booked for ${name}. They've been told.`
+        : status === "approved"
+        ? `${name} handed over`
         : status === "returned"
           ? `${name} checked back in`
           : status === "rejected"
@@ -386,7 +517,27 @@ export function EquipmentPortal({
     setDeclining(null);
     setDeclineNotes("");
     setConfirmReturn(null);
+    setBooking(null);
     void load();
+  }
+
+  function openBooking(request: EquipmentRequest) {
+    setBooking({
+      request,
+      at: request.pickup_at ? toLocalInput(request.pickup_at) : nextHalfHour(),
+      location: request.pickup_location ?? "",
+      with: request.pickup_with ?? null,
+    });
+  }
+
+  function submitBooking(event: FormEvent) {
+    event.preventDefault();
+    if (!booking) return;
+    void updateStatus(booking.request, "booked", undefined, {
+      pickupAt: booking.at,
+      pickupLocation: booking.location.trim() || undefined,
+      pickupWithId: booking.with?.id,
+    });
   }
 
   /** Mark a loan returned, asking first if tagged items are still out on it. */
@@ -442,6 +593,8 @@ export function EquipmentPortal({
         totalQuantity: itemDraft.total,
         availableQuantity: Math.min(itemDraft.available, itemDraft.total),
         condition: itemDraft.condition,
+        // A restriction set some other way is left alone.
+        ...(itemDraft.restriction === "custom" ? {} : { restrictedTo: RESTRICTION_PRESETS[itemDraft.restriction] }),
       },
       itemDraft.id ? "Couldn't save the changes" : "Couldn't add the item",
     );
@@ -540,6 +693,7 @@ export function EquipmentPortal({
   }
 
   const pending = useMemo(() => requests.filter((r) => r.status === "pending"), [requests]);
+  const booked = useMemo(() => requests.filter((r) => r.status === "booked"), [requests]);
   const onLoan = useMemo(() => requests.filter((r) => r.status === "approved"), [requests]);
   const mine = useMemo(() => requests.filter((r) => r.member_id === memberId), [requests, memberId]);
 
@@ -587,16 +741,21 @@ export function EquipmentPortal({
     );
   }
 
-  const tabs: { value: Tab; label: string; count?: number; alert?: boolean }[] = isPrincipal
-    ? [
-        { value: "catalog", label: "Inventory", count: items.length },
-        { value: "requests", label: "Requests", count: pending.length + reports.length, alert: pending.length + reports.length > 0 },
-        { value: "active_loans", label: "On loan", count: onLoan.length },
-      ]
-    : [
-        { value: "catalog", label: "Available", count: items.filter((i) => i.available_quantity > 0).length },
-        { value: "my_requests", label: "Mine", count: mine.length },
-      ];
+  // Kit handlers work the requests: book pickups, hand over, take back.
+  // Principals also keep the inventory and see problem reports; they don't borrow.
+  const waiting = pending.length + (isPrincipal ? reports.length : 0);
+  const tabs: { value: Tab; label: string; count?: number; alert?: boolean }[] = [
+    isPrincipal
+      ? { value: "catalog", label: "Inventory", count: items.length }
+      : { value: "catalog", label: "Available", count: items.filter((i) => i.available_quantity > 0).length },
+    ...(scans
+      ? [
+          { value: "requests" as const, label: "Requests", count: waiting + booked.length, alert: waiting > 0 },
+          { value: "active_loans" as const, label: "On loan", count: onLoan.length },
+        ]
+      : []),
+    ...(!isPrincipal ? [{ value: "my_requests" as const, label: "Mine", count: mine.length + held.length }] : []),
+  ];
 
   return (
     <KitLenderProvider
@@ -611,6 +770,17 @@ export function EquipmentPortal({
     >
     <div className="kit-page">
       <KitScanBar />
+      {scans && <ItemLinkOpener itemId={linkItem} />}
+      {!scans && (
+        <div className="kit-scan-bar">
+          <div className="kit-scan-bar-actions">
+            <button type="button" className="kit-btn" onClick={() => setMemberScan({ itemId: null })}>
+              <Nfc size={16} aria-hidden="true" />
+              Scan kit
+            </button>
+          </div>
+        </div>
+      )}
       <div className="portal-subnav kit-tabs" role="tablist" aria-label="Equipment">
         {tabs.map(({ value, label, count, alert }) => (
           <button
@@ -718,6 +888,7 @@ export function EquipmentPortal({
                   item={item}
                   isPrincipal={isPrincipal}
                   onBorrow={canBorrow ? () => openBorrow(item) : undefined}
+                  mayBorrow={mayHold(item.restricted_to, memberRole)}
                   onEdit={() =>
                     setItemDraft({
                       id: item.id,
@@ -727,6 +898,7 @@ export function EquipmentPortal({
                       total: item.total_quantity,
                       available: item.available_quantity,
                       condition: item.condition,
+                      restriction: restrictionPreset(item.restricted_to),
                     })
                   }
                 />
@@ -737,9 +909,9 @@ export function EquipmentPortal({
         </section>
       )}
 
-      {tab === "requests" && isPrincipal && (
+      {tab === "requests" && scans && (
         <section aria-label="Requests">
-          {reports.length > 0 && (
+          {isPrincipal && reports.length > 0 && (
             <section className="kit-reports" aria-labelledby="kit-reports-title">
               <p id="kit-reports-title" className="event-section-title">
                 Problems reported <span className="kit-count is-alert">{reports.length}</span>
@@ -774,7 +946,11 @@ export function EquipmentPortal({
           </div>
           {visibleRequests.length === 0 ? (
             <Empty icon={<CheckCircle2 size={28} aria-hidden="true" />}>
-              {requestFilter === "pending" ? "Nothing waiting for a decision." : "No requests here."}
+              {requestFilter === "pending"
+                ? "Nothing waiting for a pickup to be booked."
+                : requestFilter === "booked"
+                  ? "No pickups booked."
+                  : "No requests here."}
             </Empty>
           ) : (
             <ul className="kit-list">
@@ -790,13 +966,27 @@ export function EquipmentPortal({
                         <button type="button" className="kit-btn" disabled={busy} onClick={() => setDeclining(request)}>
                           Decline
                         </button>
+                        <button type="button" className="kit-btn primary" disabled={busy} onClick={() => openBooking(request)}>
+                          Book pickup
+                        </button>
+                      </>
+                    ) : request.status === "booked" ? (
+                      <>
+                        <HandoverButton request={request} />
+                        <button type="button" className="kit-btn" disabled={busy} onClick={() => openBooking(request)}>
+                          Move
+                        </button>
                         <button
                           type="button"
-                          className="kit-btn primary"
+                          className="kit-btn"
                           disabled={busy}
+                          title="For kit without tags: it's been handed over"
                           onClick={() => updateStatus(request, "approved")}
                         >
-                          Approve
+                          Handed over
+                        </button>
+                        <button type="button" className="kit-btn danger-text" disabled={busy} onClick={() => setDeclining(request)}>
+                          Cancel
                         </button>
                       </>
                     ) : request.status === "approved" ? (
@@ -815,7 +1005,7 @@ export function EquipmentPortal({
         </section>
       )}
 
-      {tab === "active_loans" && isPrincipal && (
+      {tab === "active_loans" && scans && (
         <section aria-label="On loan">
           {onLoan.length === 0 ? (
             <Empty icon={<CheckCircle2 size={28} aria-hidden="true" />}>Nothing is out. All the kit is in the locker.</Empty>
@@ -846,7 +1036,30 @@ export function EquipmentPortal({
 
       {tab === "my_requests" && (
         <section aria-label="Your requests">
-          {mine.length === 0 ? (
+          {held.length > 0 && (
+            <section className="kit-held" aria-labelledby="kit-held-title">
+              <p id="kit-held-title" className="event-section-title">
+                With you now
+              </p>
+              <ul className="kit-list">
+                {held.map((item) => (
+                  <li key={item.id} className="kit-item">
+                    <button type="button" className="kit-item-main" onClick={() => setMemberScan({ itemId: item.id })}>
+                      <span className="kit-item-name">
+                        <span className="kit-asset">{item.asset_code}</span>
+                        {item.label ? ` · ${item.label}` : ""}
+                      </span>
+                      <span className="kit-item-meta">
+                        {item.equipment_name}
+                        {item.loan?.borrower ? ` · on ${item.loan.borrower}'s loan` : ""}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {mine.length === 0 && held.length > 0 ? null : mine.length === 0 ? (
             <Empty icon={<Package size={28} aria-hidden="true" />}>
               You haven&apos;t asked to borrow anything yet.
               <button type="button" className="kit-btn" onClick={() => selectTab("catalog")}>
@@ -862,7 +1075,7 @@ export function EquipmentPortal({
                   view="mine"
                   today={today}
                   actions={
-                    request.status === "pending" ? (
+                    request.status === "pending" || request.status === "booked" ? (
                       <button
                         type="button"
                         className="kit-btn danger-text"
@@ -910,7 +1123,7 @@ export function EquipmentPortal({
       {borrow && (
         <Sheet onClose={() => setBorrow(null)} labelledBy="borrow-sheet">
           <h3 id="borrow-sheet">Borrow {borrow.item.name}</h3>
-          <p>A principal will approve it and arrange handover.</p>
+          <p>A committee member will book a time and place to meet you and hand it over.</p>
           <form className="kit-form" onSubmit={submitBorrow}>
             {borrow.item.available_quantity > 1 && (
               <Field label={`How many (up to ${borrow.item.available_quantity})`}>
@@ -1012,6 +1225,22 @@ export function EquipmentPortal({
                 </select>
               </Field>
             </div>
+            <Field label="Who can take it out">
+              <select
+                value={itemDraft.restriction}
+                onChange={(e) => setItemDraft({ ...itemDraft, restriction: e.target.value as ItemDraft["restriction"] })}
+              >
+                {(Object.keys(RESTRICTION_PRESET_LABELS) as RestrictionPreset[]).map((r) => (
+                  <option key={r} value={r}>
+                    {RESTRICTION_PRESET_LABELS[r]}
+                  </option>
+                ))}
+                {itemDraft.restriction === "custom" && <option value="custom">As set now</option>}
+              </select>
+            </Field>
+            {/drone/i.test(itemDraft.name) && (
+              <p className="kit-field-hint">Drones are always principals only, whatever is chosen here.</p>
+            )}
             <Field label="Notes">
               <input
                 type="text"
@@ -1135,6 +1364,63 @@ export function EquipmentPortal({
             </button>
             <button type="button" className="kit-btn primary" disabled={busy} onClick={() => updateStatus(confirmReturn, "returned")}>
               {busy ? "Saving…" : "Mark returned"}
+            </button>
+          </div>
+        </Sheet>
+      )}
+
+      {booking && (
+        <Sheet onClose={() => setBooking(null)} labelledBy="booking-sheet">
+          <h3 id="booking-sheet">{booking.request.status === "booked" ? "Move the pickup" : "Book a pickup"}</h3>
+          <p>
+            {booking.request.member?.full_name ?? "The member"} asked for {booking.request.quantity}×{" "}
+            {booking.request.equipment?.name ?? "kit"}, {formatRange(booking.request.start_date, booking.request.end_date)}. Say
+            when and where to meet them; they&apos;re told straight away.
+          </p>
+          <form className="kit-form" onSubmit={submitBooking}>
+            <div className="kit-form-row">
+              <Field label="When">
+                <input
+                  type="datetime-local"
+                  value={booking.at}
+                  step={300}
+                  onChange={(e) => setBooking({ ...booking, at: e.target.value })}
+                  required
+                />
+              </Field>
+              <Field label="Where (optional)">
+                <input
+                  type="text"
+                  maxLength={200}
+                  placeholder="e.g. Main quad, by the portico"
+                  value={booking.location}
+                  onChange={(e) => setBooking({ ...booking, location: e.target.value })}
+                />
+              </Field>
+            </div>
+            <MemberPicker
+              label="Who they're meeting (leave blank for you)"
+              value={booking.with}
+              onChange={(m) => setBooking({ ...booking, with: m })}
+            />
+            <div className="modal-actions">
+              <button type="button" className="kit-btn" onClick={() => setBooking(null)}>
+                Cancel
+              </button>
+              <button type="submit" className="kit-btn primary" disabled={busy || !booking.at}>
+                {busy ? "Saving…" : booking.request.status === "booked" ? "Move pickup" : "Book pickup"}
+              </button>
+            </div>
+          </form>
+        </Sheet>
+      )}
+
+      {memberScan && (
+        <Sheet onClose={() => setMemberScan(null)} labelledBy="member-scan-title">
+          <MemberScan itemId={memberScan.itemId} onClaimed={() => void loadHeld()} />
+          <div className="modal-actions">
+            <button type="button" className="kit-btn" onClick={() => setMemberScan(null)}>
+              Done
             </button>
           </div>
         </Sheet>
@@ -1296,14 +1582,18 @@ function ItemRow({
   item,
   isPrincipal,
   onBorrow,
+  mayBorrow = true,
   onEdit,
 }: {
   item: Equipment;
   isPrincipal: boolean;
   /** Absent for a member who scans kit but doesn't borrow it. */
   onBorrow?: () => void;
+  /** False for restricted kit this member's role can't take out. */
+  mayBorrow?: boolean;
   onEdit: () => void;
 }) {
+  const restricted = restrictionLabel(item.restricted_to);
   const [expanded, setExpanded] = useState(false);
   const detailsId = useId();
   const ratio = item.available_quantity / Math.max(1, item.total_quantity);
@@ -1325,6 +1615,7 @@ function ItemRow({
             {conditionLabel}
           </span>
         )}
+        {restricted && <span className="kit-tag is-restricted">{restricted}</span>}
       </span>
       {item.description && !open && <span className="kit-item-desc">{item.description}</span>}
     </>
@@ -1366,7 +1657,13 @@ function ItemRow({
       {isPrincipal ? (
         <ChevronRight className="kit-item-chevron" size={18} aria-hidden="true" />
       ) : onBorrow ? (
-        <button type="button" className="kit-btn primary" disabled={item.available_quantity === 0} onClick={onBorrow}>
+        <button
+          type="button"
+          className="kit-btn primary"
+          disabled={item.available_quantity === 0 || !mayBorrow}
+          title={mayBorrow ? undefined : `${restricted ?? "Restricted"}: ask a principal if you need it.`}
+          onClick={onBorrow}
+        >
           Borrow
         </button>
       ) : null}
@@ -1415,6 +1712,11 @@ function RequestRow({
             </>
           )}
         </p>
+        {request.status === "booked" && pickupLine(request) && (
+          <p className="kit-request-pickup">
+            <span className="kit-request-pickup-label">Pickup</span> {pickupLine(request)}
+          </p>
+        )}
         {request.purpose && <p className="kit-request-purpose">{request.purpose}</p>}
         {request.notes && <p className="kit-request-note">{request.notes}</p>}
         {children}

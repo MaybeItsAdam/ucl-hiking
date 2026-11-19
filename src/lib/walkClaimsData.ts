@@ -5,7 +5,18 @@ import { signReadToken } from "@/lib/reimbursementToken";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import type { Member } from "@/lib/types";
 import { readRoster, TABS, WALK_SHEETS } from "@/lib/walkSheet";
-import { calendarWalksLed, claimedWalks, identityOf, isClaimRow, type ClaimRow, type LedWalk } from "@/lib/walkClaims";
+import {
+  calendarWalksLed,
+  claimStatuses,
+  identityOf,
+  isClaimRow,
+  plannedWalksLed,
+  type ClaimRow,
+  type LedWalk,
+  type WalkClaimStatus,
+} from "@/lib/walkClaims";
+
+export type { WalkClaimStatus } from "@/lib/walkClaims";
 
 /** How far back My walks looks for walks to claim. */
 export const CLAIM_LOOKBACK_DAYS = 90;
@@ -32,7 +43,8 @@ export async function fetchWlClaims(since: string): Promise<ClaimRow[] | null> {
       body: JSON.stringify({ action: "wlClaims", token: signReadToken(secret), since }),
       redirect: "follow",
       cache: "no-store",
-      signal: AbortSignal.timeout(8000),
+      // Apps Script can take several seconds from cold; the page streams this section, so it can wait.
+      signal: AbortSignal.timeout(15_000),
     });
     const body = (await res.json().catch(() => null)) as { ok?: boolean; claims?: unknown } | null;
     if (!body?.ok || !Array.isArray(body.claims)) return null;
@@ -44,18 +56,29 @@ export async function fetchWlClaims(since: string): Promise<ClaimRow[] | null> {
   }
 }
 
-export interface WalkClaimStatus extends LedWalk {
-  claimed: boolean;
+export interface WalkClaimsView {
+  /** Walks they led or backmarked in the window, newest first. */
+  walks: WalkClaimStatus[];
+  /** False when the reimbursement spreadsheet couldn't be read: every walk's `claimed` is null. */
+  claimsKnown: boolean;
+  /** Whether their account is tied to a roster row (see Identity.linked). */
+  linked: boolean;
+  /** The roster's name for them, when there's a row that's theirs or looks it. */
+  calendarName: string | null;
+  /** Roster names nobody has linked, for "which one is you?". Null when the roster couldn't be read. */
+  unlinkedNames: string[] | null;
 }
 
 const londonDay = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(d);
 
 /**
- * The walks this leader led in the last CLAIM_LOOKBACK_DAYS, each marked
- * claimed or not, newest first. Null when claims can't be read: the caller
- * shows nothing rather than a list of false "Not claimed".
+ * The walks this leader led or backmarked in the last CLAIM_LOOKBACK_DAYS,
+ * each marked claimed or not. Walks come from the committee calendar (by the
+ * names the roster gives them) and from the app's own plans (by member id).
+ * Null only without a database; a spreadsheet that doesn't answer leaves the
+ * walks listed with their claim status unknown.
  */
-export async function walkClaimStatuses(member: Member, now = new Date()): Promise<WalkClaimStatus[] | null> {
+export async function walkClaimsFor(member: Member, now = new Date()): Promise<WalkClaimsView | null> {
   if (!isSupabaseConfigured()) return null;
   const today = londonDay(now);
   const since = londonDay(new Date(now.getTime() - CLAIM_LOOKBACK_DAYS * 24 * 60 * 60 * 1000));
@@ -65,7 +88,7 @@ export async function walkClaimStatuses(member: Member, now = new Date()): Promi
   const claimsSince = londonDay(new Date(now.getTime() - (CLAIM_LOOKBACK_DAYS + 2) * 24 * 60 * 60 * 1000));
   const [claims, rosterRows, me, sheetWalks, plans] = await Promise.all([
     fetchWlClaims(claimsSince),
-    readValues(WALK_SHEETS.leaders, a1(TABS.roster, "A1:G")).catch(() => [] as string[][]),
+    readValues(WALK_SHEETS.leaders, a1(TABS.roster, "A1:G")).catch(() => null),
     supabase.from("members").select("wl_name").eq("id", member.id).maybeSingle(),
     supabase
       .from("sheet_walks")
@@ -79,11 +102,11 @@ export async function walkClaimStatuses(member: Member, now = new Date()): Promi
       .select("event_suu_id")
       .or(`leader_member_id.eq.${member.id},backmarker_member_id.eq.${member.id}`),
   ]);
-  if (!claims) return null;
 
+  const roster = rosterRows ? readRoster(rosterRows) : [];
   const who = identityOf(
     { email: member.email, full_name: member.full_name, wl_name: (me.data?.wl_name as string | null | undefined) ?? null },
-    readRoster(rosterRows),
+    roster,
   );
   const fromCalendar = calendarWalksLed(
     (sheetWalks.data ?? []) as (BoardWalk & { row_key: string; event_suu_id: string | null })[],
@@ -101,20 +124,22 @@ export async function walkClaimStatuses(member: Member, now = new Date()): Promi
     ...w,
     eventId: (eventSuuId && bySuuId.get(eventSuuId)?.id) || null,
   }));
-  const linked = new Set(fromCalendar.map((w) => w.eventSuuId).filter(Boolean));
-  const dates = new Set(fromCalendar.map((w) => w.date));
-  for (const suuId of planned) {
-    const event = bySuuId.get(suuId);
-    if (!event?.starts_at || linked.has(suuId) || event.status === "cancelled") continue;
-    const date = londonDay(new Date(event.starts_at));
-    if (date < since || date >= today || dates.has(date)) continue;
-    const end = event.ends_at ? londonDay(new Date(event.ends_at)) : null;
-    walks.push({ key: `event:${event.id}`, date, endDate: end, title: event.title, eventId: event.id });
-    dates.add(date);
-  }
+  const plannedEvents = planned.flatMap((id) => {
+    const e = bySuuId.get(id);
+    return e ? [e] : [];
+  });
+  walks.push(...plannedWalksLed(plannedEvents, fromCalendar, since, today, londonDay));
 
-  const claimed = claimedWalks(walks, claims, who);
-  return walks
-    .map((w) => ({ ...w, claimed: claimed.has(w.key) }))
-    .sort((a, b) => b.date.localeCompare(a.date));
+  return {
+    walks: claimStatuses(walks, claims, who),
+    claimsKnown: claims !== null,
+    linked: who.linked,
+    calendarName: who.calendarName,
+    unlinkedNames: rosterRows
+      ? roster
+          .filter((r) => r.active && !r.email)
+          .map((r) => r.name)
+          .sort((a, b) => a.localeCompare(b))
+      : null,
+  };
 }

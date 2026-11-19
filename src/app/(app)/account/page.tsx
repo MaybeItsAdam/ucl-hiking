@@ -12,6 +12,8 @@ import { GOVERNANCE_LABELS, MEMBERSHIP_LABELS } from "@/lib/access";
 import { getDeletionBlock } from "@/lib/accountDeletion";
 import { KIT_COOL_OFF_DAYS } from "@/lib/kitLoans";
 import { getCurrentMember, getRealMember, getRolePreviewState, getSession } from "@/lib/session";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { latestWalkLeaderRequest } from "@/lib/walkLeaderRequests";
 import { londonDay } from "@/lib/weather";
 
 export const metadata: Metadata = {
@@ -29,6 +31,11 @@ export default async function AccountPage() {
     getRolePreviewState(),
     getDeletionBlock(session.memberId),
   ]);
+
+  const wlRequest =
+    member && !member.is_walk_leader && !member.governance_role && isSupabaseConfigured()
+      ? await latestWalkLeaderRequest(member.id).catch(() => null)
+      : null;
 
   const name = member?.full_name || session.name;
   const membership = member
@@ -94,13 +101,12 @@ export default async function AccountPage() {
         </section>
       ) : null}
 
-      {member && !member.is_walk_leader && !member.governance_role ? (
+      {/* Applying lives on Events › My walks, where members look; a request
+          already sent shows here too, so it can be found and withdrawn. */}
+      {member && !member.is_walk_leader && !member.governance_role && wlRequest?.status === "pending" ? (
         <section aria-labelledby="walk-leader">
           <h2 id="walk-leader">Walk leading</h2>
-          <p className="account-note">
-            Trained as a walk leader? Ask for access to the rota and leader-only walks. The committee approves it.
-          </p>
-          <WalkLeaderRequestForm />
+          <WalkLeaderRequestForm initial={wlRequest} />
         </section>
       ) : null}
 

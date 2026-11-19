@@ -8,6 +8,9 @@ import {
 } from "@/lib/equipmentItems";
 import { isTimeout } from "@/lib/fetchWithin";
 
+// What's written on a tag (the kit URL and text record) and reading it back.
+export * from "@/lib/kitTag";
+
 /**
  * The pure half of the lender's scanning screens: the offline queue of scans,
  * handover progress, and what a shelf audit didn't see. No React, no fetch, so
@@ -27,6 +30,8 @@ export type BatchOp = {
   uid?: string;
 } & (
   | { action: "check_out"; requestId: string }
+  | { action: "hand_out"; toMemberId: string; endDate?: string; purpose?: string }
+  | { action: "transfer"; toMemberId: string; notes?: string }
   | { action: "check_in"; condition?: string; notes?: string }
   | { action: "audit"; location?: string }
   | { action: "flag"; condition: string; notes?: string }
@@ -143,7 +148,7 @@ export function handoverProgress(quantity: number, itemsOut: number, queued = 0)
   return { done, total, remaining, complete: total > 0 && remaining === 0, label };
 }
 
-/** An approved request, with the tagged items already out against it. */
+/** A booked or out request, with the tagged items already out against it. */
 export interface LoanForHandover {
   id: string;
   status: string;
@@ -152,7 +157,7 @@ export interface LoanForHandover {
   items?: { id: string }[];
 }
 
-/** Approved requests for a kit type that still have room for another tagged item. */
+/** Booked and out requests for a kit type that still have room for another tagged item. */
 export function requestsWithRoom<T extends LoanForHandover>(
   requests: T[],
   equipmentId: string,
@@ -160,7 +165,7 @@ export function requestsWithRoom<T extends LoanForHandover>(
 ): T[] {
   return requests.filter(
     (r) =>
-      r.status === "approved" &&
+      (r.status === "approved" || r.status === "booked") &&
       r.equipment_id === equipmentId &&
       (r.items?.length ?? 0) + (queuedOut.get(r.id) ?? 0) < r.quantity,
   );

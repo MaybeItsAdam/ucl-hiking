@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { findNavigatorIssue, NAVIGATOR_PDF_HOSTS, navigatorVersion } from "@/lib/navigator";
 import { parseByteRange } from "@/lib/navigatorRange";
-import { getCurrentMember } from "@/lib/session";
+import { getArchiveViewer } from "@/lib/archiveViewer";
 
 type Params = { params: Promise<{ issue: string }> };
 
@@ -17,15 +17,16 @@ const CACHE_CONTROL = "private, max-age=86400";
 
 /**
  * A Navigator issue's PDF, relayed from Google Drive so the reader can load it
- * from this origin (Drive sends no CORS headers). Members only, and only the
+ * from this origin (Drive sends no CORS headers). Members and alumni only, and only the
  * issues in src/lib/navigator.ts: the route takes an issue number, never a URL.
  *
  * Range requests go straight through, so pdf.js fetches the pages being read
  * rather than all 60-odd MB of a photo-heavy issue up front.
  */
 export async function GET(request: Request, { params }: Params) {
-  const member = await getCurrentMember();
-  if (!member) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
+  // Members and alumni (lib/alumni).
+  const viewer = await getArchiveViewer();
+  if (!viewer) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   const { issue: slug } = await params;
   const issue = findNavigatorIssue(slug);
   if (!issue) return NextResponse.json({ error: "No such issue." }, { status: 404 });

@@ -1,17 +1,32 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { ITEM_CONDITIONS, itemName, type ItemCondition, type ItemSummary, type TagLookup } from "@/lib/equipmentItems";
+import { DIRECT_LOAN_DAYS, ITEM_CONDITIONS, itemName, type ItemCondition, type ItemSummary, type TagLookup } from "@/lib/equipmentItems";
+import { restrictionLabel } from "@/lib/kitCustody";
 import { handoverProgress, plural, requestsWithRoom, STATUS_LABELS } from "@/lib/kitScan";
 import { feedback } from "@/lib/nfc";
 import { useKit, type ItemView, type Outcome } from "./KitLender";
 import { ReportSummary, ResolveReportForm } from "./ConditionReports";
+import { TagWriter } from "./TagWriter";
 import { borrowerOf, CONDITION_LABELS, formatDays, formatWhen } from "./format";
+import { MemberPicker, type PickedMember } from "./MemberPicker";
 
-type Panel = "check_in" | "handover" | "flag" | "delete" | null;
+type Panel = "check_in" | "handover" | "hand_out" | "transfer" | "flag" | "delete" | null;
 type Note = { type: "ok" | "queued" | "error"; text: string };
 
-const ACTION_WORDS: Record<string, string> = { check_in: "Check in", check_out: "Hand over", flag: "Flag", audit: "Audit" };
+const ACTION_WORDS: Record<string, string> = {
+  check_in: "Check in",
+  check_out: "Hand over",
+  hand_out: "Hand out",
+  transfer: "Pass on",
+  flag: "Flag",
+  audit: "Audit",
+};
+
+/** A week from today, as the default due-back date for a direct hand-out. */
+function weekOn(): string {
+  return new Date(Date.now() + DIRECT_LOAN_DAYS * 24 * 60 * 60 * 1000).toLocaleDateString("en-CA");
+}
 
 /**
  * One tagged item: what it is, where it is, who has it, and the actions that
@@ -29,6 +44,8 @@ export function ItemCard({ view }: { view: ItemView }) {
   const [condition, setCondition] = useState<ItemCondition | "">("");
   const [text, setText] = useState("");
   const [requestId, setRequestId] = useState("");
+  const [recipient, setRecipient] = useState<PickedMember | null>(null);
+  const [endDate, setEndDate] = useState("");
   const [resolving, setResolving] = useState<string | null>(null);
 
   if (!kit) return null;
@@ -37,6 +54,9 @@ export function ItemCard({ view }: { view: ItemView }) {
   const loan: TagLookup["loan"] | ItemSummary["loan"] = view.loan && item.loan?.request_id === view.loan.request_id ? view.loan : item.loan;
   const loanRequest = loan ? kit.requests.find((r) => r.id === loan.request_id) : undefined;
   const borrower = loan?.borrower || (loanRequest ? borrowerOf(loanRequest) : null);
+  // Who has it in their hands, when it has been passed on from the borrower.
+  const holder = item.status === "on_loan" ? (item.holder ?? null) : null;
+  const restricted = restrictionLabel(item.restricted_to);
   const openRequests = requestsWithRoom(kit.requests, item.equipment_id, kit.queuedOut);
 
   function open(next: Panel) {
@@ -46,6 +66,8 @@ export function ItemCard({ view }: { view: ItemView }) {
     setCondition(next === "flag" ? item.condition : "");
     setText("");
     setRequestId(next === "handover" && openRequests.length === 1 ? openRequests[0].id : "");
+    setRecipient(null);
+    setEndDate(next === "hand_out" ? weekOn() : "");
   }
 
   async function run(body: Parameters<NonNullable<typeof kit>["act"]>[1], done: string) {
@@ -95,6 +117,16 @@ export function ItemCard({ view }: { view: ItemView }) {
     } else if (panel === "handover" && requestId) {
       const req = kit?.requests.find((r) => r.id === requestId);
       void run({ action: "check_out", requestId }, `${name} handed over${req ? ` to ${borrowerOf(req)}` : ""}.`);
+    } else if (panel === "hand_out" && recipient) {
+      void run(
+        { action: "hand_out", toMemberId: recipient.id, endDate: endDate || undefined, purpose: text.trim() || undefined },
+        `${name} checked out to ${recipient.full_name ?? "them"}.`,
+      );
+    } else if (panel === "transfer" && recipient) {
+      void run(
+        { action: "transfer", toMemberId: recipient.id, notes: text.trim() || undefined },
+        `${name} is down as being with ${recipient.full_name ?? "them"} now.`,
+      );
     } else if (panel === "flag" && condition) {
       void run({ action: "flag", condition, notes: text.trim() || undefined }, `${name} marked ${CONDITION_LABELS[condition].toLowerCase()}.`);
     }
@@ -116,6 +148,8 @@ export function ItemCard({ view }: { view: ItemView }) {
 
   const canCheckIn = item.status === "on_loan" || item.status === "missing";
   const canHandOver = item.status === "available" || item.status === "missing";
+  // Handing kit to a named person needs a signal: they're told, and it can't wait in a queue.
+  const online = kit.online && !view.offline;
 
   return (
     <div className="kit-card">
@@ -157,6 +191,20 @@ export function ItemCard({ view }: { view: ItemView }) {
             <dd>
               {borrower ?? "A club member"} · {formatDays(loan.start_date, loan.end_date)}
               {loanCounts ? ` · ${loanCounts.itemsOut} of ${loanCounts.quantity} tagged items out` : ""}
+            </dd>
+          </div>
+        )}
+        {holder && holder.name !== borrower && (
+          <div className="is-wide">
+            <dt>With now</dt>
+            <dd>{holder.name ?? "A club member"}</dd>
+          </div>
+        )}
+        {restricted && (
+          <div className="is-wide">
+            <dt>Who can take it</dt>
+            <dd>
+              <span className="kit-tag is-restricted">{restricted}</span>
             </dd>
           </div>
         )}
@@ -222,6 +270,16 @@ export function ItemCard({ view }: { view: ItemView }) {
         {canHandOver && (
           <button type="button" className={`kit-btn${panel === "handover" ? " is-open" : ""}`} disabled={busy} onClick={() => open("handover")}>
             Hand over
+          </button>
+        )}
+        {canHandOver && online && (
+          <button type="button" className={`kit-btn${panel === "hand_out" ? " is-open" : ""}`} disabled={busy} onClick={() => open("hand_out")}>
+            Hand to someone
+          </button>
+        )}
+        {item.status === "on_loan" && online && (
+          <button type="button" className={`kit-btn${panel === "transfer" ? " is-open" : ""}`} disabled={busy} onClick={() => open("transfer")}>
+            Pass to someone
           </button>
         )}
         <button type="button" className={`kit-btn${panel === "flag" ? " is-open" : ""}`} disabled={busy} onClick={() => open("flag")}>
@@ -302,9 +360,39 @@ export function ItemCard({ view }: { view: ItemView }) {
               </label>
             ) : (
               <p className="kit-card-empty">
-                No approved request for {item.equipment_name.toLowerCase()} is waiting for kit. Approve one first.
+                No booked pickup for {item.equipment_name.toLowerCase()} is waiting for kit. Book one first, or use Hand to
+                someone to check it out to them directly.
               </p>
             ))}
+          {panel === "hand_out" && (
+            <>
+              <p className="kit-card-empty">Check it out of storage straight to someone, with no request first.</p>
+              <MemberPicker label="Who's taking it" value={recipient} onChange={setRecipient} />
+              <div className="kit-form-row">
+                <label className="kit-field">
+                  <span>Back by</span>
+                  <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
+                </label>
+                <label className="kit-field">
+                  <span>What for (optional)</span>
+                  <input type="text" placeholder="e.g. Peak District trip" value={text} onChange={(e) => setText(e.target.value)} />
+                </label>
+              </div>
+            </>
+          )}
+          {panel === "transfer" && (
+            <>
+              <p className="kit-card-empty">
+                Record it passing from {holder?.name ?? borrower ?? "whoever has it"} to someone else. It stays on the
+                original loan. (They can also scan it themselves to confirm.)
+              </p>
+              <MemberPicker label="Who has it now" value={recipient} onChange={setRecipient} />
+              <label className="kit-field">
+                <span>Note (optional)</span>
+                <input type="text" placeholder="e.g. Swapped tents at the campsite" value={text} onChange={(e) => setText(e.target.value)} />
+              </label>
+            </>
+          )}
           {panel === "flag" && (
             <>
               <label className="kit-field">
@@ -328,13 +416,27 @@ export function ItemCard({ view }: { view: ItemView }) {
               <button type="button" className="kit-btn" onClick={() => setPanel(null)}>
                 Cancel
               </button>
-              <button type="submit" className="kit-btn primary" disabled={busy || (panel === "handover" && !requestId)}>
-                {busy ? "Saving…" : panel === "check_in" ? "Check in" : panel === "handover" ? "Hand over" : "Save"}
+              <button
+                type="submit"
+                className="kit-btn primary"
+                disabled={busy || (panel === "handover" && !requestId) || ((panel === "hand_out" || panel === "transfer") && !recipient)}
+              >
+                {busy
+                  ? "Saving…"
+                  : panel === "check_in"
+                    ? "Check in"
+                    : panel === "handover" || panel === "hand_out"
+                      ? "Hand over"
+                      : panel === "transfer"
+                        ? "Record handover"
+                        : "Save"}
               </button>
             </div>
           )}
         </form>
       )}
+
+      {!panel && <TagWriter item={item} uid={item.tag_uid} />}
 
       {note && (
         <p className={`kit-card-note is-${note.type}`} role={note.type === "error" ? "alert" : "status"}>

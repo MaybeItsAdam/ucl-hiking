@@ -7,6 +7,7 @@ import { EventFacts } from "@/components/EventFacts";
 import { EventsSubnav } from "@/components/EventsSubnav";
 import { HikeMap } from "@/components/HikeMap";
 import { WalkClaims, WalkClaimsSkeleton } from "@/components/WalkClaims";
+import { WalkLeaderRequestForm } from "@/components/WalkLeaderRequestForm";
 import { can, profileOf } from "@/lib/access";
 import { getMemberAttendance, walkRole, type WalkRole } from "@/lib/attendees";
 import { eventDetails, formatAscent, formatKm } from "@/lib/eventDetails";
@@ -17,23 +18,35 @@ import { getEventsBySuuIds } from "@/lib/events";
 import { getRouteLines } from "@/lib/eventRoutes";
 import { clubYear, clubYearLabel, eventPlaces, mapHikes, onMap, withTracks, yearStats } from "@/lib/hikeMap";
 import { loadPlaces } from "@/lib/places";
-import { getCurrentMember } from "@/lib/session";
+import { getCurrentMember, getRealMember } from "@/lib/session";
+import { isSupabaseConfigured } from "@/lib/supabase";
+import { latestWalkLeaderRequest } from "@/lib/walkLeaderRequests";
 
 export const metadata: Metadata = { title: "My walks | UCL Hiking Club" };
 
 /**
  * The walks you're on and the ones you've done: from your SU tickets and the
  * leaders' registers. This year's totals and a map of where you've been.
- * Walk leaders also see the walks they've led and which still need a claim.
+ * Walk leaders also see the walks they've led and which still need a claim;
+ * everyone else can apply to be one.
  * Today's walk sits on top all day, with the register for whoever runs it.
  */
 export default async function MyWalksPage() {
   const member = await getCurrentMember();
   if (!member) redirect("/auth/signin");
   const showRota = can(profileOf(member), "lead_walks");
+  // Members who aren't leaders can apply, unless they already have; judged on
+  // the real account, as the request is made as them whatever is previewed.
+  const real = await getRealMember();
+  const mayApply = Boolean(real && !real.is_walk_leader && !real.governance_role);
 
   // Walks they're booked on or checked in to, and walks a plan names them to lead or backmark.
-  const [attendance, plans] = await Promise.all([getMemberAttendance(member.id), getPlansNaming(member.id)]);
+  const [attendance, plans, wlRequest] = await Promise.all([
+    getMemberAttendance(member.id, member.email),
+    getPlansNaming(member.id),
+    mayApply && real && isSupabaseConfigured() ? latestWalkLeaderRequest(real.id).catch(() => null) : null,
+  ]);
+  const offerLeading = mayApply && !showRota && wlRequest?.status !== "pending";
   const bySuuId = new Map(attendance.map((a) => [a.event_suu_id, a]));
   // One walk listed twice (lib/eventDuplicates) shows once, as the copy they're booked on.
   const all = dedupeEvents(await getEventsBySuuIds([...new Set([...bySuuId.keys(), ...plans.keys()])]), bySuuId.keys());
@@ -60,6 +73,19 @@ export default async function MyWalksPage() {
       <EventsSubnav active="mine" showRota={showRota} showProgramme={can(profileOf(member), "manage_walks")} />
 
       {today.length ? <WalkList title="On today" events={today} bySuuId={bySuuId} roles={roles} dayLinks /> : null}
+
+      {offerLeading ? (
+        // Here rather than in Account settings, which few members open: My walks is where walking lives.
+        <section aria-labelledby="walk-leader-title" className="my-walks-apply">
+          <h2 id="walk-leader-title" className="events-month">
+            Walk leading
+          </h2>
+          <p className="event-meta">
+            Been approved as a walk leader? Apply here for the rota, leader-only walks and reimbursements.
+          </p>
+          <WalkLeaderRequestForm initial={wlRequest} />
+        </section>
+      ) : null}
 
       {showRota ? (
         // Reads the reimbursement spreadsheet, which can take a few seconds: the rest of the page doesn't wait,
