@@ -197,13 +197,15 @@ export function createDevEquipmentRequest(
 
 export function updateDevEquipmentRequestStatus(
   requestId: string,
-  status: "approved" | "rejected" | "returned" | "cancelled",
+  status: Exclude<EquipmentRequest["status"], "pending">,
   notes?: string,
   reviewerId?: string,
+  extra: Partial<Pick<EquipmentRequest, "pickup_at" | "pickup_location" | "pickup_with_member_id">> = {},
 ): EquipmentRequest | null {
   const req = devRequests.find((r) => r.id === requestId);
   if (!req) return null;
   const now = new Date().toISOString();
+  Object.assign(req, extra);
   req.status = status;
   req.updated_at = now;
   if (notes !== undefined) req.notes = notes;

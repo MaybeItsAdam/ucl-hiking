@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { can, canUseKit, profileOf } from "@/lib/access";
-import { canHandleKit } from "@/lib/kitHandlers";
+import { can } from "@/lib/access";
+import { normalizeRestriction } from "@/lib/kitCustody";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 
@@ -17,11 +17,10 @@ export async function GET(request: Request) {
   const isSync = secretMatches(request.headers.get("x-member-sync-secret"));
   if (!isSync) {
     const member = await getCurrentMember();
+    // Any member: anyone can scan kit and see what the club has. Borrowing
+    // is still for explorers and committee (POST /api/equipment/requests).
     if (!member) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    if (!canUseKit(profileOf(member)) && !(await canHandleKit(member))) {
-      return NextResponse.json({ error: "Kit is for Explorer members and committee" }, { status: 403 });
     }
   }
 
@@ -71,6 +70,7 @@ export async function POST(request: Request) {
     totalQuantity?: unknown;
     availableQuantity?: unknown;
     condition?: unknown;
+    restrictedTo?: unknown;
   };
   try {
     body = await request.json();
@@ -89,6 +89,10 @@ export async function POST(request: Request) {
   if (!name) {
     return NextResponse.json({ error: "Equipment name is required" }, { status: 400 });
   }
+  // Who may take it out: only when sent, so a form that doesn't know about
+  // restrictions never clears one. (Drones stay principals-only whatever is
+  // sent; a trigger on the table holds that rule.)
+  const restriction = "restrictedTo" in body ? { restricted_to: normalizeRestriction(body.restrictedTo) } : {};
 
   if (!isSupabaseConfigured()) {
     if (process.env.NODE_ENV !== "production") {
@@ -131,6 +135,7 @@ export async function POST(request: Request) {
         total_quantity: totalQty,
         available_quantity: Math.min(availQty, totalQty),
         condition,
+        ...restriction,
         updated_at: now,
       })
       .eq("id", body.id)
@@ -161,6 +166,7 @@ export async function POST(request: Request) {
       total_quantity: totalQty,
       available_quantity: Math.min(availQty, totalQty),
       condition,
+      ...restriction,
     })
     .select()
     .single();

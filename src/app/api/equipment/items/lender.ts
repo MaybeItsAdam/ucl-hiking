@@ -4,6 +4,7 @@ import { canHandleKit } from "@/lib/kitHandlers";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Member } from "@/lib/types";
 
 /** Never cache a scan or the kit list: they change with every handover. */
 export const NO_STORE = { "Cache-Control": "no-store" };
@@ -52,6 +53,23 @@ export async function requireKitHandler(): Promise<
     return { ok: false, response: json({ error: "Database not configured" }, 503) };
   }
   return { ok: true, memberId: member.id, supabase: getSupabaseAdmin() };
+}
+
+/**
+ * Any signed-in member: anyone may scan a tag to see what it is and who has
+ * it, and confirm they've been handed it. `handlesKit` says whether they also
+ * get the lender's view and actions.
+ */
+export async function requireMember(): Promise<
+  | { ok: true; member: Member; handlesKit: boolean; supabase: SupabaseClient }
+  | { ok: false; response: NextResponse }
+> {
+  const member = await getCurrentMember();
+  if (!member) return { ok: false, response: json({ error: "Sign in to look up club kit." }, 401) };
+  if (!isSupabaseConfigured()) {
+    return { ok: false, response: json({ error: "Database not configured" }, 503) };
+  }
+  return { ok: true, member, handlesKit: await canHandleKit(member), supabase: getSupabaseAdmin() };
 }
 
 export async function readJson(request: Request): Promise<{ ok: true; body: unknown } | { ok: false; response: NextResponse }> {

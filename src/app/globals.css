@@ -2735,7 +2735,14 @@ button.kit-item-main { cursor: pointer; }
 .kit-request-purpose { margin: 6px 0 0; font-size: 14px; line-height: 1.45; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .kit-request-note { margin: 6px 0 0; padding-left: 10px; border-left: 2px solid var(--warn-line); font-size: 13px; line-height: 1.45; color: var(--warn-fg); }
 .kit-request-email { display: inline-block; margin-top: 4px; font-size: 12px; color: var(--muted); text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
-.kit-request-actions { display: flex; gap: 8px; }
+.kit-request-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.kit-request-pickup { margin: 6px 0 0; font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.kit-request-pickup-label { margin-right: 4px; font: 700 10px var(--font-body); letter-spacing: .15em; text-transform: uppercase; color: var(--muted); }
+/* Booked is confirmed: success. Restricted kit wears the purple identity accent. */
+.kit-tag.is-booked { border-color: var(--ok-line); background: var(--ok-bg); color: var(--ok-fg); }
+.kit-tag.is-restricted { border-color: color-mix(in srgb, #7a4de8 40%, transparent); background: color-mix(in srgb, #7a4de8 10%, transparent); color: #7a4de8; }
+.kit-held { margin-bottom: 20px; }
+.kit-member-chosen { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; }
 
 .kit-empty .kit-btn { margin-top: 12px; }
 .kit-empty p { display: flex; flex-direction: column; align-items: center; }

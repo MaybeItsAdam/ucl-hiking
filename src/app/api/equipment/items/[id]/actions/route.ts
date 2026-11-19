@@ -1,10 +1,15 @@
 import { applyItemAction, clampAt, cleanClientId, parseActionInput } from "@/lib/equipmentItems";
+import { tellCustodyChange } from "../../custody";
 import { json, readJson, requireKitHandler } from "../../lender";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** check_out / check_in / audit / flag one item. */
+/**
+ * check_out / hand_out / transfer / check_in / audit / flag one item. Kit
+ * handlers only: anyone else confirms a handover to themselves through
+ * ../claim.
+ */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireKitHandler();
   if (!auth.ok) return auth.response;
@@ -22,5 +27,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     at: clampAt(body.at),
   });
   if (!result.ok) return json({ error: result.error }, result.status);
+  await tellCustodyChange(auth.supabase, result, parsed.input.action, auth.memberId);
   return json(result);
 }

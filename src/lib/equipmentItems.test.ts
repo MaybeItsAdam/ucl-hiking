@@ -3,6 +3,9 @@ import {
   assetCodePrefix,
   equipmentTypeLabel,
   clampAt,
+  codeTypeMismatch,
+  handOutLoan,
+  typeFullMessage,
   cleanClientId,
   describeDbError,
   nextAssetCode,
@@ -202,6 +205,131 @@ describe("planAction: check_out", () => {
     expect(!wrong.ok && wrong.error).toBe("Tent #3 is a Tent, but this request is for Stove.");
     const full = planAction(tent, input, AT, loan({ quantity: 2, itemsOut: 2 }));
     expect(!full.ok && full.error).toMatch(/already been handed over/);
+  });
+});
+
+describe("planAction: custody", () => {
+  const ADA = "00000000-0000-4000-8000-0000000000ad";
+  const BEN = "00000000-0000-4000-8000-0000000000be";
+  const drone = { ...tent, asset_code: "DRONE-01", label: null, equipment_id: "drones", equipment_name: "Drone" };
+  const principalsOnly = { restrictedTo: ["principal", "admin"] as const };
+
+  it("puts an item handed over at a booked pickup in the borrower's hands", () => {
+    const plan = planAction(tent, { action: "check_out", requestId: "r1" }, AT, loan({ status: "booked", borrower_id: ADA }));
+    expect(plan).toMatchObject({ ok: true, patch: { status: "on_loan", loan_request_id: "r1", holder_member_id: ADA } });
+    expect(plan.ok && !plan.noop && plan.event).toMatchObject({ action: "check_out", to_member_id: ADA });
+  });
+
+  it("won't hand over against a request nobody has booked yet", () => {
+    const plan = planAction(tent, { action: "check_out", requestId: "r1" }, AT, loan({ status: "pending" }));
+    expect(!plan.ok && plan.error).toMatch(/booked/);
+  });
+
+  it("checks an item straight out of storage to someone (the shortcut)", () => {
+    const plan = planAction(tent, { action: "hand_out", toMemberId: ADA }, AT, null, {
+      recipient: { id: ADA, name: "Ada", role: null },
+    });
+    expect(plan).toMatchObject({ ok: true, noop: false, patch: { status: "on_loan", holder_member_id: ADA } });
+    expect(plan.ok && !plan.noop && plan.event).toMatchObject({ action: "check_out", to_member_id: ADA });
+    const out = planAction({ ...tent, status: "on_loan" }, { action: "hand_out", toMemberId: ADA }, AT, null, {
+      recipient: { id: ADA, name: "Ada", role: null },
+    });
+    expect(out).toMatchObject({ ok: false, status: 409 });
+  });
+
+  it("records a pass from one member to another, keeping the loan", () => {
+    const withAda = { ...tent, status: "on_loan" as const, loan_request_id: "r1", holder_member_id: ADA };
+    const plan = planAction(withAda, { action: "transfer", toMemberId: BEN }, AT, null, {
+      recipient: { id: BEN, name: "Ben", role: null },
+    });
+    expect(plan).toMatchObject({ ok: true, noop: false, patch: { holder_member_id: BEN } });
+    expect(plan.ok && !plan.noop && plan.patch).not.toHaveProperty("loan_request_id");
+    expect(plan.ok && !plan.noop && plan.event).toMatchObject({ action: "handover", request_id: "r1", from_member_id: ADA, to_member_id: BEN });
+  });
+
+  it("can't pass on kit that is in storage, and a pass to the holder is a no-op", () => {
+    expect(
+      planAction(tent, { action: "transfer", toMemberId: BEN }, AT, null, { recipient: { id: BEN, name: "Ben", role: null } }),
+    ).toMatchObject({ ok: false, status: 409 });
+    const withBen = { ...tent, status: "on_loan" as const, loan_request_id: "r1", holder_member_id: BEN };
+    expect(
+      planAction(withBen, { action: "transfer", toMemberId: BEN }, AT, null, { recipient: { id: BEN, name: "Ben", role: null } }),
+    ).toMatchObject({ ok: true, noop: true });
+  });
+
+  it("takes the item out of anyone's hands when it's checked back in", () => {
+    const withBen = { ...tent, status: "on_loan" as const, loan_request_id: "r1", holder_member_id: BEN };
+    const plan = planAction(withBen, { action: "check_in" }, AT);
+    expect(plan).toMatchObject({ ok: true, patch: { status: "available", loan_request_id: null, holder_member_id: null } });
+    expect(plan.ok && !plan.noop && plan.event).toMatchObject({ action: "check_in", from_member_id: BEN });
+  });
+
+  it("keeps restricted kit to the roles allowed, on every way out", () => {
+    const committeeMember = { id: BEN, name: "Ben", role: "committee" as const };
+    const principal = { id: ADA, name: "Ada", role: "principal" as const };
+
+    const handOut = planAction(drone, { action: "hand_out", toMemberId: BEN }, AT, null, { ...principalsOnly, recipient: committeeMember });
+    expect(handOut).toMatchObject({ ok: false, status: 403 });
+    expect(!handOut.ok && handOut.error).toBe("Drone is principals and admins only, and Ben can't take it out.");
+    expect(
+      planAction(drone, { action: "hand_out", toMemberId: ADA }, AT, null, { ...principalsOnly, recipient: principal }),
+    ).toMatchObject({ ok: true });
+
+    const withAda = { ...drone, status: "on_loan" as const, loan_request_id: "r1", holder_member_id: ADA };
+    expect(
+      planAction(withAda, { action: "transfer", toMemberId: BEN }, AT, null, { ...principalsOnly, recipient: committeeMember }),
+    ).toMatchObject({ ok: false, status: 403 });
+
+    const booked = loan({ status: "booked", equipment_id: "drones", equipment_name: "Drone", borrower: "Ben", borrower_role: "committee" });
+    expect(planAction(drone, { action: "check_out", requestId: "r1" }, AT, booked, principalsOnly)).toMatchObject({
+      ok: false,
+      status: 403,
+    });
+  });
+
+  it("parses the new actions", () => {
+    expect(parseActionInput({ action: "hand_out", toMemberId: ADA, endDate: "2026-11-26" })).toEqual({
+      ok: true,
+      input: { action: "hand_out", toMemberId: ADA, endDate: "2026-11-26", purpose: undefined },
+    });
+    expect(parseActionInput({ action: "transfer", toMemberId: "ben" }).ok).toBe(false);
+    expect(parseActionInput({ action: "hand_out", toMemberId: ADA, endDate: "next week" }).ok).toBe(false);
+  });
+
+  it("defaults a direct hand-out to a week, from London's today", () => {
+    expect(handOutLoan({}, "2026-11-19T23:30:00Z")).toEqual({
+      start_date: "2026-11-19",
+      end_date: "2026-11-26",
+      purpose: "Handed over in person",
+    });
+    // An end date before today is ignored.
+    expect(handOutLoan({ endDate: "2026-11-01" }, "2026-11-19T10:00:00Z").end_date).toBe("2026-11-26");
+    expect(handOutLoan({ endDate: "2026-11-21", purpose: "Trip" }, "2026-11-19T10:00:00Z")).toMatchObject({
+      end_date: "2026-11-21",
+      purpose: "Trip",
+    });
+  });
+});
+
+describe("the roll mat that wouldn't take a third tag", () => {
+  const types = [
+    { id: "radio", name: "Radio" },
+    { id: "mat", name: "Roll mat" },
+  ];
+
+  it("names every item counted against a full type", () => {
+    expect(typeFullMessage("Roll mat", 3, ["RADIO-06", "ROLL-MAT-01", "ROLL-MAT-02"])).toMatch(
+      /^All 3 Roll mat are already tagged: RADIO-06, ROLL-MAT-01, ROLL-MAT-02\./,
+    );
+  });
+
+  it("refuses a code numbered for another type", () => {
+    expect(codeTypeMismatch("RADIO-06", types[1], types)).toBe(
+      "RADIO-06 is numbered like a Radio, but you chose Roll mat. Pick the right kit type, or leave the code blank.",
+    );
+    expect(codeTypeMismatch("ROLL-MAT-03", types[1], types)).toBeNull();
+    expect(codeTypeMismatch("BLUE-MAT", types[1], types)).toBeNull();
+    expect(codeTypeMismatch("TENT-01", types[1], types)).toBeNull();
   });
 });
 

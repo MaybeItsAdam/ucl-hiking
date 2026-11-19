@@ -3,11 +3,13 @@ import type { EquipmentRequestStatus } from "@/lib/types";
 /**
  * Club kit and account deletion.
  *
- * A request's life: pending → approved (kit handed over, stock counted out) →
- * returned; or pending → rejected / cancelled. A principal can also cancel an
- * approved loan (it restores stock). "Overdue" is not a status: it is an
- * approved loan past its end date. So `approved` is the one status that means
- * the kit is, or may be, with the member.
+ * A request's life: pending → booked (a pickup arranged, stock held) →
+ * approved (kit handed over) → returned; or pending / booked → rejected /
+ * cancelled. A principal can also cancel an approved loan (it restores stock).
+ * "Overdue" is not a status: it is an approved loan past its end date. So
+ * `approved` is the one status that means the kit is, or may be, with the
+ * member; a member also has kit out while they hold an item passed to them on
+ * someone else's loan (see lib/kitCustody).
  *
  * The database enforces the important part (migration
  * 20260929000000_account_deletion_kit_guard): a member with an approved loan
@@ -127,7 +129,7 @@ export function deletionBlockMessage(block: DeletionBlock): { title: string; det
     return {
       title: "You still have club kit out on loan.",
       detail:
-        "Return it to a principal and ask them to mark it returned in the app, then you can delete your account. " +
+        "Give it back to a committee member and ask them to check it in, then you can delete your account. " +
         `Deletion opens ${KIT_COOL_OFF_DAYS} days after the last return, so the kit can be checked.`,
     };
   }
@@ -152,27 +154,5 @@ export function dueLine(endDate: string | null, today: string): string | null {
   return endDate < today ? `overdue since ${londonDate(endDate)}` : `due back ${londonDate(endDate)}`;
 }
 
-export type RequestTransition = "approved" | "rejected" | "returned" | "cancelled";
-
-/**
- * Which status changes are allowed, and by whom. Closed requests stay closed:
- * re-approving a returned or cancelled request would hand kit to someone who may
- * no longer have an account. A member may withdraw their own pending request,
- * but only a principal can close a loan that is out — otherwise a borrower
- * could "cancel" their own loan, restoring stock and clearing the way to delete
- * their account while still holding the kit.
- */
-export function canTransitionRequest(
-  from: EquipmentRequestStatus,
-  to: RequestTransition,
-  who: { isOwner: boolean; isReviewer: boolean },
-): boolean {
-  if (from === "pending") {
-    if (to === "cancelled") return who.isOwner || who.isReviewer;
-    return (to === "approved" || to === "rejected") && who.isReviewer;
-  }
-  if (from === "approved") {
-    return (to === "returned" || to === "cancelled") && who.isReviewer;
-  }
-  return false;
-}
+// The loan's state machine lives with the custody rules.
+export { canTransitionRequest, type RequestTransition } from "@/lib/kitCustody";

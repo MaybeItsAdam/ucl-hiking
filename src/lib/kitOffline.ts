@@ -2,11 +2,11 @@ import type { Equipment, EquipmentRequest } from "@/lib/types";
 
 /**
  * What a kit lender's phone keeps so the Equipment page can hand kit over
- * with no signal after a cold start: the kit types and the approved loans.
+ * with no signal after a cold start: the kit types and the booked and out loans.
  * The page's own cache (client-cache.ts) is memory only and gone after a
  * reload, which is exactly when the kit room has no signal.
  *
- * Kept small on purpose: approved loans only, each borrower's name and
+ * Kept small on purpose: booked and out loans only, each borrower's name and
  * nothing else about them (no email, no member record), for two weeks after
  * the page last loaded with signal. The tagged items are kept separately by
  * KitLender, with no borrower names at all.
@@ -44,7 +44,8 @@ export function storeLenderSnapshot(
 ): void {
   const value: LenderSnapshot = {
     equipment,
-    requests: requests.filter((r) => r.status === "approved").map(slim),
+    // Booked pickups too: the handover at the meet is often where there is no signal.
+    requests: requests.filter((r) => r.status === "approved" || r.status === "booked").map(slim),
     savedAt: new Date(now).toISOString(),
   };
   try {
