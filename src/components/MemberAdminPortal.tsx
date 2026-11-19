@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "r
 import { AlertCircle, Compass, Copy, Download, Lock, Search, Shield, Users, X } from "lucide-react";
 import {
   canChangeRole,
+  canGrantKitHandler,
   GOVERNANCE_LABELS,
   MEMBERSHIP_LABELS,
   type GovernanceRole,
@@ -500,6 +501,8 @@ function MemberSheet({
   const [busy, setBusy] = useState(false);
   const [loans, setLoans] = useState<Loan[] | null>(null);
   const [leader, setLeader] = useState<LeaderFacts | null>(null);
+  /** Granted scanning by hand; null until loaded, or before the migration. */
+  const [kitHandler, setKitHandler] = useState<boolean | null>(null);
   const memberId = member.member_id;
 
   useEffect(() => {
@@ -507,9 +510,10 @@ function MemberSheet({
     const controller = new AbortController();
     fetch(`/api/admin/members/${memberId}`, { signal: controller.signal })
       .then((res) => (res.ok ? res.json() : { loans: [] }))
-      .then((data: { loans?: Loan[]; leader?: LeaderFacts | null }) => {
+      .then((data: { loans?: Loan[]; leader?: LeaderFacts | null; kitHandler?: boolean | null }) => {
         setLoans(data.loans ?? []);
         setLeader(data.leader ?? null);
+        setKitHandler(typeof data.kitHandler === "boolean" ? data.kitHandler : null);
       })
       .catch(() => {
         if (!controller.signal.aborted) setLoans([]);
@@ -525,6 +529,32 @@ function MemberSheet({
   };
   const canLeader = Boolean(memberId) && canChangeRole(viewer, target, leaderChange);
   const canCommittee = Boolean(memberId) && canChangeRole(viewer, target, committeeChange);
+  // Committee, principals and admins scan by role; the grant is for anyone else.
+  const scansByRole = member.governance_role !== null;
+  const canGrantScan = Boolean(memberId) && kitHandler !== null && canGrantKitHandler(viewer, memberId ?? "");
+
+  async function setScanning(value: boolean) {
+    if (!memberId) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/members/${memberId}/kit-handler`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Couldn't save that change.");
+      setKitHandler(value);
+      onMessage({
+        tone: "success",
+        text: value ? `${member.full_name.split(" ")[0]} can now scan kit.` : `${member.full_name.split(" ")[0]} can no longer scan kit.`,
+      });
+    } catch (error) {
+      onMessage({ tone: "error", text: error instanceof Error ? error.message : "Couldn't save that change." });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function send(body: Record<string, unknown>, done: string) {
     if (!memberId) return;
@@ -682,6 +712,32 @@ function MemberSheet({
                 viewer.id !== memberId && <small className="member-note">Only a principal can change this.</small>
               )}
             </li>
+            {(scansByRole || kitHandler !== null) && (
+              <li>
+                <span>
+                  <strong>Kit scanning</strong>
+                  <small>
+                    {member.governance_role
+                      ? `Can scan kit as ${GOVERNANCE_LABELS[member.governance_role].toLowerCase()}`
+                      : kitHandler
+                        ? "Can scan, hand over, check in and audit tagged kit"
+                        : "Can't scan kit"}
+                  </small>
+                </span>
+                {!scansByRole && canGrantScan ? (
+                  <span className="member-role-actions">
+                    <button
+                      type="button"
+                      className={`kit-btn${kitHandler ? " danger" : " primary"}`}
+                      disabled={busy}
+                      onClick={() => void setScanning(!kitHandler)}
+                    >
+                      {kitHandler ? "Remove" : "Allow scanning"}
+                    </button>
+                  </span>
+                ) : null}
+              </li>
+            )}
           </ul>
         )}
       </section>

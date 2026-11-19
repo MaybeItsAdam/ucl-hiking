@@ -4,6 +4,7 @@ import {
   can,
   canApproveLeaders,
   canChangeRole,
+  canGrantKitHandler,
   LEADER_APPROVER_EMAILS,
   canPreviewAs,
   canPreviewRoles,
@@ -54,6 +55,24 @@ describe("access model", () => {
     expect(can(principal, "review_equipment_requests")).toBe(true);
     expect(can(principal, "manage_equipment")).toBe(true);
     expect(can(admin, "manage_equipment")).toBe(true);
+  });
+
+  it("lets committee, principals and admins scan kit, but no one without a role", () => {
+    expect(can(profile("explorer"), "handle_kit")).toBe(false);
+    expect(can(profile("standard", null, true), "handle_kit")).toBe(false);
+    expect(can(profile("standard", "committee"), "handle_kit")).toBe(true);
+    expect(can(profile("standard", "principal"), "handle_kit")).toBe(true);
+    expect(can(profile("explorer", "admin"), "handle_kit")).toBe(true);
+  });
+});
+
+describe("canGrantKitHandler", () => {
+  it("is for principals and admins, and never for themselves", () => {
+    expect(canGrantKitHandler({ id: "p", governanceRole: "principal" }, "m")).toBe(true);
+    expect(canGrantKitHandler({ id: "a", governanceRole: "admin" }, "m")).toBe(true);
+    expect(canGrantKitHandler({ id: "c", governanceRole: "committee" }, "m")).toBe(false);
+    expect(canGrantKitHandler({ id: "m", governanceRole: null }, "x")).toBe(false);
+    expect(canGrantKitHandler({ id: "p", governanceRole: "principal" }, "p")).toBe(false);
   });
 });
 

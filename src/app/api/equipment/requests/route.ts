@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { can } from "@/lib/access";
 import { itemsOutByRequest } from "@/lib/equipmentItems";
+import { canHandleKit } from "@/lib/kitHandlers";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 
@@ -17,6 +18,9 @@ export async function GET(request: Request) {
   const isSync = secretMatches(request.headers.get("x-member-sync-secret"));
   let member = null;
   let isCommittee = false;
+  // Kit handlers who aren't principals: their own requests, plus every
+  // approved loan, which is what they scan kit out and back in against.
+  let seesApproved = false;
 
   if (isSync) {
     isCommittee = true;
@@ -32,6 +36,7 @@ export async function GET(request: Request) {
       isWalkLeader: member.is_walk_leader,
     };
     isCommittee = can(profile, "review_equipment_requests");
+    seesApproved = !isCommittee && (await canHandleKit(member));
   }
 
   if (!isSupabaseConfigured()) {
@@ -54,7 +59,9 @@ export async function GET(request: Request) {
     .order("created_at", { ascending: false });
 
   if (!isCommittee && member) {
-    query = query.eq("member_id", member.id);
+    query = seesApproved
+      ? query.or(`member_id.eq.${member.id},status.eq.approved`)
+      : query.eq("member_id", member.id);
   }
 
   const { data, error } = await query;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { can, profileOf } from "@/lib/access";
+import { canHandleKit } from "@/lib/kitHandlers";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -23,6 +24,29 @@ export async function requireLender(): Promise<
   if (!member) return { ok: false, response: json({ error: "Unauthorized" }, 401) };
   if (!can(profileOf(member), "review_equipment_requests")) {
     return { ok: false, response: json({ error: "Forbidden: only kit lenders can scan, tag and audit kit" }, 403) };
+  }
+  if (!isSupabaseConfigured()) {
+    return { ok: false, response: json({ error: "Database not configured" }, 503) };
+  }
+  return { ok: true, memberId: member.id, supabase: getSupabaseAdmin() };
+}
+
+/**
+ * Scanning tagged kit: committee, principals and admins, and anyone a
+ * principal has granted it to (`kit_handlers`). They hand kit over against an
+ * already-approved loan, take it back, tag it and audit it. Approving loans,
+ * resolving reports and deleting items stay behind `requireLender`.
+ */
+export async function requireKitHandler(): Promise<
+  { ok: true; memberId: string; supabase: SupabaseClient } | { ok: false; response: NextResponse }
+> {
+  const member = await getCurrentMember();
+  if (!member) return { ok: false, response: json({ error: "Unauthorized" }, 401) };
+  if (!(await canHandleKit(member))) {
+    return {
+      ok: false,
+      response: json({ error: "Forbidden: only the committee and members a principal has allowed can scan kit" }, 403),
+    };
   }
   if (!isSupabaseConfigured()) {
     return { ok: false, response: json({ error: "Database not configured" }, 503) };

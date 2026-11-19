@@ -23,6 +23,7 @@ export type Capability =
   | "trigger_sync"
   | "request_equipment"
   | "review_equipment_requests"
+  | "handle_kit"
   | "manage_equipment"
   | "review_incidents"
   | "manage_money"
@@ -61,6 +62,12 @@ export function can(profile: AccessProfile, capability: Capability): boolean {
     // Trip money is the treasurer's and president's, who are principals.
     case "manage_money":
       return governanceRole === "principal" || governanceRole === "admin";
+    // Scanning tagged kit: hand it over against an approved loan, take it
+    // back, tag it and audit the shelf. Approving loans stays with principals.
+    // Members without a role can be granted this one by hand (kit_handlers),
+    // which `canHandleKit` in lib/kitHandlers checks on top of this.
+    case "handle_kit":
+      return governanceRole !== null;
     // The Club tab: broadcasts, stats, money and the handbook.
     case "manage_club":
       return governanceRole !== null;
@@ -111,6 +118,15 @@ export function canChangeRole(actor: RoleActor, target: RoleTarget, change: Role
   if (actor.governanceRole !== "principal" && actor.governanceRole !== "admin") return false;
   // Only ever between "no role" and "committee".
   return target.governanceRole === null || target.governanceRole === "committee";
+}
+
+/**
+ * Who may grant or take away scanning by hand: principals and admins, and
+ * never for themselves.
+ */
+export function canGrantKitHandler(actor: Pick<RoleActor, "id" | "governanceRole">, targetId: string): boolean {
+  if (actor.id === targetId) return false;
+  return actor.governanceRole === "principal" || actor.governanceRole === "admin";
 }
 
 /** The kit desk is for borrowers and for the principals who lend to them. */

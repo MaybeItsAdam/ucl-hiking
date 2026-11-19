@@ -1,12 +1,12 @@
 import { lookupByTag, normalizeTagUid } from "@/lib/equipmentItems";
-import { json, requireLender } from "../../lender";
+import { json, requireKitHandler } from "../../lender";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** What a scanned tag is: `{ item, equipment, loan }`, or 404 `{ unregistered: true, uid }`. */
 export async function GET(_request: Request, { params }: { params: Promise<{ uid: string }> }) {
-  const auth = await requireLender();
+  const auth = await requireKitHandler();
   if (!auth.ok) return auth.response;
   const { uid: raw } = await params;
   const uid = normalizeTagUid(decodeURIComponent(raw));

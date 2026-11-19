@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { can, canChangeRole, isGovernanceRole, profileOf, type RoleChange } from "@/lib/access";
 import { audit } from "@/lib/audit";
+import { isGrantedKitHandler } from "@/lib/kitHandlers";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 import { syncRosterLeader } from "@/lib/walkLeaderRequests";
@@ -19,7 +20,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!UUID.test(id) || !isSupabaseConfigured()) return NextResponse.json({ loans: [] });
 
   const supabase = getSupabaseAdmin();
-  const [{ data, error }, leader] = await Promise.all([
+  const [{ data, error }, leader, kitHandler] = await Promise.all([
     supabase
       .from("equipment_requests")
       .select("id, quantity, start_date, end_date, status, equipment:equipment_id (name)")
@@ -28,9 +29,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       .order("start_date", { ascending: false }),
     // Missing before the walk-sheet migration: read as unknown.
     supabase.from("members").select("wl_name, first_aid_trained, first_aid_until").eq("id", id).maybeSingle(),
+    // Null before the kit_handlers migration, so the sheet hides the control.
+    isGrantedKitHandler(supabase, id),
   ]);
   if (error) return NextResponse.json({ error: "Couldn't load this member's kit" }, { status: 500 });
-  return NextResponse.json({ loans: data ?? [], leader: leader.error ? null : leader.data });
+  return NextResponse.json({ loans: data ?? [], leader: leader.error ? null : leader.data, kitHandler });
 }
 
 function parseBody(body: Record<string, unknown>): { change: RoleChange } | { unlock: RoleChange["field"] } | null {

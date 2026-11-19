@@ -158,6 +158,10 @@ interface EquipmentPortalProps {
   memberId: string;
   /** Principals manage the kit and review loans; everyone else here borrows it. */
   isPrincipal: boolean;
+  /** May scan tagged kit (committee, or granted by a principal); true for principals too. */
+  isKitHandler?: boolean;
+  /** May ask to borrow (explorers and committee). False for a member who only scans. */
+  canBorrow?: boolean;
   initialTab?: Tab | "committee_review";
   onTabChange?: (tab: Tab) => void;
 }
@@ -175,7 +179,18 @@ const EQUIPMENT_CACHE_KEY = "equipment";
 const LOAD_MS = 10000;
 type EquipmentCache = { items: Equipment[]; requests: EquipmentRequest[] };
 
-export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog", onTabChange }: EquipmentPortalProps) {
+const NO_REPORTS: ConditionReport[] = [];
+
+export function EquipmentPortal({
+  memberId,
+  isPrincipal,
+  isKitHandler = false,
+  canBorrow = true,
+  initialTab = "catalog",
+  onTabChange,
+}: EquipmentPortalProps) {
+  /** Has the scanner: principals, and the committee or anyone granted it. */
+  const scans = isPrincipal || isKitHandler;
   const [internalTab, setInternalTab] = useState<Tab>(initialTab === "committee_review" ? "requests" : initialTab);
   const tab = onTabChange ? (initialTab === "committee_review" ? "requests" : initialTab) : internalTab;
   const selectTab = (next: Tab) => {
@@ -219,12 +234,12 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
    * cold start in the kit room. True if there was a copy to show.
    */
   const fallBackToSaved = useCallback(() => {
-    const saved = isPrincipal ? readLenderSnapshot(localStorage) : null;
+    const saved = scans ? readLenderSnapshot(localStorage) : null;
     if (!saved) return false;
     setItems((now) => (now.length ? now : saved.equipment));
     setRequests((now) => (now.length ? now : saved.requests));
     return true;
-  }, [isPrincipal]);
+  }, [scans]);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -241,7 +256,7 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
       if (reqData) setRequests(reqData.requests ?? []);
       if (eqData && reqData) {
         writeCache<EquipmentCache>(EQUIPMENT_CACHE_KEY, { items: eqData.equipment ?? [], requests: reqData.requests ?? [] });
-        if (isPrincipal) {
+        if (scans) {
           // Keep the page and what it needs on the phone, for scanning with no signal.
           storeLenderSnapshot(localStorage, eqData.equipment ?? [], reqData.requests ?? []);
           keepPageOffline({ name: "Kit scanner", when: "Equipment · scans work offline", expires: Date.now() + LENDER_KEEP_MS });
@@ -258,7 +273,7 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
         setLoaded(true);
       }
     }
-  }, [isPrincipal, fallBackToSaved]);
+  }, [scans, fallBackToSaved]);
 
   /**
    * Problem reports: every open one for a principal, your own for a borrower.
@@ -585,10 +600,12 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
 
   return (
     <KitLenderProvider
-      enabled={isPrincipal}
+      enabled={scans}
+      canDelete={isPrincipal}
       equipment={items}
       requests={requests}
-      reports={reports}
+      // Resolving problem reports is a principal's; anyone else's list is their own reports.
+      reports={isPrincipal ? reports : NO_REPORTS}
       onReportsChanged={loadReports}
       onChanged={load}
     >
@@ -700,7 +717,7 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
                   key={item.id}
                   item={item}
                   isPrincipal={isPrincipal}
-                  onBorrow={() => openBorrow(item)}
+                  onBorrow={canBorrow ? () => openBorrow(item) : undefined}
                   onEdit={() =>
                     setItemDraft({
                       id: item.id,
@@ -716,7 +733,7 @@ export function EquipmentPortal({ memberId, isPrincipal, initialTab = "catalog",
               ))}
             </ul>
           )}
-          {isPrincipal && <TaggedItemsList />}
+          {scans && <TaggedItemsList />}
         </section>
       )}
 
@@ -1283,7 +1300,8 @@ function ItemRow({
 }: {
   item: Equipment;
   isPrincipal: boolean;
-  onBorrow: () => void;
+  /** Absent for a member who scans kit but doesn't borrow it. */
+  onBorrow?: () => void;
   onEdit: () => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -1347,11 +1365,11 @@ function ItemRow({
       </span>
       {isPrincipal ? (
         <ChevronRight className="kit-item-chevron" size={18} aria-hidden="true" />
-      ) : (
+      ) : onBorrow ? (
         <button type="button" className="kit-btn primary" disabled={item.available_quantity === 0} onClick={onBorrow}>
           Borrow
         </button>
-      )}
+      ) : null}
     </li>
   );
 }
