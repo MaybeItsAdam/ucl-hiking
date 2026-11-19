@@ -235,7 +235,7 @@ export function ItemCard({ view }: { view: ItemView }) {
         >
           Mark audited
         </button>
-        {item.status !== "on_loan" && (
+        {kit.canDelete && item.status !== "on_loan" && (
           <button
             type="button"
             className={`kit-btn${panel === "delete" ? " is-open" : " danger-text"}`}

@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { can, canUseKit, profileOf } from "@/lib/access";
+import { canHandleKit } from "@/lib/kitHandlers";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
     if (!member) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    if (!canUseKit(profileOf(member))) {
+    if (!canUseKit(profileOf(member)) && !(await canHandleKit(member))) {
       return NextResponse.json({ error: "Kit is for Explorer members and committee" }, { status: 403 });
     }
   }

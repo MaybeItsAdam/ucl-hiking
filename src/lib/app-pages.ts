@@ -24,12 +24,14 @@ export const APP_PAGE_HREFS: Record<AppPage, string> = {
  * committee's. Everyone else gets a Handbook tab once the committee shares a
  * page with them (`sharedHandbook`); the committee reads it from Club.
  * Expenses is for anyone who can claim: walk leaders and committee.
+ * `kitHandler` is a member a principal has let scan kit by hand
+ * (lib/kitHandlers), who gets the equipment tab for the scanner.
  */
-export function availablePages(profile: AccessProfile | null, sharedHandbook = false): AppPage[] {
+export function availablePages(profile: AccessProfile | null, sharedHandbook = false, kitHandler = false): AppPage[] {
   const pages: AppPage[] = [];
   if (profile) pages.push("events", "navigator");
   if (profile && can(profile, "manage_members")) pages.push("members");
-  if (profile && canUseKit(profile)) pages.push("equipment");
+  if (profile && (canUseKit(profile) || kitHandler)) pages.push("equipment");
   if (profile && can(profile, "manage_club")) pages.push("club");
   else if (profile && sharedHandbook) pages.push("handbook");
   if (profile && claimKindsFor(profile).length) pages.push("expenses");

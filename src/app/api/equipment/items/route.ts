@@ -1,12 +1,12 @@
 import { clampAt, cleanClientId, commissionItem, listItemSummaries, parseCommissionInput } from "@/lib/equipmentItems";
-import { json, readJson, requireLender } from "./lender";
+import { json, readJson, requireKitHandler } from "./lender";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** Every tagged item, for the phone's offline lookup cache. */
 export async function GET() {
-  const auth = await requireLender();
+  const auth = await requireKitHandler();
   if (!auth.ok) return auth.response;
   try {
     const items = await listItemSummaries(auth.supabase);
@@ -19,7 +19,7 @@ export async function GET() {
 
 /** Tag (commission) a new item. */
 export async function POST(request: Request) {
-  const auth = await requireLender();
+  const auth = await requireKitHandler();
   if (!auth.ok) return auth.response;
   const read = await readJson(request);
   if (!read.ok) return read.response;

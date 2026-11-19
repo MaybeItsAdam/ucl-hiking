@@ -37,15 +37,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: pnpm/action-setup@v6  # the version in package.json's packageManager
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm test
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint
+      - run: pnpm run typecheck
+      - run: pnpm test
 
   deploy:
     name: iOS -> TestFlight ${{ inputs.lane || 'beta' }}
@@ -60,10 +62,12 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - uses: pnpm/action-setup@v6  # the version in package.json's packageManager
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: npm
+          cache: pnpm
 
       - uses: ruby/setup-ruby@v1
         with:
@@ -74,11 +78,11 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.MATCH_GIT_SSH_KEY }}
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       # Copies the web shell and plugins in and runs pod install.
       - name: Sync Capacitor iOS shell
-        run: npx cap sync ios
+        run: pnpm exec cap sync ios
 
       - name: Build & upload
         run: bundle exec fastlane ios ${{ inputs.lane || 'beta' }}

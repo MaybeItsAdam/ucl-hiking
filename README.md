@@ -24,21 +24,21 @@ owned by uclhiking@gmail.com. Ask a committee admin to invite you.
 
 ```bash
 doppler login                    # signed in to the UCL Hiking Club workplace
-npm install
-npm run dev                      # runs on hiking-webapp/prd
+pnpm install
+pnpm dev                         # runs on hiking-webapp/prd
 ```
 
 If your own Doppler login is for another workplace, keep the club's apart with a wrapper on your
 PATH called `doppler-hiking` (`exec doppler --config-dir "$HOME/.doppler-hiking" "$@"`), then
 `doppler-hiking login` once. `scripts/doppler.sh` uses it when it's there, plain `doppler` otherwise.
 
-`npm run dev:no-doppler` still reads `.env.local` if you need to work offline.
+`pnpm dev:no-doppler` still reads `.env.local` if you need to work offline.
 
 ### Where each secret lives
 
 | Doppler config | Synced to | Holds |
 | --- | --- | --- |
-| `prd` | Vercel Production (`ucl-hiking.vercel.app`), and your machine via `npm run dev` | everything production needs, including Supabase and `POSTGRES_URL_NON_POOLING` |
+| `prd` | Vercel Production (`ucl-hiking.vercel.app`), and your machine via `pnpm dev` | everything production needs, including Supabase and `POSTGRES_URL_NON_POOLING` |
 | `ci` | GitHub Actions | Android signing, the Play service account, `GOOGLE_SERVICES_JSON_BASE64`, the match deploy key and password, the App Store Connect API key |
 
 Local dev runs on `prd`: it reads the production database either way, so there is no separate dev config.
@@ -50,16 +50,16 @@ Doppler (the session pooler on port 5432), which `deploy-migrate` prefers over t
 both encrypt with the same key.
 
 Change a secret in Doppler, never in Vercel or GitHub directly (the next sync overwrites it).
-Before a deploy that needs a new secret, run `npm run env:check -- prd` (or `ci`). It fails on
+Before a deploy that needs a new secret, run `pnpm env:check prd` (or `ci`). It fails on
 missing secrets and on the usual paste mistakes (a short session secret, a safety key that isn't
 32 bytes, a service account that isn't JSON), and never prints a value.
 
 Set the Supabase URL and service-role key, then apply the migrations with
-`MIGRATE_DATABASE_URL=<postgres connection string> npm run db:migrate`.
+`MIGRATE_DATABASE_URL=<postgres connection string> pnpm db:migrate`.
 
 ### Migrations apply themselves in production
 
-`npm run build` runs `scripts/deploy-migrate.mjs` before `next build`. On a Vercel
+`pnpm build` runs `scripts/deploy-migrate.mjs` before `next build`. On a Vercel
 **production** build (`VERCEL_ENV=production`) it applies any file in
 `supabase/migrations/` not yet recorded in `public.schema_migrations`, using the
 Supabase integration's `POSTGRES_URL_NON_POOLING`. Preview and local builds skip it.
@@ -92,8 +92,8 @@ The native shell loads the deployed Next.js application so it retains server
 routes and Supabase-backed functionality:
 
 ```bash
-CAPACITOR_APP_URL=https://ucl-hiking.vercel.app npm run cap:sync
-npm run cap:ios       # or cap:android
+CAPACITOR_APP_URL=https://ucl-hiking.vercel.app pnpm cap:sync
+pnpm cap:ios       # or cap:android
 ```
 
 UCL sign-in opens in the system browser. Toolbox returns to the allow-listed
@@ -288,7 +288,7 @@ actually carried rather than resetting those three to zero.
 ## Checks
 
 ```bash
-npm run typecheck
-npm run lint
-npm test
+pnpm typecheck
+pnpm lint
+pnpm test
 ```

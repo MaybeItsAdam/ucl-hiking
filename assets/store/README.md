@@ -120,7 +120,7 @@ Review Information and Play Console's App content → App access, never in this
 repository. See `copy/reviewer-notes.md` for the exact steps to paste.
 
 The native shells are configured to load `https://ucl-hiking.vercel.app`.
-Run `npm run cap:sync` before each native build if the deployment URL changes.
+Run `pnpm cap:sync` before each native build if the deployment URL changes.
 Capture screenshots only after testing sign-in on each native platform.
 Allow `https://ucl-hiking.vercel.app` as a bare origin in the Toolbox Hiking
 organiser's site settings. Browser sign-in returns to the domain on which it

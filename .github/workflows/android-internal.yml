@@ -32,15 +32,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: pnpm/action-setup@v6  # the version in package.json's packageManager
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run typecheck
-      - run: npm test
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint
+      - run: pnpm run typecheck
+      - run: pnpm test
 
   deploy:
     name: Android -> Play ${{ inputs.lane || 'beta' }}
@@ -50,10 +52,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - uses: pnpm/action-setup@v6  # the version in package.json's packageManager
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: npm
+          cache: pnpm
 
       - uses: ruby/setup-ruby@v1
         with:
@@ -64,10 +68,10 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Sync Capacitor Android shell
-        run: npx cap sync android
+        run: pnpm exec cap sync android
 
       # Firebase config for push. Without it the app builds and runs, but push
       # stays off (NEXT_PUBLIC_PUSH_ENABLED must stay unset until it is here).

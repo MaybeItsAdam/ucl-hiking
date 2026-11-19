@@ -121,6 +121,8 @@ interface KitContext {
     body: { tagUid?: string; equipmentId: string; assetCode?: string; label?: string; location?: string },
     label: string,
   ) => Promise<Outcome>;
+  /** Principals only: whether the item card offers "Delete item". */
+  canDelete: boolean;
   /**
    * Delete a tagged item for good, freeing its tag (principals only; online
    * only, since it can't be undone). Resolves to an error message, or null.
@@ -199,6 +201,7 @@ function fromResult(data: Record<string, unknown>): Outcome {
 
 export function KitLenderProvider({
   enabled,
+  canDelete = false,
   equipment,
   requests,
   reports = NO_REPORTS,
@@ -207,6 +210,7 @@ export function KitLenderProvider({
   children,
 }: {
   enabled: boolean;
+  canDelete?: boolean;
   equipment: Equipment[];
   requests: LenderRequest[];
   reports?: ConditionReport[];
@@ -218,6 +222,7 @@ export function KitLenderProvider({
   if (!enabled) return <>{children}</>;
   return (
     <KitLenderInner
+      canDelete={canDelete}
       equipment={equipment}
       requests={requests}
       reports={reports}
@@ -233,6 +238,7 @@ const NO_REPORTS: ConditionReport[] = [];
 function noop() {}
 
 function KitLenderInner({
+  canDelete,
   equipment,
   requests,
   reports,
@@ -240,6 +246,7 @@ function KitLenderInner({
   onChanged,
   children,
 }: {
+  canDelete: boolean;
   equipment: Equipment[];
   requests: LenderRequest[];
   reports: ConditionReport[];
@@ -711,6 +718,7 @@ function KitLenderInner({
       act,
       scanOp,
       commission,
+      canDelete,
       removeItem,
       flush,
       dismissFailures,
@@ -742,6 +750,7 @@ function KitLenderInner({
       act,
       scanOp,
       commission,
+      canDelete,
       removeItem,
       flush,
       dismissFailures,

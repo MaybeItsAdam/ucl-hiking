@@ -1,12 +1,12 @@
 import { applyItemAction, clampAt, cleanClientId, parseActionInput } from "@/lib/equipmentItems";
-import { json, readJson, requireLender } from "../../lender";
+import { json, readJson, requireKitHandler } from "../../lender";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /** check_out / check_in / audit / flag one item. */
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await requireLender();
+  const auth = await requireKitHandler();
   if (!auth.ok) return auth.response;
   const { id } = await params;
   const read = await readJson(request);

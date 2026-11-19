@@ -7,7 +7,9 @@ import { AppTitleBar } from "@/components/AppTitleBar";
 import { InboxBell } from "@/components/InboxBell";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { TabSwipe } from "@/components/TabSwipe";
+import { canUseKit, profileOf } from "@/lib/access";
 import { APP_PAGE_HREFS, availablePages } from "@/lib/app-pages";
+import { canHandleKit } from "@/lib/kitHandlers";
 import { sharedWith } from "@/lib/handbook";
 import { getCurrentMember, getRolePreviewState } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
@@ -33,17 +35,14 @@ async function hasSharedHandbook(isWalkLeader: boolean): Promise<boolean> {
 export async function AppShell({ children }: { children: ReactNode }) {
   const member = await getCurrentMember();
   const previewState = await getRolePreviewState();
-  const pages = availablePages(
-    member
-      ? {
-          membershipTier: member.membership_tier,
-          governanceRole: member.governance_role,
-          isWalkLeader: member.is_walk_leader,
-        }
-      : null,
+  const profile = member ? profileOf(member) : null;
+  const [sharedHandbook, kitHandler] = await Promise.all([
     // The committee read the handbook from Club, so only ask for everyone else.
-    member && !member.governance_role ? await hasSharedHandbook(member.is_walk_leader) : false,
-  );
+    member && !member.governance_role ? hasSharedHandbook(member.is_walk_leader) : false,
+    // A member granted scanning by hand, who has no kit tab otherwise.
+    member && profile && !canUseKit(profile) ? canHandleKit(member) : false,
+  ]);
+  const pages = availablePages(profile, sharedHandbook, kitHandler);
 
   // The homepage is the website's front door and asks you to sign in, so a
   // signed-in member's brand link stays in the app, on their first tab.

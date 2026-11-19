@@ -1,5 +1,5 @@
 import { applyBatchOp, MAX_BATCH_OPS, type BatchOpResult } from "@/lib/equipmentItems";
-import { json, readJson, requireLender } from "../lender";
+import { json, readJson, requireKitHandler } from "../lender";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,7 +10,7 @@ export const maxDuration = 60;
  * clientId, and one that fails never stops the rest.
  */
 export async function POST(request: Request) {
-  const auth = await requireLender();
+  const auth = await requireKitHandler();
   if (!auth.ok) return auth.response;
   const read = await readJson(request);
   if (!read.ok) return read.response;
