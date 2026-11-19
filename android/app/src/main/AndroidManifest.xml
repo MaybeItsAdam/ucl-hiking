@@ -29,6 +29,25 @@
                 <data android:scheme="uclhiking" android:host="auth" />
             </intent-filter>
 
+            <!-- Kit tags carry https://www.uclhiking.org/kit/<id> (src/lib/kitTag.ts).
+                 An App Link, verified against public/.well-known/assetlinks.json, so
+                 tapping a tag (or the link) opens the app straight to the item;
+                 KitLinkBridge.tsx picks it up through @capacitor/app's appUrlOpen. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="www.uclhiking.org" android:pathPrefix="/kit/" />
+            </intent-filter>
+
+            <!-- "Open in the app" on the /kit/<id> page: uclhiking://kit/<id>. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="uclhiking" android:host="kit" />
+            </intent-filter>
+
         </activity>
 
         <provider

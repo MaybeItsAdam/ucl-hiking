@@ -6,6 +6,7 @@ import { handoverProgress, plural, requestsWithRoom, STATUS_LABELS } from "@/lib
 import { feedback } from "@/lib/nfc";
 import { useKit, type ItemView, type Outcome } from "./KitLender";
 import { ReportSummary, ResolveReportForm } from "./ConditionReports";
+import { TagWriter } from "./TagWriter";
 import { borrowerOf, CONDITION_LABELS, formatDays, formatWhen } from "./format";
 
 type Panel = "check_in" | "handover" | "flag" | "delete" | null;
@@ -335,6 +336,8 @@ export function ItemCard({ view }: { view: ItemView }) {
           )}
         </form>
       )}
+
+      {!panel && <TagWriter item={item} uid={item.tag_uid} />}
 
       {note && (
         <p className={`kit-card-note is-${note.type}`} role={note.type === "error" ? "alert" : "status"}>

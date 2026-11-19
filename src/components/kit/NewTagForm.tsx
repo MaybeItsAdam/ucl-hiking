@@ -4,10 +4,12 @@ import { useState, type FormEvent } from "react";
 import { assetCodePrefix, equipmentTypeLabel, nextAssetCode, normalizeAssetCode, type ItemSummary } from "@/lib/equipmentItems";
 import { feedback } from "@/lib/nfc";
 import { useKit } from "./KitLender";
+import { TagWriter } from "./TagWriter";
 
 /**
  * Tag a new item: an unknown tag was scanned, so say what kind of kit it is
- * on. The asset code is numbered for the type unless one is typed.
+ * on. The asset code is numbered for the type unless one is typed. Once it's
+ * saved, TagWriter offers to write the item's link onto the tag.
  */
 export function NewTagForm({
   uid,
@@ -83,8 +85,9 @@ export function NewTagForm({
             ? `Write ${created.asset_code} on the item so it can be found without a phone.`
             : "No signal: it will be tagged when you're back online, and given its asset code then."}
         </p>
+        {created && <TagWriter item={created} uid={uid} prominent />}
         <div className="modal-actions">
-          <button type="button" className="kit-btn primary" onClick={() => onDone(created)}>
+          <button type="button" className={`kit-btn${created ? "" : " primary"}`} onClick={() => onDone(created)}>
             {created ? "Open item" : "Done"}
           </button>
         </div>
