@@ -18,6 +18,7 @@ import {
   Download,
   ExternalLink,
   Flag,
+  Images,
   Map as MapIcon,
   MapPin,
   Moon,
@@ -29,6 +30,7 @@ import {
   UserRound,
   Users,
 } from "lucide-react";
+import { AlbumEditor } from "@/components/AlbumEditor";
 import { DifficultyChip } from "@/components/EventFacts";
 import { EventPlanEditor } from "@/components/EventPlanEditor";
 import { KitChecklist } from "@/components/KitChecklist";
@@ -46,6 +48,8 @@ import { getEvent } from "@/lib/events";
 import { mapHikes } from "@/lib/hikeMap";
 import { loadPlaces, type LatLng } from "@/lib/places";
 import { canSeeLibraryRoute } from "@/lib/routeCatalogue";
+import { albumVisible, canManageAlbums } from "@/lib/photoAlbums";
+import { getAlbum, tripsAttendedBy } from "@/lib/photoAlbumStore";
 import { getLibraryRouteFlags } from "@/lib/routeLibrary";
 import { getCurrentMember } from "@/lib/session";
 import { ticketCount } from "@/lib/ticketCount";
@@ -266,6 +270,13 @@ export default async function EventPage({ params, searchParams }: Params & { sea
   const forecastSpot = pinned?.start ?? mapRoute?.start ?? pinned?.finish ?? null;
   const forecastAt = walking && event.status !== "cancelled" && inForecastWindow(event.starts_at) ? forecastSpot : null;
   const editable = Boolean(event.suu_event_id) && (await canEditEventPlan(member, event, plan));
+  // The trip's photo album: committee attach it; members who went see it (lib/photoAlbums).
+  const albumEditable = Boolean(event.suu_event_id) && canManageAlbums(profileOf(member));
+  const album = event.suu_event_id ? await getAlbum(event.suu_event_id) : null;
+  const albumShown =
+    album && event.suu_event_id
+      ? albumVisible(event.suu_event_id, { seesAll: albumEditable, attended: albumEditable ? new Set() : await tripsAttendedBy(member) })
+      : false;
   const planMeet = plan?.meet_at || plan?.meet_point
     ? [plan.meet_at ? clock.format(new Date(plan.meet_at)) : null, plan.meet_point].filter(Boolean).join(" · ")
     : null;
@@ -410,6 +421,14 @@ export default async function EventPage({ params, searchParams }: Params & { sea
           </a>
         ) : null}
         {editable ? <EventPlanEditor eventId={event.id} startsAt={event.starts_at} /> : null}
+        {album && albumShown ? (
+          <OpenExternal className="kit-btn" href={album.url}>
+            <Images size={15} aria-hidden="true" />
+            Photos
+            <ExternalLink size={13} aria-hidden="true" />
+          </OpenExternal>
+        ) : null}
+        {albumEditable ? <AlbumEditor eventId={event.id} eventName={details.name} url={album?.url ?? null} /> : null}
       </div>
 
       {forecastAt ? (

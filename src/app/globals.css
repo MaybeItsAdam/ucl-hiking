@@ -3434,6 +3434,18 @@ button.kit-item-main { cursor: pointer; }
   .navigator-cover, .navigator-leaf img, .navigator-icon-btn, .navigator-save-bar { transition-duration: .01s; }
 }
 
+/* ── Photo archive ──
+   The trips' Google Photos albums, under the Navigator tab. Flat rows on
+   hairlines; the actions wrap under the name on a phone. */
+.photo-trip { flex-wrap: wrap; padding: 10px 14px; }
+.photo-trip-main { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.photo-trip-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.photo-trip-actions .kit-btn { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.photo-archive-note { margin-top: 24px; max-width: 560px; }
+.alumni-admin .kit-list, .alumni-admin .roster-toolbar { margin-top: 12px; }
+.alumni-admin > .member-note, .alumni-admin > .day-note { margin-top: 10px; max-width: 620px; }
+.alumni-admin .photo-trip-main small { font-size: 12px; color: var(--muted); }
+
 /* ── Offline banner and dead ends ──
    The banner floats above the tab bar (OfflineBanner measures it into
    --offline-lift) while the phone has no connection, then briefly says when
