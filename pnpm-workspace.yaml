@@ -1,0 +1,9 @@
+allowBuilds:
+  esbuild: true
+  unrs-resolver: true
+
+# Capacitor writes the real path of each plugin into the committed Podfile and
+# capacitor.settings.gradle; a flat node_modules keeps those paths
+# node_modules/@capacitor/..., as under npm. Files still come from the shared
+# store, as copy-on-write clones.
+nodeLinker: hoisted

@@ -13,7 +13,7 @@
  *
  * - `VERCEL_ENV=production` only. NODE_ENV is "production" for previews too, and
  *   a pull-request build must never touch the production database.
- * - Or explicitly, anywhere, with `MIGRATE_DATABASE_URL` set (`npm run db:migrate`).
+ * - Or explicitly, anywhere, with `MIGRATE_DATABASE_URL` set (`pnpm db:migrate`).
  *
  * ## How it tracks what has run
  *

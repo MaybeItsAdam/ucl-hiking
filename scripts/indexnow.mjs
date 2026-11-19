@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Tells Bing (and the other IndexNow engines) about every URL in the live
 // sitemap. Run after a deploy that adds or changes public pages:
-//   npm run indexnow
+//   pnpm indexnow
 // SITE_URL overrides the origin. The key file is public/<key>.txt.
 import { readdirSync } from "node:fs";
 import { join } from "node:path";

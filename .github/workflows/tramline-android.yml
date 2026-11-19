@@ -37,10 +37,12 @@ jobs:
             echo "::error::No version_name/version_code in tramline-input — this workflow is meant to be triggered by Tramline."; exit 1
           fi
 
+      - uses: pnpm/action-setup@v6  # the version in package.json's packageManager
+
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: npm
+          cache: pnpm
 
       - uses: ruby/setup-ruby@v1
         with:
@@ -51,10 +53,10 @@ jobs:
           distribution: temurin
           java-version: "21"
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Sync Capacitor Android shell
-        run: npx cap sync android
+        run: pnpm exec cap sync android
 
       # Firebase config for push, as in android-internal.yml. Optional.
       - name: Add Firebase config
