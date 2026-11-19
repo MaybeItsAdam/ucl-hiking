@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getArchiveViewer } from "@/lib/archiveViewer";
 import { APP_PAGE_HREFS, availablePages } from "@/lib/app-pages";
 import { getCurrentMember } from "@/lib/session";
 
@@ -7,7 +8,11 @@ export default async function PortalPage(props: {
   searchParams?: Promise<{ section?: string }>;
 }) {
   const member = await getCurrentMember();
-  if (!member) redirect("/auth/signin");
+  if (!member) {
+    // Alumni (lib/alumni) land on the Navigator, the first of their two pages.
+    if ((await getArchiveViewer())?.standing === "alumnus") redirect(APP_PAGE_HREFS.navigator);
+    redirect("/auth/signin");
+  }
 
   const pages = availablePages({
     membershipTier: member.membership_tier,

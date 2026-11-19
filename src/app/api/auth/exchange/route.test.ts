@@ -7,6 +7,8 @@ const db = {
   member: null as Row | null,
   upserts: [] as Row[],
   updates: [] as Row[],
+  /** Whether a principal has granted this member alumni access. */
+  alumnus: false,
 };
 
 vi.mock("@/lib/session", () => ({ setSessionCookie: vi.fn(async () => {}) }));
@@ -21,6 +23,15 @@ vi.mock("@/lib/supabase", () => ({
   isSupabaseConfigured: () => true,
   getSupabaseAdmin: () => ({
     from: (table: string) => {
+      if (table === "alumni") {
+        return {
+          select: () => ({
+            eq: (_col: string, id: string) => ({
+              maybeSingle: async () => ({ data: db.alumnus ? { member_id: id } : null, error: null }),
+            }),
+          }),
+        };
+      }
       if (table !== "members") return { insert: async () => ({ error: null }) };
       return {
         select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: db.member, error: null }) }) }),
@@ -70,6 +81,7 @@ describe("POST /api/auth/exchange — membership from Toolbox's roster", () => {
     db.member = null;
     db.upserts = [];
     db.updates = [];
+    db.alumnus = false;
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -103,6 +115,26 @@ describe("POST /api/auth/exchange — membership from Toolbox's roster", () => {
     toolboxRoster([rosterMember("Alan Turing", "toolbox-alan")]);
     expect((await signIn()).status).toBe(403);
     expect(db.updates[0]).toHaveProperty("revoked_at");
+  });
+
+  it("lets a former member in as an alumnus when a principal has granted it", async () => {
+    db.member = { ...onRoster, revoked_at: "2026-09-01T00:00:00Z" };
+    db.alumnus = true;
+    toolboxRoster([rosterMember("Alan Turing", "toolbox-alan")]);
+    expect((await signIn()).status).toBe(200);
+  });
+
+  it("lets an expired member in as an alumnus, but not without the grant", async () => {
+    db.member = { ...onRoster, sync_source: "toolbox-auth", membership_expires_at: "2026-08-31T23:59:59Z" };
+    expect((await signIn()).status).toBe(403);
+    db.alumnus = true;
+    expect((await signIn()).status).toBe(200);
+  });
+
+  it("still turns away a newcomer with no account, grant or not", async () => {
+    db.alumnus = true;
+    toolboxRoster([rosterMember("Alan Turing", "toolbox-alan")]);
+    expect((await signIn()).status).toBe(403);
   });
 
   it("lets a member keep their access while Toolbox is down", async () => {

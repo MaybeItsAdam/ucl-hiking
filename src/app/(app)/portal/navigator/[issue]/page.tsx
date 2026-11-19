@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { NavigatorReader } from "@/components/NavigatorReader";
 import { findNavigatorIssue, issueLabel, navigatorVersion } from "@/lib/navigator";
-import { getCurrentMember } from "@/lib/session";
+import { getArchiveViewer } from "@/lib/archiveViewer";
 
 type Params = { params: Promise<{ issue: string }> };
 
@@ -13,8 +13,9 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 /** One issue, open in the reader. */
 export default async function NavigatorIssuePage({ params }: Params) {
-  const member = await getCurrentMember();
-  if (!member) redirect("/auth/signin");
+  // Alumni too (lib/alumni).
+  const viewer = await getArchiveViewer();
+  if (!viewer) redirect("/auth/signin");
   const issue = findNavigatorIssue((await params).issue);
   if (!issue) notFound();
 

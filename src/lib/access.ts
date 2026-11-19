@@ -129,6 +129,15 @@ export function canGrantKitHandler(actor: Pick<RoleActor, "id" | "governanceRole
   return actor.governanceRole === "principal" || actor.governanceRole === "admin";
 }
 
+/**
+ * Who may give a former member alumni access (the Navigator and their trips'
+ * photo albums) or take it away: principals and admins, never for themselves.
+ */
+export function canGrantAlumni(actor: Pick<RoleActor, "id" | "governanceRole">, targetId: string): boolean {
+  if (actor.id === targetId) return false;
+  return actor.governanceRole === "principal" || actor.governanceRole === "admin";
+}
+
 /** The kit desk is for borrowers and for the principals who lend to them. */
 export function canUseKit(profile: AccessProfile): boolean {
   return can(profile, "request_equipment") || can(profile, "manage_equipment");

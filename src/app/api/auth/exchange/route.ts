@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { isGovernanceRole, isMembershipTier } from "@/lib/access";
+import { signsInAsAlumnus } from "@/lib/alumni";
+import { isGrantedAlumnus } from "@/lib/alumniStore";
 import { lockedGovernanceRole, lockedWalkLeader } from "@/lib/roleLocks";
 import { setSessionCookie } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
@@ -143,8 +145,15 @@ export async function POST(request: Request) {
   const expired = member?.membership_expires_at
     ? new Date(member.membership_expires_at) < new Date()
     : false;
+  // A former member a principal has granted alumni access signs in as before;
+  // the session then opens the Navigator and the photo archive and nothing
+  // else, since every other route asks for a current member (lib/alumni).
+  const alumnus =
+    !error && member && (member.revoked_at || expired)
+      ? signsInAsAlumnus(member, await isGrantedAlumnus(supabase, member.id))
+      : false;
   if (
-    error || !member || member.revoked_at || expired ||
+    error || !member || ((member.revoked_at || expired) && !alumnus) ||
     !isMembershipTier(member.membership_tier) ||
     (member.governance_role !== null && !isGovernanceRole(member.governance_role))
   ) {
