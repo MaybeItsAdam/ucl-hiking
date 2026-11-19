@@ -22,6 +22,14 @@ const nextConfig: NextConfig = {
     return [
       // The service worker must never come from a cache, or fixes to it stall.
       { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }] },
+      // iOS Universal Links (kit tags, src/lib/kitTag.ts). Apple wants JSON with
+      // no extension, no redirect; the file has no extension to type it by.
+      {
+        source: "/.well-known/apple-app-site-association",
+        headers: [{ key: "Content-Type", value: "application/json" }],
+      },
+      // A kit tag's page is only for whoever is holding the tag.
+      { source: "/kit/:path*", headers: noindex },
       process.env.VERCEL_ENV === "preview"
         ? { source: "/:path*", headers: noindex }
         : { source: "/:path*", has: [{ type: "host", value: ".*\\.vercel\\.app" }], headers: noindex },

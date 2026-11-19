@@ -8,6 +8,9 @@ import {
 } from "@/lib/equipmentItems";
 import { isTimeout } from "@/lib/fetchWithin";
 
+// What's written on a tag (the kit URL and text record) and reading it back.
+export * from "@/lib/kitTag";
+
 /**
  * The pure half of the lender's scanning screens: the offline queue of scans,
  * handover progress, and what a shelf audit didn't see. No React, no fetch, so

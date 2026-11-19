@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { Capacitor } from "@capacitor/core";
+import { useSearchParams } from "next/navigation";
 import type { BatchOpResult, ItemSummary, TagLookup } from "@/lib/equipmentItems";
 import { MAX_BATCH_OPS } from "@/lib/equipmentItems";
 import { fetchWithin } from "@/lib/fetchWithin";
@@ -546,6 +547,21 @@ function KitLenderInner({
   );
 
   const openNew = useCallback((uid: string, offline?: boolean) => setView({ kind: "new", uid, offline }), []);
+
+  // A kit link (/kit/<id>, from a tag read outside the app) lands here as
+  // ?item=<id>: open that item once the list is in, then drop the parameter.
+  const linkedItem = useSearchParams().get("item");
+  const followedLink = useRef<string | null>(null);
+  useEffect(() => {
+    if (!linkedItem) followedLink.current = null;
+    if (!linkedItem || !itemsLoaded || followedLink.current === linkedItem) return;
+    followedLink.current = linkedItem;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("item");
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    const item = items.find((i) => i.id === linkedItem);
+    if (item) queueMicrotask(() => openItem({ item }));
+  }, [linkedItem, itemsLoaded, items, openItem]);
 
   const openAudit = useCallback(() => {
     stopScan();

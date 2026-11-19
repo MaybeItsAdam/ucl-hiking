@@ -1,0 +1,12 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["6NQNU5YSC2.org.uclhiking.app"],
+        "components": [
+          { "/": "/kit/*", "comment": "Kit tags (src/lib/kitTag.ts) open the item in the app" }
+        ]
+      }
+    ]
+  }
+}
