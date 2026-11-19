@@ -3,8 +3,6 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { ClubMark } from "@/components/ClubMark";
-import { canUseKit, profileOf } from "@/lib/access";
-import { canHandleKit } from "@/lib/kitHandlers";
 import { isItemId, kitAppUrl } from "@/lib/kitTag";
 import { APP_STORE_URL, noIndex, PLAY_STORE_URL, SITE_NAME } from "@/lib/seo";
 import { getCurrentMember } from "@/lib/session";
@@ -60,8 +58,8 @@ export default async function KitTagPage({ params }: { params: Promise<{ id: str
   const id = raw.toLowerCase();
 
   const member = await getCurrentMember().catch(() => null);
-  if (member && (await canHandleKit(member))) redirect(`/portal/equipment?item=${id}`);
-  const canBorrow = member ? canUseKit(profileOf(member)) : false;
+  // Every member can open the equipment page and see what this is and who has it.
+  if (member) redirect(`/portal/equipment?item=${id}`);
 
   const [item, ua] = await Promise.all([publicItem(id), headers().then((h) => h.get("user-agent") ?? "")]);
   const inApp = ua.includes(APP_USER_AGENT);
@@ -106,21 +104,7 @@ export default async function KitTagPage({ params }: { params: Promise<{ id: str
           above and where it is, and someone from the club will arrange to collect it.
         </p>
 
-        {member ? (
-          <>
-            <h2>Club members</h2>
-            <p>
-              {canBorrow
-                ? "Kit is borrowed and returned through the equipment page."
-                : "Club kit is lent out by the committee."}
-            </p>
-            <div className="kit-public-actions">
-              <Link className="kit-btn primary" href={canBorrow ? "/portal/equipment" : "/portal"}>
-                {canBorrow ? "Open equipment" : "Open the portal"}
-              </Link>
-            </div>
-          </>
-        ) : inApp ? (
+        {inApp ? (
           <>
             <h2>Club members</h2>
             <p>Sign in to see this item in the equipment portal.</p>
