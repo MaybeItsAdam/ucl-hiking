@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ClipboardCheck, CloudOff, Nfc, X } from "lucide-react";
-import { ITEM_STATUSES, type ItemStatus } from "@/lib/equipmentItems";
+import { ITEM_STATUSES, type ItemStatus, type TagLookup } from "@/lib/equipmentItems";
+import { holdsStock } from "@/lib/kitCustody";
 import { handoverProgress, plural, STATUS_LABELS } from "@/lib/kitScan";
 import { useKit, type LenderRequest } from "./KitLender";
 
@@ -66,10 +67,10 @@ export function KitScanBar() {
   );
 }
 
-/** "Scan items" on an approved request, with how many tagged items are already out. */
+/** "Scan items" on a booked or out request, with how many tagged items are already out. */
 export function HandoverButton({ request }: { request: LenderRequest }) {
   const kit = useKit();
-  if (!kit || request.status !== "approved") return null;
+  if (!kit || !holdsStock(request.status)) return null;
   const progress = handoverProgress(request.quantity, request.items?.length ?? 0, kit?.queuedOut.get(request.id) ?? 0);
   if (progress.complete) {
     return (
@@ -98,9 +99,12 @@ export function TaggedItemsList() {
     ItemStatus,
     number
   >;
+  // Grouped by kit type, so every item counted against a type is listed
+  // together, whatever its code says (a radio tagged as a roll mat shows up
+  // among the roll mats, not among the radios).
   const visible = (filter === "all" ? items : items.filter((i) => i.status === filter))
     .slice()
-    .sort((a, b) => a.asset_code.localeCompare(b.asset_code));
+    .sort((a, b) => a.equipment_name.localeCompare(b.equipment_name) || a.asset_code.localeCompare(b.asset_code));
 
   return (
     <section className="kit-tagged" aria-labelledby="kit-tagged-title">
@@ -146,6 +150,7 @@ export function TaggedItemsList() {
                   </span>
                   <span className="kit-item-meta">
                     {item.equipment_name}
+                    {item.status === "on_loan" && item.holder?.name ? ` · with ${item.holder.name}` : ""}
                     {item.location ? ` · ${item.location}` : ""}
                     {item.tag_uid ? null : <span className="kit-tag">No tag</span>}
                   </span>
@@ -158,4 +163,25 @@ export function TaggedItemsList() {
       )}
     </section>
   );
+}
+
+/**
+ * Opens the item card for `itemId` once (a link to an item, or a tag that
+ * carries its id). Renders nothing.
+ */
+export function ItemLinkOpener({ itemId }: { itemId: string | null }) {
+  const kit = useKit();
+  const opened = useRef<string | null>(null);
+  const openItem = kit?.openItem;
+  useEffect(() => {
+    if (!itemId || !openItem || opened.current === itemId) return;
+    opened.current = itemId;
+    fetch(`/api/equipment/items/${encodeURIComponent(itemId)}`, { cache: "no-store" })
+      .then((res) => (res.ok ? (res.json() as Promise<TagLookup>) : null))
+      .then((found) => {
+        if (found?.item) openItem({ item: found.item, loan: found.loan ?? null });
+      })
+      .catch(() => undefined);
+  }, [itemId, openItem]);
+  return null;
 }

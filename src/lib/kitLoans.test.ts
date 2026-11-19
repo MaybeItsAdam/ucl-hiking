@@ -112,8 +112,8 @@ describe("messages", () => {
 });
 
 describe("canTransitionRequest", () => {
-  const owner = { isOwner: true, isReviewer: false };
-  const principal = { isOwner: false, isReviewer: true };
+  const owner = { isOwner: true, isHandler: false, isPrincipal: false };
+  const principal = { isOwner: false, isHandler: true, isPrincipal: true };
 
   it("lets a borrower withdraw a pending request but not cancel a loan that is out", () => {
     expect(canTransitionRequest("pending", "cancelled", owner)).toBe(true);
@@ -131,7 +131,7 @@ describe("canTransitionRequest", () => {
 
   it("never reopens a closed request", () => {
     for (const from of ["returned", "cancelled", "rejected"] as const) {
-      for (const to of ["approved", "rejected", "returned", "cancelled"] as const) {
+      for (const to of ["booked", "approved", "rejected", "returned", "cancelled"] as const) {
         expect(canTransitionRequest(from, to, principal)).toBe(false);
       }
     }

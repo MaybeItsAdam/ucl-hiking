@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { can, profileOf } from "@/lib/access";
+import { canHandleKit } from "@/lib/kitHandlers";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 
@@ -10,7 +11,10 @@ import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 export async function GET(request: Request) {
   const member = await getCurrentMember();
   if (!member) return NextResponse.json({ error: "Sign in first." }, { status: 401 });
-  if (!can(profileOf(member), "lead_walks")) return NextResponse.json({ error: "Only walk leaders and committee search members." }, { status: 403 });
+  // Walk leaders adding to a register; committee and kit handlers handing kit to someone.
+  if (!can(profileOf(member), "lead_walks") && !(await canHandleKit(member))) {
+    return NextResponse.json({ error: "Only walk leaders and committee search members." }, { status: 403 });
+  }
   if (!isSupabaseConfigured()) return NextResponse.json({ members: [] });
 
   // PostgREST filter syntax is built from this string, so keep only what a name contains.

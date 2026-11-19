@@ -57,11 +57,22 @@ export interface Equipment {
   total_quantity: number;
   available_quantity: number;
   condition: EquipmentCondition;
+  /**
+   * The governance roles that may take this kit out; null or absent means
+   * anyone who can borrow. Drones are principals and admins only.
+   */
+  restricted_to?: GovernanceRole[] | null;
   created_at: string;
   updated_at: string;
 }
 
-export type EquipmentRequestStatus = "pending" | "approved" | "rejected" | "returned" | "cancelled";
+/**
+ * A loan's life: pending (asked) → booked (a pickup arranged with a committee
+ * member) → approved (the kit is out with the member) → returned. Or rejected /
+ * cancelled. "approved" keeps its name in the database, where everything reads
+ * it as "kit is out"; the app calls it "On loan".
+ */
+export type EquipmentRequestStatus = "pending" | "booked" | "approved" | "rejected" | "returned" | "cancelled";
 
 export interface EquipmentRequest {
   id: string;
@@ -81,6 +92,15 @@ export interface EquipmentRequest {
   /** Snapshot taken when the borrower deleted their account. */
   borrower_name?: string | null;
   borrower_email?: string | null;
+  /** The pickup a committee member booked: when, where and who they're meeting. */
+  pickup_at?: string | null;
+  pickup_location?: string | null;
+  pickup_with_member_id?: string | null;
+  pickup_with?: { id: string; full_name: string | null } | null;
+  booked_by?: string | null;
+  booked_at?: string | null;
+  /** "direct": a committee member took it off the shelf to someone, with no request first. */
+  origin?: "request" | "direct";
   created_at: string;
   updated_at: string;
   member?: Member | null;

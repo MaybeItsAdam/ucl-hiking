@@ -1,12 +1,17 @@
-import { lookupByTag, normalizeTagUid } from "@/lib/equipmentItems";
-import { json, requireKitHandler } from "../../lender";
+import { lookupByTag, normalizeTagUid, toPublicView } from "@/lib/equipmentItems";
+import { json, requireMember } from "../../lender";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** What a scanned tag is: `{ item, equipment, loan }`, or 404 `{ unregistered: true, uid }`. */
+/**
+ * What a scanned tag is. Anyone signed in may ask: kit handlers get
+ * `{ item, equipment, loan }`, everyone else the public view (what it is and
+ * who has it; see toPublicView). 404 `{ unregistered: true, uid }` for a tag
+ * on no item.
+ */
 export async function GET(_request: Request, { params }: { params: Promise<{ uid: string }> }) {
-  const auth = await requireKitHandler();
+  const auth = await requireMember();
   if (!auth.ok) return auth.response;
   const { uid: raw } = await params;
   const uid = normalizeTagUid(decodeURIComponent(raw));
@@ -14,7 +19,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ uid
   try {
     const found = await lookupByTag(auth.supabase, uid);
     if (!found) return json({ unregistered: true, uid }, 404);
-    return json(found);
+    if (auth.handlesKit) return json(found);
+    return json(toPublicView(found.item, { id: auth.member.id, role: auth.member.governance_role }));
   } catch (err) {
     console.error(`[equipment/items] tag lookup failed: ${err instanceof Error ? err.message : String(err)}`);
     return json({ error: "Failed to look up the tag" }, 500);

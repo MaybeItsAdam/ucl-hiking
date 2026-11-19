@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { can } from "@/lib/access";
+import { can, type GovernanceRole } from "@/lib/access";
 import { listItemSummaries, type ItemSummary } from "@/lib/equipmentItems";
+import { restrictionLabel } from "@/lib/kitCustody";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
 
@@ -12,6 +13,7 @@ interface EquipmentRow {
   total_quantity: number;
   available_quantity: number;
   condition: string;
+  restricted_to?: GovernanceRole[] | null;
   updated_at: string;
 }
 
@@ -57,6 +59,10 @@ function buildEquipmentMasterRows(items: EquipmentRow[]): string[][] {
     "On Loan Quantity",
     "Condition",
     "Last Updated",
+    // After the columns the pull reads, so it never changes what a pull imports.
+    // Read-only here: who may take kit out is set in the app (and drones are
+    // always principals-only), so a pull never clears a restriction.
+    "Restricted To",
   ];
   const rows = [header];
   for (const item of items) {
@@ -73,6 +79,7 @@ function buildEquipmentMasterRows(items: EquipmentRow[]): string[][] {
       String(onLoan),
       item.condition || "good",
       item.updated_at || "",
+      restrictionLabel(item.restricted_to) ?? "",
     ]);
   }
   return rows;
@@ -116,7 +123,7 @@ function buildEquipmentLedgerRows(requests: EquipmentRequestRow[]): string[][] {
 }
 
 function buildItemRows(items: ItemSummary[]): string[][] {
-  const rows = [["Asset Code", "Type", "Label", "Tag UID", "Location", "Status", "Condition", "Borrower", "Last Audited"]];
+  const rows = [["Asset Code", "Type", "Label", "Tag UID", "Location", "Status", "Condition", "Borrower", "Last Audited", "With"]];
   for (const item of items) {
     rows.push([
       item.asset_code,
@@ -128,6 +135,7 @@ function buildItemRows(items: ItemSummary[]): string[][] {
       item.condition,
       item.loan?.borrower || "",
       item.last_audited_at || "",
+      item.holder?.name || "",
     ]);
   }
   return rows;

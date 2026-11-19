@@ -1,7 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
-import { can } from "@/lib/access";
+import { can, profileOf } from "@/lib/access";
 import { itemsOutByRequest } from "@/lib/equipmentItems";
+import { holdsStock, mayHold, restrictionError } from "@/lib/kitCustody";
 import { canHandleKit } from "@/lib/kitHandlers";
 import { getCurrentMember } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
@@ -17,10 +18,9 @@ function secretMatches(provided: string | null): boolean {
 export async function GET(request: Request) {
   const isSync = secretMatches(request.headers.get("x-member-sync-secret"));
   let member = null;
+  // Everyone who handles kit sees every request: they book the pickups, hand
+  // the kit over and take it back. Anyone else sees their own.
   let isCommittee = false;
-  // Kit handlers who aren't principals: their own requests, plus every
-  // approved loan, which is what they scan kit out and back in against.
-  let seesApproved = false;
 
   if (isSync) {
     isCommittee = true;
@@ -29,14 +29,7 @@ export async function GET(request: Request) {
     if (!member) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    const profile = {
-      membershipTier: member.membership_tier,
-      governanceRole: member.governance_role,
-      isWalkLeader: member.is_walk_leader,
-    };
-    isCommittee = can(profile, "review_equipment_requests");
-    seesApproved = !isCommittee && (await canHandleKit(member));
+    isCommittee = can(profileOf(member), "review_equipment_requests") || (await canHandleKit(member));
   }
 
   if (!isSupabaseConfigured()) {
@@ -54,14 +47,13 @@ export async function GET(request: Request) {
     .select(`
       *,
       equipment:equipment_id(*),
-      member:member_id(id, email, full_name, membership_tier)
+      member:member_id(id, email, full_name, membership_tier),
+      pickup_with:pickup_with_member_id(id, full_name)
     `)
     .order("created_at", { ascending: false });
 
   if (!isCommittee && member) {
-    query = seesApproved
-      ? query.or(`member_id.eq.${member.id},status.eq.approved`)
-      : query.eq("member_id", member.id);
+    query = query.eq("member_id", member.id);
   }
 
   const { data, error } = await query;
@@ -73,12 +65,12 @@ export async function GET(request: Request) {
 
   // Tagged items handed over against each approved loan (additive; skipped
   // quietly if the items table isn't there yet).
-  const approvedIds = requests.filter((r) => r.status === "approved").map((r) => r.id as string);
+  const approvedIds = requests.filter((r) => holdsStock(r.status)).map((r) => r.id as string);
   if (approvedIds.length) {
     try {
       const byRequest = await itemsOutByRequest(supabase, approvedIds);
       for (const r of requests) {
-        if (r.status === "approved") r.items = byRequest.get(r.id) ?? [];
+        if (holdsStock(r.status)) r.items = byRequest.get(r.id) ?? [];
       }
     } catch (err) {
       console.warn(`[equipment/requests] items not attached: ${err instanceof Error ? err.message : String(err)}`);
@@ -153,12 +145,18 @@ export async function POST(request: Request) {
   const supabase = getSupabaseAdmin();
   const { data: item, error: itemError } = await supabase
     .from("equipment")
-    .select("id, name, available_quantity")
+    .select("id, name, available_quantity, restricted_to")
     .eq("id", equipmentId)
     .single();
 
   if (itemError || !item) {
     return NextResponse.json({ error: "Equipment item not found" }, { status: 404 });
+  }
+
+  // Restricted kit (drones): only the roles it's restricted to may ask. A role
+  // preview counts as the role previewed, so the check is what they'd see.
+  if (!mayHold(item.restricted_to, member.governance_role)) {
+    return NextResponse.json({ error: restrictionError(item.name, item.restricted_to) }, { status: 403 });
   }
 
   if (eventSuuId) {

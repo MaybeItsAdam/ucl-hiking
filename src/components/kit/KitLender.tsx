@@ -152,6 +152,7 @@ const QUIET_MS = 30000;
 /** How often to try sending waiting scans while the page is open. */
 const RETRY_MS = 30000;
 const PENDING_ERROR = "This item was tagged on this phone and hasn't been sent yet. Try again once it has.";
+const SIGNAL_ERROR = "Handing kit to someone needs a signal. Try again once you're online.";
 
 function newClientId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -618,7 +619,7 @@ function KitLenderInner({
     (outcome: Outcome, action: string) => {
       if (outcome.kind !== "ok") return;
       mergeItem(outcome.result.item);
-      if (action === "check_out" || action === "check_in") onChangedRef.current();
+      if (action === "check_out" || action === "check_in" || action === "hand_out" || action === "transfer") onChangedRef.current();
     },
     [mergeItem],
   );
@@ -627,7 +628,9 @@ function KitLenderInner({
     async (itemId: string, body: OpBody, label: string): Promise<Outcome> => {
       const op = { ...body, itemId, clientId: newClientId(), at: new Date().toISOString() } as BatchOp;
       if (itemId.startsWith("queued:")) return { kind: "error", error: PENDING_ERROR };
-      if (offlineNow()) return queueOp(op, label);
+      // Putting kit in someone's hands tells them, so it's never queued for later.
+      const needsSignal = body.action === "hand_out" || body.action === "transfer";
+      if (offlineNow()) return needsSignal ? { kind: "error", error: SIGNAL_ERROR } : queueOp(op, label);
       try {
         const { status, data } = await postJson(`/api/equipment/items/${encodeURIComponent(itemId)}/actions`, op);
         reached();
@@ -640,7 +643,7 @@ function KitLenderInner({
       } catch (err) {
         if (looksOffline(navigator.onLine, err)) {
           unreachable();
-          return queueOp(op, label);
+          return needsSignal ? { kind: "error", error: SIGNAL_ERROR } : queueOp(op, label);
         }
         return { kind: "error", error: NETWORK_ERROR };
       }
