@@ -31,12 +31,18 @@ export async function GET(request: Request) {
   if (!isSupabaseConfigured()) return NextResponse.json({ alumni: [], results: [], ready: false });
 
   const supabase = getSupabaseAdmin();
-  const { data: grants, error } = await supabase.from("alumni").select("member_id, granted_at").order("granted_at", { ascending: false }).limit(1000);
+  const { data: grants, error } = await supabase
+    .from("alumni")
+    .select("member_id, granted_at, alumni_email, source")
+    .is("revoked_at", null)
+    .order("granted_at", { ascending: false })
+    .limit(1000);
   if (error) {
     if (isMissingAlumni(error)) return NextResponse.json({ alumni: [], results: [], ready: false });
     return NextResponse.json({ error: "Couldn't load alumni." }, { status: 500 });
   }
-  const grantedAt = new Map((grants ?? []).map((g) => [g.member_id as string, g.granted_at as string]));
+  type Grant = { member_id: string; granted_at: string; alumni_email: string | null; source: string };
+  const grantedAt = new Map(((grants ?? []) as Grant[]).map((g) => [g.member_id, g]));
   const now = new Date();
   const view = (row: AccountRow) => ({
     id: row.id,
@@ -44,7 +50,10 @@ export async function GET(request: Request) {
     email: row.email,
     current: isCurrentMember(row, now),
     alumnus: grantedAt.has(row.id),
-    granted_at: grantedAt.get(row.id) ?? null,
+    granted_at: grantedAt.get(row.id)?.granted_at ?? null,
+    alumni_email: grantedAt.get(row.id)?.alumni_email ?? null,
+    /** Granted by sign-in itself, from an @alumni address that matched them. */
+    auto: grantedAt.get(row.id)?.source === "auto",
   });
 
   let alumni: ReturnType<typeof view>[] = [];

@@ -9,6 +9,10 @@ const db = {
   updates: [] as Row[],
   /** Whether a principal has granted this member alumni access. */
   alumnus: false,
+  /** The address the UCL login comes back with. */
+  identityEmail: "ada@ucl.ac.uk",
+  /** What an @alumni address links to (lib/alumniStore findAlumniSignIn). */
+  alumniLinked: null as Row | null,
 };
 
 vi.mock("@/lib/session", () => ({ setSessionCookie: vi.fn(async () => {}) }));
@@ -16,7 +20,12 @@ vi.mock("@/lib/session", () => ({ setSessionCookie: vi.fn(async () => {}) }));
 vi.mock("@/lib/toolbox", () => ({
   SU_MEMBERSHIP_URL: "https://studentsunionucl.org/clubs-societies/hiking-club",
   getSocietyGovernanceRole: () => null,
-  verifyToolboxToken: async () => ({ id: "toolbox-ada", email: "ada@ucl.ac.uk", name: "Ada Lovelace" }),
+  verifyToolboxToken: async () => ({ id: "toolbox-ada", email: db.identityEmail, name: "Ada Lovelace" }),
+}));
+
+vi.mock("@/lib/alumniStore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/alumniStore")>()),
+  findAlumniSignIn: vi.fn(async () => db.alumniLinked),
 }));
 
 vi.mock("@/lib/supabase", () => ({
@@ -82,6 +91,8 @@ describe("POST /api/auth/exchange — membership from Toolbox's roster", () => {
     db.upserts = [];
     db.updates = [];
     db.alumnus = false;
+    db.identityEmail = "ada@ucl.ac.uk";
+    db.alumniLinked = null;
   });
   afterEach(() => vi.unstubAllGlobals());
 
@@ -129,6 +140,24 @@ describe("POST /api/auth/exchange — membership from Toolbox's roster", () => {
     expect((await signIn()).status).toBe(403);
     db.alumnus = true;
     expect((await signIn()).status).toBe(200);
+  });
+
+  it("lets a former member in on their @alumni address once it links to their old row", async () => {
+    db.identityEmail = "ada.lovelace.18@alumni.ucl.ac.uk";
+    db.alumniLinked = { ...onRoster, revoked_at: "2026-09-01T00:00:00Z" };
+    db.alumnus = true;
+    toolboxRoster([rosterMember("Alan Turing", "toolbox-alan")]);
+    expect((await signIn()).status).toBe(200);
+    // The old row keeps the login it was a member under.
+    expect(db.updates.at(-1)).not.toHaveProperty("toolbox_user_id");
+  });
+
+  it("tells an @alumni address that matches nobody to ask a principal", async () => {
+    db.identityEmail = "stranger@alumni.ucl.ac.uk";
+    toolboxRoster([rosterMember("Alan Turing", "toolbox-alan")]);
+    const res = await signIn();
+    expect(res.status).toBe(403);
+    expect((await res.json()).error).toMatch(/alumni address/);
   });
 
   it("still turns away a newcomer with no account, grant or not", async () => {

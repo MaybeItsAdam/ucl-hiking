@@ -2,7 +2,17 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 import { canGrantAlumni } from "./access";
-import { ALUMNI_PAGES, ALUMNI_ROUTES, alumnusMayOpen, archiveStanding, isCurrentMember, signsInAsAlumnus } from "./alumni";
+import {
+  ALUMNI_PAGES,
+  ALUMNI_ROUTES,
+  alumniEmail,
+  alumniLink,
+  alumnusMayOpen,
+  archiveStanding,
+  isCurrentMember,
+  signsInAsAlumnus,
+  studentEmailFor,
+} from "./alumni";
 import { APP_PAGE_HREFS } from "./app-pages";
 
 const NOW = new Date("2026-11-19T12:00:00Z");
@@ -139,5 +149,29 @@ describe("who grants alumni access", () => {
     expect(canGrantAlumni({ id: "p", governanceRole: "principal" }, "p")).toBe(false);
     expect(canGrantAlumni({ id: "c", governanceRole: "committee" }, "m")).toBe(false);
     expect(canGrantAlumni({ id: "x", governanceRole: null }, "m")).toBe(false);
+  });
+});
+
+describe("alumni addresses", () => {
+  it("recognises @alumni.ucl.ac.uk addresses, whatever the case", () => {
+    expect(alumniEmail(" Ada.Lovelace.18@Alumni.UCL.ac.uk ")).toBe("ada.lovelace.18@alumni.ucl.ac.uk");
+    expect(alumniEmail("ada@ucl.ac.uk")).toBeNull();
+    expect(alumniEmail("ada@alumni.ucl.ac.uk.evil.com")).toBeNull();
+    expect(alumniEmail("ada@notalumni.ucl.ac.uk")).toBeNull();
+    expect(alumniEmail(42)).toBeNull();
+  });
+
+  it("guesses the student address from the same name before the @", () => {
+    expect(studentEmailFor("zcabxyz@alumni.ucl.ac.uk")).toBe("zcabxyz@ucl.ac.uk");
+    expect(studentEmailFor("ada@gmail.com")).toBeNull();
+  });
+
+  it("decides what an alumni address that found a members row gets", () => {
+    expect(alumniLink(null, null, NOW)).toBe("refused");
+    expect(alumniLink(current, null, NOW)).toBe("member");
+    expect(alumniLink(revoked, null, NOW)).toBe("auto_grant");
+    expect(alumniLink(expired, { revoked_at: null }, NOW)).toBe("alumnus");
+    // A principal took it away: sign-in mustn't hand it straight back.
+    expect(alumniLink(revoked, { revoked_at: "2026-10-01T00:00:00Z" }, NOW)).toBe("refused");
   });
 });
