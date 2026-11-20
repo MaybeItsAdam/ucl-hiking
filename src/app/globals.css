@@ -3524,3 +3524,8 @@ button.kit-item-main { cursor: pointer; }
   .kit-public-facts > div { grid-template-columns: 1fr; gap: 2px; }
   .kit-public-actions .kit-btn, .kit-public-stores .kit-btn { flex: 1 1 auto; min-height: 44px; }
 }
+.alumni-email-form { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.alumni-email-form input { flex: 1 1 220px; min-width: 0; min-height: 40px; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 6px; background-color: var(--surface); color: var(--ink); font: 15px var(--font-body); }
+.alumni-email-form input:focus { outline: none; border-color: var(--forest); box-shadow: 0 0 0 3px color-mix(in srgb, var(--forest) 20%, transparent); }
+@media (pointer: coarse) { .alumni-email-form input { font-size: 16px; min-height: 44px; } }
+.alumni-admin .photo-trip-main small .roster-link-button { padding: 0; font-size: 12px; }

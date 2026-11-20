@@ -68,6 +68,43 @@ export function archiveStanding(row: StandingRow | null, granted: boolean | null
   return granted === true ? "alumnus" : null;
 }
 
+/** UCL moves leavers onto this domain; it's how alumni sign in. */
+export const ALUMNI_EMAIL_DOMAIN = "alumni.ucl.ac.uk";
+
+/** The address, lower-cased, if it's a UCL alumni address; otherwise null. */
+export function alumniEmail(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const email = raw.trim().toLowerCase();
+  return email.length <= 254 && /^[^@\s]+@alumni\.ucl\.ac\.uk$/.test(email) ? email : null;
+}
+
+/** The student address an alumni address most likely replaced: the same name before the @, on ucl.ac.uk. */
+export function studentEmailFor(raw: string): string | null {
+  const email = alumniEmail(raw);
+  return email ? email.replace(/@alumni\.ucl\.ac\.uk$/, "@ucl.ac.uk") : null;
+}
+
+/**
+ * What to do when an alumni address has led sign-in to a members row:
+ * - `member`: they're still a member, so they sign in as one.
+ * - `alumnus`: a live grant already covers them.
+ * - `auto_grant`: a former member with no grant, so sign-in grants it itself
+ *   (the @alumni address is UCL vouching that they've left).
+ * - `refused`: no account, or a principal took their access away.
+ */
+export type AlumniLink = "member" | "alumnus" | "auto_grant" | "refused";
+
+export function alumniLink(
+  row: StandingRow | null,
+  grant: { revoked_at: string | null } | null,
+  now = new Date(),
+): AlumniLink {
+  if (!row) return "refused";
+  if (isCurrentMember(row, now)) return "member";
+  if (!grant) return "auto_grant";
+  return grant.revoked_at ? "refused" : "alumnus";
+}
+
 /** Whether sign-in should let this person in as an alumnus rather than turn them away. */
 export function signsInAsAlumnus(row: StandingRow | null, granted: boolean | null, now = new Date()): boolean {
   return archiveStanding(row, granted, now) === "alumnus";

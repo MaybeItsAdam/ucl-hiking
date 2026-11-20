@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isGovernanceRole, isMembershipTier } from "@/lib/access";
-import { signsInAsAlumnus } from "@/lib/alumni";
-import { isGrantedAlumnus } from "@/lib/alumniStore";
+import { alumniEmail, signsInAsAlumnus } from "@/lib/alumni";
+import { findAlumniSignIn, isGrantedAlumnus } from "@/lib/alumniStore";
 import { lockedGovernanceRole, lockedWalkLeader } from "@/lib/roleLocks";
 import { setSessionCookie } from "@/lib/session";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase";
@@ -142,6 +142,16 @@ export async function POST(request: Request) {
     }
   }
 
+  // Alumni sign in with an @alumni.ucl.ac.uk address, which is never the
+  // student address on their members row. Link them to it (lib/alumniStore):
+  // a former member found that way gets alumni access without waiting for a
+  // principal.
+  const signingInAsAlumniAddress = !member && !error && alumniEmail(identity.email) !== null;
+  if (signingInAsAlumniAddress) {
+    const linked = await findAlumniSignIn<NonNullable<typeof member>>(supabase, identity.email, identity.id, "id,email,full_name,membership_tier,governance_role,is_walk_leader,membership_expires_at,revoked_at,sync_source,governance_role_locked,walk_leader_locked");
+    if (linked) member = linked;
+  }
+
   const expired = member?.membership_expires_at
     ? new Date(member.membership_expires_at) < new Date()
     : false;
@@ -159,6 +169,15 @@ export async function POST(request: Request) {
   ) {
     // Toolbox reads the SU roster overnight, so a membership bought today
     // only lets someone in tomorrow.
+    if (signingInAsAlumniAddress) {
+      return NextResponse.json(
+        {
+          error:
+            "We couldn't match your alumni address to a past Hiking Club member. Ask a principal to add it to your alumni access on the Members page.",
+        },
+        { status: 403 },
+      );
+    }
     return NextResponse.json(
       {
         error:
@@ -172,7 +191,9 @@ export async function POST(request: Request) {
   const { error: updateError } = await supabase
     .from("members")
     .update({
-      toolbox_user_id: identity.id,
+      // Linked through an alumni address: the row keeps the login it was a
+      // member under, and the grant remembers the alumni address instead.
+      ...(member.email === identity.email ? { toolbox_user_id: identity.id } : {}),
       last_signed_in_at: new Date().toISOString(),
       ...(member.full_name ? {} : { full_name: identity.name }),
     })
